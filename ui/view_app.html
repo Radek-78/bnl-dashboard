@@ -382,6 +382,7 @@
                       <svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-folder"></use></svg>
                     </button>
                   </div>
+                  <button class="button button-secondary button-small write-only" type="button" id="useDefaultSyncFolderBtn" style="margin-top:8px;width:fit-content;">Použít výchozí složku filiálek</button>
                 </label>
                 <div class="form-row-2">
                   <label>
@@ -1123,6 +1124,9 @@ _sfState: {},
         const url = document.querySelector('#syncSettingsForm').elements.syncFolderUrl.value.trim();
         if (!url) { Ui.toast('Nejprve zadejte URL složky.', 'error'); return; }
         window.open(url, '_blank', 'noopener');
+      });
+      document.querySelector('#useDefaultSyncFolderBtn').addEventListener('click', () => {
+        document.querySelector('#syncSettingsForm').elements.syncFolderUrl.value = this.boot.defaultSyncFolderUrl || '';
       });
 
       document.querySelectorAll('[data-go-section]').forEach((btn) => {

@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.40', date: '17.7.2026', message: 'Wizard i Nastavení - Synchronizace: nové tlačítko Použít výchozí složku filiálek, které vyplní URL známé Drive složky (CONFIG.defaultSyncFolderUrl) - není nutné ji ručně dohledávat/kopírovat při prvním spuštění ani při dodatečném nastavení' },
   { version: 'v3.1.39', date: '17.7.2026', message: 'Oprava: apiGetHome hlásil onboardingComplete správně, ale chybělo upozornění na Domů, když sync proběhl a přitom neexistuje žádné aktivní LC - přidáno upozornění no_logistics (Nebylo vytvořeno žádné logistické centrum, akce Vytvořit vede do Log. centra)' },
   { version: 'v3.1.38', date: '17.7.2026', message: 'Onboarding: dokud neproběhne první synchronizace filiálek a neexistuje aspoň jedno aktivní logistické centrum, jsou sekce Uživatelé, Oprávnění, Aplikace a Audit v menu zamčené (apiGetHome.onboardingComplete); Log. centra: nové tlačítko pro nastavení výchozího LC (_settings.defaultLcCode, apiSetDefaultLogistic) - formulář nového uživatele pak přednastaví Výchozí lokaci na toto LC místo HQ' },
   { version: 'v3.1.37', date: '17.7.2026', message: 'Oprava: reset aplikace (TOOLS_resetInicializace i novy apiResetApplication) nyni maze i server cache, ne jen napojeni na DB - drive se mohla po resetu jeste chvili zobrazovat data ze stare databaze. Nastaveni: pridana sekce Kompletni reset aplikace jen pro superadmina (Ui.confirm, plna navigace na execUrl po dokonceni). Sdilena funkce clearAllDbCache_' },

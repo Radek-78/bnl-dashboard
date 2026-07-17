@@ -61,6 +61,7 @@
             <span id="wizFolderStatus" class="folder-status"></span>
           </span>
           <input id="wizSyncFolderUrl" type="url" placeholder="https://drive.google.com/drive/folders/...">
+          <button class="button button-secondary button-small" type="button" id="wizUseDefaultFolderBtn" style="margin-top:8px;width:fit-content;">Použít výchozí složku filiálek</button>
           <small class="form-hint">Budoucí superadmin musí mít složku nasdílenu. Lze nastavit i později.</small>
         </label>
       </section>
@@ -137,6 +138,10 @@
       document.querySelector('#wizBack').addEventListener('click', () => this.goTo(this.step - 1));
       document.querySelector('#wizNext').addEventListener('click', () => this.next());
       document.querySelector('#wizSyncFolderUrl').addEventListener('change', () => this.checkFolderAccess());
+      document.querySelector('#wizUseDefaultFolderBtn').addEventListener('click', () => {
+        document.querySelector('#wizSyncFolderUrl').value = boot.defaultSyncFolderUrl || '';
+        this.checkFolderAccess();
+      });
       this.goTo(1);
 
       google.script.run

@@ -34,6 +34,7 @@ function doGet(e) {
     appName: settings.appName || CONFIG.defaultAppName,
     appSubtitle: settings.appSubtitle || CONFIG.defaultAppSubtitle,
     logoUrl: CONFIG.logoUrl,
+    defaultSyncFolderUrl: CONFIG.defaultSyncFolderUrl,
     version: CONFIG.version,
     releaseDate: CONFIG.releaseDate,
     user: null,
