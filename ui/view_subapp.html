@@ -15,10 +15,8 @@
 
   <main class="subapp-main" id="subappContent">
     <div class="subapp-placeholder">
-      <div class="subapp-icon" id="subappShellIcon"></div>
-      <h2 id="subappPhName"></h2>
-      <p id="subappPhDesc"></p>
-      <span class="subapp-wip">Tato subaplikace je ve vývoji.</span>
+      <div class="loader-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <p>Načítám subaplikaci…</p>
     </div>
   </main>
 
@@ -78,10 +76,13 @@
       if (view) {
         view(document.querySelector('#subappContent'), app, user);
       } else {
-        Ui.setText('#subappPhName', app.name || '');
-        Ui.setText('#subappPhDesc', app.description || '');
-        const iconEl = document.querySelector('#subappShellIcon');
-        if (iconEl) iconEl.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24"><use href="#i-' + Ui.escape(app.icon || 'info') + '"></use></svg>';
+        document.querySelector('#subappContent').innerHTML =
+          '<div class="subapp-placeholder">' +
+          '<div class="subapp-icon"><svg width="48" height="48" viewBox="0 0 24 24"><use href="#i-' + Ui.escape(app.icon || 'info') + '"></use></svg></div>' +
+          '<h2>' + Ui.escape(app.name || '') + '</h2>' +
+          '<p>' + Ui.escape(app.description || '') + '</p>' +
+          '<span class="subapp-wip">Tato subaplikace je ve vývoji.</span>' +
+          '</div>';
       }
     },
 

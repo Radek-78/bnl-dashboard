@@ -25,6 +25,10 @@ const RZ_PATTERN_SETTING_KEY = {
   prideleni_po_artiklech: 'patternPrideleniPoArtiklech',
 };
 
+// Informace o artiklech nemá (zatím) vlastní záložku/import - jen uložený název
+// souboru, dokud nebude domluveno, jak přesně appka data z něj využije.
+const RZ_EXTRA_SETTING_KEYS = ['patternInformaceOArtiklech'];
+
 function rzApp_() {
   const app = dbGetAll_(SHEETS.APPS).find((a) => a.slug === RZ_SLUG);
   if (!app) throw new Error('Subaplikace Rozdělovník 20 artiklů nenalezena (založte ji v sekci Aplikace).');
@@ -80,7 +84,7 @@ function apiRzGetSettings() {
 function apiRzSaveSettings(payload) {
   return rzGuard_((user) => {
     if ((ROLE_LEVEL[user.role] || 0) < ROLE_LEVEL[ROLES.ADMIN]) throw new Error('Nemáte oprávnění měnit nastavení.');
-    const keys = ['syncFolderUrl'].concat(Object.values(RZ_PATTERN_SETTING_KEY));
+    const keys = ['syncFolderUrl'].concat(Object.values(RZ_PATTERN_SETTING_KEY), RZ_EXTRA_SETTING_KEYS);
     keys.forEach((key) => rzSettingsSet_(key, String((payload && payload[key]) || '').trim()));
     audit_('rz_settings_update', 'Aktualizace nastavení Rozdělovníku 20 artiklů.');
     return rzSettingsAll_();

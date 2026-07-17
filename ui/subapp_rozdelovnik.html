@@ -60,7 +60,7 @@
         RZ_TABS.map((t) => '<button class="rz-tabbtn' + (t.key === this.activeTab ? ' is-active' : '') +
           '" type="button" data-tab="' + t.key + '">' + Ui.escape(t.label) + '</button>').join('') +
         '</nav>' +
-        '<dialog class="modal" id="rzSettingsModal">' +
+        '<dialog class="modal modal-large" id="rzSettingsModal">' +
         '  <form id="rzSettingsForm">' +
         '    <header class="modal-header">' +
         '      <span class="modal-icon"><svg><use href="#i-settings"></use></svg></span>' +
@@ -78,6 +78,7 @@
         '          <label><span>Soubor Teoretické stavy — výraz v názvu</span><input name="patternTeoStavy" type="text" placeholder="např. teo_stavy"></label>' +
         '          <label><span>Soubor Vyskladňovací listy — výraz v názvu</span><input name="patternVyskladnovaciListy" type="text" placeholder="např. vyskladnovaci"></label>' +
         '          <label><span>Soubor Přidělení po artiklech — výraz v názvu</span><input name="patternPrideleniPoArtiklech" type="text" placeholder="např. prideleni"></label>' +
+        '          <label><span>Soubor Informace o artiklech — výraz v názvu</span><input name="patternInformaceOArtiklech" type="text" placeholder="např. informace_o_artiklech"></label>' +
         '        </div>' +
         '      </div>' +
         '    </div>' +
@@ -125,8 +126,10 @@
       const dis = this.canWrite ? '' : 'disabled';
 
       el.innerHTML =
+        '<div class="content-grid">' +
         '<section class="panel rz-compact">' +
-        '  <div class="table-wrap"><table><thead><tr><th>Artikl</th><th>Název</th><th>K rozdělení</th><th>Počet dnů</th><th>Metropol</th></tr></thead><tbody>' +
+        '  <div class="panel-header"><div><h2>Artikly</h2></div></div>' +
+        '  <div class="table-wrap"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>K rozdělení</th><th>Počet dnů</th><th>Metropol</th></tr></thead><tbody>' +
         rows.map((r, i) =>
           '<tr>' +
           '<td><input data-i="' + i + '" data-f="cislo_artiklu" value="' + Ui.escape(r.cislo_artiklu || '') + '" ' + dis + '></td>' +
@@ -140,14 +143,15 @@
         '</section>' +
         '<section class="panel rz-compact">' +
         '  <div class="panel-header"><div><h2>Filiálky</h2></div></div>' +
-        '  <div class="table-wrap"><table><thead><tr><th>Prodejna</th><th>Název</th><th>Metropol</th></tr></thead><tbody>' +
+        '  <div class="table-wrap"><table class="rz-stores-table"><thead><tr><th>Prodejna</th><th>Název</th><th>Metropol</th></tr></thead><tbody>' +
         (this.stores.length
           ? this.stores.map((s) => '<tr><td>' + Ui.escape(s.code) + '</td><td>' + Ui.escape(s.name) + '</td><td style="text-align:center">' +
               (s.metropolitni ? '<svg width="14" height="14"><use href="#i-check"></use></svg>' : '—') + '</td></tr>').join('')
           : '<tr><td colspan="3">Načítám…</td></tr>') +
         '  </tbody></table></div>' +
         '  <p class="form-hint">Metropol se nastavuje v hlavním dashboardu v sekci Filiálky — tady je jen pro přehled.</p>' +
-        '</section>';
+        '</section>' +
+        '</div>';
 
       if (this.canWrite) {
         el.querySelector('#rzSaveArtikly').addEventListener('click', () => this.saveArtikly());
@@ -239,6 +243,7 @@
           f.elements.patternTeoStavy.value = this.settings.patternTeoStavy || '';
           f.elements.patternVyskladnovaciListy.value = this.settings.patternVyskladnovaciListy || '';
           f.elements.patternPrideleniPoArtiklech.value = this.settings.patternPrideleniPoArtiklech || '';
+          f.elements.patternInformaceOArtiklech.value = this.settings.patternInformaceOArtiklech || '';
           Ui.openModal(this.container.querySelector('#rzSettingsModal'));
         })
         .catch((e) => Ui.toast(e.message, 'error'));
@@ -251,6 +256,7 @@
         patternTeoStavy: form.elements.patternTeoStavy.value.trim(),
         patternVyskladnovaciListy: form.elements.patternVyskladnovaciListy.value.trim(),
         patternPrideleniPoArtiklech: form.elements.patternPrideleniPoArtiklech.value.trim(),
+        patternInformaceOArtiklech: form.elements.patternInformaceOArtiklech.value.trim(),
       };
       Ui.closeModal(this.container.querySelector('#rzSettingsModal'));
       Ui.call('apiRzSaveSettings', payload, { silent: true, busy: 'Ukládám nastavení…' })
