@@ -95,6 +95,9 @@ function apiGetHome() {
   return guard_(ROLES.USER, (user) => {
     const isAdmin = (ROLE_LEVEL[user.role] || 0) >= ROLE_LEVEL[ROLES.ADMIN];
     const s = isAdmin ? settingsAll_() : {};
+    const stores = dbGetAll_(SHEETS.STORES);
+    const logistics = dbGetAll_(SHEETS.LOGISTICS);
+    const logisticsActive = logistics.filter((lc) => lc.active === true).length;
     const warnings = [];
     if (isAdmin) {
       if (!s.syncFolderUrl) {
@@ -105,10 +108,10 @@ function apiGetHome() {
       if (!s.lastSyncAt) {
         warnings.push({ key: 'never_synced', message: 'Synchronizace filiálek nebyla ještě nikdy spuštěna.', action: 'Synchronizovat', section: 'sync' });
       }
+      if (logisticsActive === 0) {
+        warnings.push({ key: 'no_logistics', message: 'Nebylo vytvořeno žádné logistické centrum.', action: 'Vytvořit', section: 'logistics' });
+      }
     }
-    const stores = dbGetAll_(SHEETS.STORES);
-    const logistics = dbGetAll_(SHEETS.LOGISTICS);
-    const logisticsActive = logistics.filter((lc) => lc.active === true).length;
     const lastSyncAt = isAdmin ? s.lastSyncAt : settingsAll_().lastSyncAt;
     return {
       warnings: warnings,

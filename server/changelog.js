@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.39', date: '17.7.2026', message: 'Oprava: apiGetHome hlásil onboardingComplete správně, ale chybělo upozornění na Domů, když sync proběhl a přitom neexistuje žádné aktivní LC - přidáno upozornění no_logistics (Nebylo vytvořeno žádné logistické centrum, akce Vytvořit vede do Log. centra)' },
   { version: 'v3.1.38', date: '17.7.2026', message: 'Onboarding: dokud neproběhne první synchronizace filiálek a neexistuje aspoň jedno aktivní logistické centrum, jsou sekce Uživatelé, Oprávnění, Aplikace a Audit v menu zamčené (apiGetHome.onboardingComplete); Log. centra: nové tlačítko pro nastavení výchozího LC (_settings.defaultLcCode, apiSetDefaultLogistic) - formulář nového uživatele pak přednastaví Výchozí lokaci na toto LC místo HQ' },
   { version: 'v3.1.37', date: '17.7.2026', message: 'Oprava: reset aplikace (TOOLS_resetInicializace i novy apiResetApplication) nyni maze i server cache, ne jen napojeni na DB - drive se mohla po resetu jeste chvili zobrazovat data ze stare databaze. Nastaveni: pridana sekce Kompletni reset aplikace jen pro superadmina (Ui.confirm, plna navigace na execUrl po dokonceni). Sdilena funkce clearAllDbCache_' },
   { version: 'v3.1.36', date: '16.7.2026', message: 'Oprava razeni: sloupce s cisly (napr. cislo filialky) se v tabulkach nyni radi numericky misto textove (11 uz nepredbehne 5,6,7,9); sjednocena logika razeni s filtrem hodnot sloupce do sdilene funkce _compareVals' },
