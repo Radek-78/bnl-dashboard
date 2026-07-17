@@ -136,13 +136,20 @@ function apiRzSaveArtikly(rows) {
   });
 }
 
-/** Referenční přehled filiálek (Metropol se nastavuje v hlavním dashboardu — čteme napřímo hlavní DB). */
+/**
+ * Referenční přehled filiálek (Metropol se nastavuje v hlavním dashboardu — čteme napřímo hlavní DB).
+ * Appka je postavená pro jedno konkrétní LC — vracíme jen filiálky spadající pod
+ * výchozí LC nastavené v hlavním dashboardu (Log. centra), ne celou síť.
+ */
 function apiRzListStores() {
-  return rzGuard_(() => dbGetAll_(SHEETS.STORES)
-    .filter((s) => s.active === true)
-    .map((s) => ({ code: s.code, name: s.name, metropolitni: !!s.metropolitni }))
-    .sort((a, b) => String(a.code).localeCompare(String(b.code)))
-  );
+  return rzGuard_(() => {
+    const defaultLcCode = String(settingsAll_().defaultLcCode || '').trim().toUpperCase();
+    if (!defaultLcCode) throw new Error('V hlavním dashboardu není nastaveno výchozí logistické centrum (sekce Log. centra).');
+    return dbGetAll_(SHEETS.STORES)
+      .filter((s) => s.active === true && String(s.lc_code).trim().toUpperCase() === defaultLcCode)
+      .map((s) => ({ code: s.code, name: s.name, metropolitni: !!s.metropolitni }))
+      .sort((a, b) => String(a.code).localeCompare(String(b.code)));
+  });
 }
 
 /* ── Import zdrojových souborů (dynamické schéma) ────────────────

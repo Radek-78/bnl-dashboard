@@ -68,12 +68,17 @@
         '      <button class="modal-close" type="button" id="rzCloseSettingsBtn" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>' +
         '    </header>' +
         '    <div class="modal-body">' +
-        '      <div class="form form-plain">' +
-        '        <label><span>Složka se zdrojovými soubory (URL nebo ID)</span><input name="syncFolderUrl" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
-        '        <label><span>Soubor Odprodej — výraz v názvu</span><input name="patternOdprodej" type="text" placeholder="např. odprodej"></label>' +
-        '        <label><span>Soubor Teoretické stavy — výraz v názvu</span><input name="patternTeoStavy" type="text" placeholder="např. teo_stavy"></label>' +
-        '        <label><span>Soubor Vyskladňovací listy — výraz v názvu</span><input name="patternVyskladnovaciListy" type="text" placeholder="např. vyskladnovaci"></label>' +
-        '        <label><span>Soubor Přidělení po artiklech — výraz v názvu</span><input name="patternPrideleniPoArtiklech" type="text" placeholder="např. prideleni"></label>' +
+        '      <div class="rz-modal-tabs">' +
+        '        <button class="rz-modal-tabbtn is-active" type="button" data-settings-tab="soubory">Zdrojové soubory</button>' +
+        '      </div>' +
+        '      <div class="rz-settings-panel" data-settings-panel="soubory">' +
+        '        <div class="form form-plain">' +
+        '          <label><span>Složka se zdrojovými soubory (URL nebo ID)</span><input name="syncFolderUrl" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
+        '          <label><span>Soubor Odprodej — výraz v názvu</span><input name="patternOdprodej" type="text" placeholder="např. odprodej"></label>' +
+        '          <label><span>Soubor Teoretické stavy — výraz v názvu</span><input name="patternTeoStavy" type="text" placeholder="např. teo_stavy"></label>' +
+        '          <label><span>Soubor Vyskladňovací listy — výraz v názvu</span><input name="patternVyskladnovaciListy" type="text" placeholder="např. vyskladnovaci"></label>' +
+        '          <label><span>Soubor Přidělení po artiklech — výraz v názvu</span><input name="patternPrideleniPoArtiklech" type="text" placeholder="např. prideleni"></label>' +
+        '        </div>' +
         '      </div>' +
         '    </div>' +
         '    <footer class="modal-actions">' +
@@ -89,6 +94,13 @@
       this.container.querySelector('#rzCloseSettingsBtn').addEventListener('click', () => Ui.closeModal(this.container.querySelector('#rzSettingsModal')));
       this.container.querySelector('#rzCancelSettingsBtn').addEventListener('click', () => Ui.closeModal(this.container.querySelector('#rzSettingsModal')));
       this.container.querySelector('#rzSettingsForm').addEventListener('submit', (e) => { e.preventDefault(); this.saveSettings(e.target); });
+      this.container.querySelectorAll('.rz-modal-tabbtn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.settingsTab;
+          this.container.querySelectorAll('.rz-modal-tabbtn').forEach((b) => b.classList.toggle('is-active', b === btn));
+          this.container.querySelectorAll('.rz-settings-panel').forEach((p) => p.classList.toggle('is-hidden', p.dataset.settingsPanel !== key));
+        });
+      });
 
       this.renderTabContent();
     },
@@ -113,7 +125,7 @@
       const dis = this.canWrite ? '' : 'disabled';
 
       el.innerHTML =
-        '<section class="panel">' +
+        '<section class="panel rz-compact">' +
         '  <div class="table-wrap"><table><thead><tr><th>Artikl</th><th>Název</th><th>K rozdělení</th><th>Počet dnů</th><th>Metropol</th></tr></thead><tbody>' +
         rows.map((r, i) =>
           '<tr>' +
@@ -126,7 +138,7 @@
         '  </tbody></table></div>' +
         (this.canWrite ? '  <div class="form-actions"><button class="button button-primary button-small" type="button" id="rzSaveArtikly"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit artikly</button></div>' : '') +
         '</section>' +
-        '<section class="panel">' +
+        '<section class="panel rz-compact">' +
         '  <div class="panel-header"><div><h2>Filiálky</h2></div></div>' +
         '  <div class="table-wrap"><table><thead><tr><th>Prodejna</th><th>Název</th><th>Metropol</th></tr></thead><tbody>' +
         (this.stores.length
@@ -218,7 +230,7 @@
     },
 
     openSettings() {
-      Ui.call('apiRzGetSettings', null, { silent: true })
+      Ui.call('apiRzGetSettings', null, { silent: true, busy: 'Načítám nastavení…' })
         .then((s) => {
           this.settings = s || {};
           const f = this.container.querySelector('#rzSettingsForm');
