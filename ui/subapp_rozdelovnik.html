@@ -20,6 +20,8 @@
     stores: [],
     settings: {},
     importData: {},
+    lcInfo: { abbreviation: '', code: '' },
+    folderPreviews: {},
 
     init(container, app, user) {
       this.container = container;
@@ -70,16 +72,29 @@
         '    <div class="modal-body">' +
         '      <div class="rz-modal-tabs">' +
         '        <button class="rz-modal-tabbtn is-active" type="button" data-settings-tab="soubory">Zdrojové soubory</button>' +
+        '        <button class="rz-modal-tabbtn" type="button" data-settings-tab="informace">Informace o artiklech</button>' +
         '      </div>' +
         '      <div class="rz-settings-panel" data-settings-panel="soubory">' +
         '        <div class="form form-plain">' +
-        '          <label><span>Složka se zdrojovými soubory (URL nebo ID)</span><input name="syncFolderUrl" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
-        '          <label><span>Soubor Odprodej — výraz v názvu</span><input name="patternOdprodej" type="text" placeholder="např. odprodej"></label>' +
-        '          <label><span>Soubor Teoretické stavy — výraz v názvu</span><input name="patternTeoStavy" type="text" placeholder="např. teo_stavy"></label>' +
-        '          <label><span>Soubor Vyskladňovací listy — výraz v názvu</span><input name="patternVyskladnovaciListy" type="text" placeholder="např. vyskladnovaci"></label>' +
-        '          <label><span>Soubor Přidělení po artiklech — výraz v názvu</span><input name="patternPrideleniPoArtiklech" type="text" placeholder="např. prideleni"></label>' +
-        '          <label><span>Soubor Informace o artiklech — výraz v názvu</span><input name="patternInformaceOArtiklech" type="text" placeholder="např. informace_o_artiklech"></label>' +
+        '          <label><span>Složka se zdrojovými soubory (URL nebo ID)</span><input name="syncFolderUrl" type="text" placeholder="https://drive.google.com/drive/folders/..." data-folder-for="soubory"></label>' +
         '        </div>' +
+        '        <div class="rz-folder-preview" data-preview-for="soubory"></div>' +
+        '        <div class="form form-plain">' +
+        '          <label><span>Soubor Odprodej — výraz v názvu</span><input name="patternOdprodej" type="text" placeholder="např. odprodej" data-match-tab="soubory" data-match-key="patternOdprodej"><small class="rz-match-status" data-match-status="patternOdprodej"></small></label>' +
+        '          <label><span>Soubor Teoretické stavy — výraz v názvu</span><input name="patternTeoStavy" type="text" placeholder="např. teo_stavy" data-match-tab="soubory" data-match-key="patternTeoStavy"><small class="rz-match-status" data-match-status="patternTeoStavy"></small></label>' +
+        '          <label><span>Soubor Vyskladňovací listy — výraz v názvu</span><input name="patternVyskladnovaciListy" type="text" placeholder="např. vyskladnovaci" data-match-tab="soubory" data-match-key="patternVyskladnovaciListy"><small class="rz-match-status" data-match-status="patternVyskladnovaciListy"></small></label>' +
+        '          <label><span>Soubor Přidělení po artiklech — výraz v názvu</span><input name="patternPrideleniPoArtiklech" type="text" placeholder="např. prideleni" data-match-tab="soubory" data-match-key="patternPrideleniPoArtiklech"><small class="rz-match-status" data-match-status="patternPrideleniPoArtiklech"></small></label>' +
+        '        </div>' +
+        '      </div>' +
+        '      <div class="rz-settings-panel is-hidden" data-settings-panel="informace">' +
+        '        <div class="form form-plain">' +
+        '          <label><span>Složka s informacemi o artiklech (URL nebo ID)</span><input name="folderInformaceOArtiklech" type="text" placeholder="https://drive.google.com/drive/folders/..." data-folder-for="informace"></label>' +
+        '        </div>' +
+        '        <div class="rz-folder-preview" data-preview-for="informace"></div>' +
+        '        <div class="form form-plain">' +
+        '          <label><span>Výraz v názvu souboru</span><input name="patternInformaceOArtiklech" type="text" placeholder="např. informace_o_artiklech" data-match-tab="informace" data-match-key="patternInformaceOArtiklech"><small class="rz-match-status" data-match-status="patternInformaceOArtiklech"></small></label>' +
+        '        </div>' +
+        '        <p class="form-hint">Hledá se soubor, jehož název obsahuje zadaný výraz a zároveň číslo LC (<strong id="rzLcCodeInfo">—</strong>).</p>' +
         '      </div>' +
         '    </div>' +
         '    <footer class="modal-actions">' +
@@ -101,6 +116,12 @@
           this.container.querySelectorAll('.rz-modal-tabbtn').forEach((b) => b.classList.toggle('is-active', b === btn));
           this.container.querySelectorAll('.rz-settings-panel').forEach((p) => p.classList.toggle('is-hidden', p.dataset.settingsPanel !== key));
         });
+      });
+      this.container.querySelectorAll('[data-folder-for]').forEach((input) => {
+        input.addEventListener('blur', () => this.refreshFolderPreview(input.dataset.folderFor, input.value.trim()));
+      });
+      this.container.querySelectorAll('[data-match-key]').forEach((input) => {
+        input.addEventListener('input', () => this.renderMatchStatus(input.dataset.matchTab));
       });
 
       this.renderTabContent();
@@ -128,7 +149,7 @@
       el.innerHTML =
         '<div class="content-grid">' +
         '<section class="panel rz-compact">' +
-        '  <div class="panel-header"><div><h2>Artikly</h2></div></div>' +
+        '  <div class="panel-header panel-header--compact"><div><h2>Artikly</h2></div></div>' +
         '  <div class="table-wrap"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>K rozdělení</th><th>Počet dnů</th><th>Metropol</th></tr></thead><tbody>' +
         rows.map((r, i) =>
           '<tr>' +
@@ -142,7 +163,7 @@
         (this.canWrite ? '  <div class="form-actions"><button class="button button-primary button-small" type="button" id="rzSaveArtikly"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit artikly</button></div>' : '') +
         '</section>' +
         '<section class="panel rz-compact">' +
-        '  <div class="panel-header"><div><h2>Filiálky</h2></div></div>' +
+        '  <div class="panel-header panel-header--compact"><div><h2>Filiálky</h2></div></div>' +
         '  <div class="table-wrap"><table class="rz-stores-table"><thead><tr><th>Prodejna</th><th>Název</th><th>Metropol</th></tr></thead><tbody>' +
         (this.stores.length
           ? this.stores.map((s) => '<tr><td>' + Ui.escape(s.code) + '</td><td>' + Ui.escape(s.name) + '</td><td style="text-align:center">' +
@@ -243,10 +264,58 @@
           f.elements.patternTeoStavy.value = this.settings.patternTeoStavy || '';
           f.elements.patternVyskladnovaciListy.value = this.settings.patternVyskladnovaciListy || '';
           f.elements.patternPrideleniPoArtiklech.value = this.settings.patternPrideleniPoArtiklech || '';
+          f.elements.folderInformaceOArtiklech.value = this.settings.folderInformaceOArtiklech || '';
           f.elements.patternInformaceOArtiklech.value = this.settings.patternInformaceOArtiklech || '';
           Ui.openModal(this.container.querySelector('#rzSettingsModal'));
+          if (this.settings.syncFolderUrl) this.refreshFolderPreview('soubory', this.settings.syncFolderUrl);
+          if (this.settings.folderInformaceOArtiklech) this.refreshFolderPreview('informace', this.settings.folderInformaceOArtiklech);
+          Ui.call('apiRzGetLcInfo', null, { silent: true })
+            .then((info) => {
+              this.lcInfo = info || { abbreviation: '', code: '' };
+              Ui.setText('#rzLcCodeInfo', this.lcInfo.code ? (this.lcInfo.code + ' / ' + this.lcInfo.abbreviation) : 'není nastaveno');
+              this.renderMatchStatus('informace');
+            })
+            .catch(() => {});
         })
         .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /** Načte seznam souborů ve složce (živý náhled) a přepočítá, který soubor odpovídá zadaným výrazům. */
+    refreshFolderPreview(tabKey, folderValue) {
+      const previewEl = this.container.querySelector('[data-preview-for="' + tabKey + '"]');
+      if (!folderValue) { if (previewEl) previewEl.innerHTML = ''; this.folderPreviews[tabKey] = []; this.renderMatchStatus(tabKey); return; }
+      if (previewEl) previewEl.innerHTML = '<p class="form-hint">Načítám obsah složky…</p>';
+      Ui.call('apiRzPreviewFolder', folderValue, { silent: true })
+        .then((res) => {
+          this.folderPreviews[tabKey] = res.files || [];
+          if (previewEl) {
+            previewEl.innerHTML = res.files.length
+              ? '<p class="form-hint">Soubory ve složce „' + Ui.escape(res.folderName) + '": ' + res.files.map((f) => Ui.escape(f.name)).join(', ') + '</p>'
+              : '<p class="form-hint">Ve složce „' + Ui.escape(res.folderName) + '" nejsou žádné podporované soubory (.xlsx/.csv/Google Sheets).</p>';
+          }
+          this.renderMatchStatus(tabKey);
+        })
+        .catch((e) => {
+          this.folderPreviews[tabKey] = [];
+          if (previewEl) previewEl.innerHTML = '<p class="form-hint" style="color:var(--lidl-red)">' + Ui.escape(e.message) + '</p>';
+        });
+    },
+
+    /** Podle živě zadávaného výrazu (a pro Informace o artiklech i čísla LC) ukáže, který soubor by se právě našel. */
+    renderMatchStatus(tabKey) {
+      const files = this.folderPreviews[tabKey] || [];
+      this.container.querySelectorAll('[data-match-tab="' + tabKey + '"]').forEach((input) => {
+        const statusEl = this.container.querySelector('[data-match-status="' + input.dataset.matchKey + '"]');
+        if (!statusEl) return;
+        const needle = input.value.trim().toLowerCase();
+        if (!needle) { statusEl.textContent = ''; return; }
+        const extraNeedle = tabKey === 'informace' ? String(this.lcInfo.code || '').toLowerCase() : '';
+        const found = files
+          .filter((f) => f.name.toLowerCase().indexOf(needle) !== -1 && (!extraNeedle || f.name.toLowerCase().indexOf(extraNeedle) !== -1))
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+        statusEl.textContent = found ? ('✓ Nalezeno: ' + found.name) : '✗ Nenalezeno';
+        statusEl.style.color = found ? '#007a45' : 'var(--lidl-red)';
+      });
     },
 
     saveSettings(form) {
@@ -256,6 +325,7 @@
         patternTeoStavy: form.elements.patternTeoStavy.value.trim(),
         patternVyskladnovaciListy: form.elements.patternVyskladnovaciListy.value.trim(),
         patternPrideleniPoArtiklech: form.elements.patternPrideleniPoArtiklech.value.trim(),
+        folderInformaceOArtiklech: form.elements.folderInformaceOArtiklech.value.trim(),
         patternInformaceOArtiklech: form.elements.patternInformaceOArtiklech.value.trim(),
       };
       Ui.closeModal(this.container.querySelector('#rzSettingsModal'));

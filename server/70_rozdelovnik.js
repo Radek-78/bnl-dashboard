@@ -25,9 +25,11 @@ const RZ_PATTERN_SETTING_KEY = {
   prideleni_po_artiklech: 'patternPrideleniPoArtiklech',
 };
 
-// Informace o artiklech nemá (zatím) vlastní záložku/import - jen uložený název
-// souboru, dokud nebude domluveno, jak přesně appka data z něj využije.
-const RZ_EXTRA_SETTING_KEYS = ['patternInformaceOArtiklech'];
+// Informace o artiklech nemá (zatím) vlastní záložku/import - jen uložená
+// složka a název souboru, dokud nebude domluveno, jak přesně appka data z něj
+// využije. Má vlastní složku (jinou než ostatní 4 soubory) a hledá se v ní
+// i podle čísla LC, ne jen podle výrazu v názvu.
+const RZ_EXTRA_SETTING_KEYS = ['folderInformaceOArtiklech', 'patternInformaceOArtiklech'];
 
 function rzApp_() {
   const app = dbGetAll_(SHEETS.APPS).find((a) => a.slug === RZ_SLUG);
@@ -88,6 +90,44 @@ function apiRzSaveSettings(payload) {
     keys.forEach((key) => rzSettingsSet_(key, String((payload && payload[key]) || '').trim()));
     audit_('rz_settings_update', 'Aktualizace nastavení Rozdělovníku 20 artiklů.');
     return rzSettingsAll_();
+  });
+}
+
+/**
+ * Vrátí seznam souborů (.xlsx/.csv/Google Sheets) v zadané složce — pro živý
+ * náhled v Nastavení, ať uživatel hned vidí, co se v jaké složce reálně
+ * nachází a jestli zadaný výraz něco najde.
+ */
+function apiRzPreviewFolder(folderInput) {
+  return rzGuard_(() => {
+    const folderId = rzExtractFolderId_(folderInput);
+    if (!folderId) throw new Error('Neplatná URL nebo ID složky.');
+    let folder;
+    try {
+      folder = DriveApp.getFolderById(folderId);
+    } catch (e) {
+      throw new Error('Složku se nepodařilo otevřít: ' + e.message);
+    }
+    const files = [];
+    [MimeType.MICROSOFT_EXCEL, MimeType.GOOGLE_SHEETS, MimeType.CSV].forEach((mimeType) => {
+      const it = folder.getFilesByType(mimeType);
+      while (it.hasNext()) {
+        const f = it.next();
+        files.push({ name: f.getName(), updatedAt: f.getLastUpdated().toISOString() });
+      }
+    });
+    files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return { folderName: folder.getName(), files: files };
+  });
+}
+
+/** Číslo a zkratka výchozího LC appky (Informace o artiklech se podle čísla LC dohledává). */
+function apiRzGetLcInfo() {
+  return rzGuard_(() => {
+    const abbreviation = String(settingsAll_().defaultLcCode || '').trim().toUpperCase();
+    if (!abbreviation) return { abbreviation: '', code: '' };
+    const lc = dbGetAll_(SHEETS.LOGISTICS).find((l) => String(l.abbreviation).toUpperCase() === abbreviation);
+    return { abbreviation: abbreviation, code: lc ? lc.code : '' };
   });
 }
 
