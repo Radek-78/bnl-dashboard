@@ -1574,6 +1574,37 @@
     padding: 4px 10px;
   }
 
+  .rz-tabbar {
+    background: var(--white);
+    border-top: 1px solid var(--line);
+    bottom: 0;
+    display: flex;
+    position: sticky;
+    z-index: 5;
+  }
+
+  .rz-tabbtn {
+    background: transparent;
+    border: 0;
+    border-top: 2px solid transparent;
+    color: var(--muted);
+    cursor: pointer;
+    flex: 1;
+    font-size: 12px;
+    padding: 10px 4px;
+    transition: color 0.12s, border-color 0.12s;
+  }
+
+  .rz-tabbtn:hover {
+    color: var(--lidl-blue);
+  }
+
+  .rz-tabbtn.is-active {
+    border-top-color: var(--lidl-blue);
+    color: var(--lidl-blue);
+    font-weight: 700;
+  }
+
   /* ── Panel body ──────────────────────────────────── */
 
   .panel-body {
