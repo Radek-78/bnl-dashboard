@@ -98,6 +98,10 @@ function apiGetHome() {
     const stores = dbGetAll_(SHEETS.STORES);
     const logistics = dbGetAll_(SHEETS.LOGISTICS);
     const logisticsActive = logistics.filter((lc) => lc.active === true).length;
+    const defaultLcCode = isAdmin ? s.defaultLcCode : settingsAll_().defaultLcCode;
+    const defaultLcValid = !!defaultLcCode && logistics.some(
+      (lc) => lc.active === true && String(lc.abbreviation).toUpperCase() === String(defaultLcCode).toUpperCase()
+    );
     const warnings = [];
     if (isAdmin) {
       if (!s.syncFolderUrl) {
@@ -110,6 +114,8 @@ function apiGetHome() {
       }
       if (logisticsActive === 0) {
         warnings.push({ key: 'no_logistics', message: 'Nebylo vytvořeno žádné logistické centrum.', action: 'Vytvořit', section: 'logistics' });
+      } else if (!defaultLcValid) {
+        warnings.push({ key: 'no_default_logistics', message: 'Není nastaveno výchozí logistické centrum.', action: 'Nastavit', section: 'logistics' });
       }
     }
     const lastSyncAt = isAdmin ? s.lastSyncAt : settingsAll_().lastSyncAt;
@@ -120,9 +126,10 @@ function apiGetHome() {
       storesTempClosed: stores.filter((st) => st.active === true && isTempClosedNow_(st)).length,
       logisticsActive: logisticsActive,
       lastChange: isAdmin ? (dbReadTail_(SHEETS.AUDIT, 1)[0] || null) : null,
-      // Dokud neproběhla první synchronizace filiálek a neexistuje aktivní LC,
-      // frontend touto hodnotou zamyká administrační sekce menu.
-      onboardingComplete: !!lastSyncAt && logisticsActive > 0,
+      // Dokud neproběhla první synchronizace filiálek, neexistuje aktivní LC
+      // a žádné z nich není nastaveno jako výchozí, frontend touto hodnotou
+      // zamyká administrační sekce menu.
+      onboardingComplete: !!lastSyncAt && defaultLcValid,
     };
   });
 }
