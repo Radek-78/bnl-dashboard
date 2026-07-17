@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.45', date: '17.7.2026', message: 'Oprava: modal Přidat/Upravit aplikaci - pattern pole Odkaz způsoboval v novějším Chrome pád reportValidity (Invalid regular expression .../v: Invalid character class), pomlčka přesunuta na začátek třídy znaků [-a-z0-9]+; odstraněn autofocus na poli Název, který stejně blokuje prohlížeč v sandboxovaném iframe (jen zbytečné varování v konzoli)' },
   { version: 'v3.1.44', date: '17.7.2026', message: 'Subaplikace: nová obecná repository vrstva pro vlastní DB (server/25_subapp_db.js, createDbRepo_/provisionSubAppDb_, cache navíc namespacovaná spreadsheetId) - při vytvoření nové subaplikace v sekci Aplikace se automaticky založí vlastní podsložka a spreadsheet jako její DB (apps.db_spreadsheet_id); selhání Drive/Sheets appku nezablokuje, jen zapíše audit app_db_provision_failed' },
   { version: 'v3.1.43', date: '17.7.2026', message: 'Oprava: nastavení výchozího LC, vytvoření LC a spuštění synchronizace ze sekce Synchronizace nyní rovnou přepočítají onboardingComplete a odemknou menu (loadHome se volá i mimo Domů) - dřív bylo nutné přejít na Domů, aby se stav projevil' },
   { version: 'v3.1.42', date: '17.7.2026', message: 'Log. centra: označení výchozího LC je nyní výraznější - plná žlutá hvězdička (nový symbol i-star-filled) na žlutém podkladu s tmavě modrou ikonou, stejná barevná kombinace jako aktivní položka menu; ostatní řádky mají jen obrysovou hvězdičku pro akci Nastavit jako výchozí' },

@@ -2187,9 +2187,9 @@ _sfState: {},
           <div class="modal-body modal-app-body">
             <div class="form form-plain modal-app-form">
               ${app ? `<input type="hidden" name="id" value="${Ui.escape(app.id)}">` : ''}
-              <label><span>Název</span><input name="name" id="appName" type="text" value="${Ui.escape(name)}" required autofocus></label>
+              <label><span>Název</span><input name="name" id="appName" type="text" value="${Ui.escape(name)}" required></label>
               <label><span>Popis</span><input name="description" id="appDesc" type="text" value="${Ui.escape(desc)}"></label>
-              <label><span>Odkaz v URL (?app=…)</span><input name="slug" id="appSlug" type="text" value="${Ui.escape(isNew ? '' : (app.slug || ''))}" placeholder="např. sklad" pattern="[a-z0-9-]+" title="Jen malá písmena, číslice a pomlčky"></label>
+              <label><span>Odkaz v URL (?app=…)</span><input name="slug" id="appSlug" type="text" value="${Ui.escape(isNew ? '' : (app.slug || ''))}" placeholder="např. sklad" pattern="[-a-z0-9]+" title="Jen malá písmena, číslice a pomlčky"></label>
               <div>
                 <span class="form-field-label">Ikona</span>
                 <input type="hidden" name="icon" id="appIconInput" value="${Ui.escape(icon)}">
