@@ -735,9 +735,22 @@ function apiSaveApp(payload) {
     if (slugTaken) throw new Error('Aplikace s tímto odkazem už existuje.');
     data.slug = slug;
 
-    const saved = existing
+    let saved = existing
       ? dbUpdate_(SHEETS.APPS, existing.id, data)
       : dbInsert_(SHEETS.APPS, data);
+
+    // Nová subaplikace dostává vlastní podsložku + spreadsheet jako svou DB
+    // (viz 25_subapp_db.js) — selhání Drive/Sheets volání appku nezablokuje,
+    // jen se o tom zapíše audit záznam a db_spreadsheet_id zůstane prázdné.
+    if (!existing) {
+      try {
+        const dbSpreadsheetId = provisionSubAppDb_(name);
+        saved = dbUpdate_(SHEETS.APPS, saved.id, { db_spreadsheet_id: dbSpreadsheetId });
+      } catch (e) {
+        console.error('Vytvoření DB pro subaplikaci selhalo: ' + e);
+        audit_('app_db_provision_failed', name + ': ' + e.message);
+      }
+    }
 
     // Posun ostatních aplikací pokud bylo zadáno konkrétní pořadí — jedním dávkovým zápisem
     // místo N jednotlivých dbUpdate_ (každý čte a zamyká celý list zvlášť).
