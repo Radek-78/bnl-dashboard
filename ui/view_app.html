@@ -1,0 +1,3540 @@
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <img class="brand-logo" id="brandLogo" alt="Lidl">
+      <span class="brand-text">
+        <strong id="brandName"></strong>
+        <small id="brandSubtitle"></small>
+      </span>
+    </div>
+
+    <nav class="navigation" aria-label="Hlavní navigace">
+      <p>Přehled</p>
+      <button class="nav-link is-active" type="button" data-section="home" data-tooltip="Domů"><svg><use href="#i-home"></use></svg><span>Domů</span></button>
+      
+      <p>Data sítě</p>
+      <button class="nav-link" type="button" data-section="stores" data-tooltip="Filiálky"><svg><use href="#i-store"></use></svg><span>Filiálky</span></button>
+      <button class="nav-link" type="button" data-section="logistics" data-tooltip="Log. centra"><svg><use href="#i-truck"></use></svg><span>Log. centra</span></button>
+      
+      <p class="admin-only">Administrace</p>
+      <button class="nav-link admin-only" type="button" data-section="sync" data-tooltip="Synchronizace"><svg><use href="#i-sync"></use></svg><span>Synchronizace</span></button>
+      <button class="nav-link admin-only onboard-lock" type="button" data-section="users" data-tooltip="Uživatelé"><svg><use href="#i-users"></use></svg><span>Uživatelé</span></button>
+      <button class="nav-link admin-only onboard-lock" type="button" data-section="roles" data-tooltip="Oprávnění"><svg><use href="#i-shield"></use></svg><span>Oprávnění</span></button>
+      <button class="nav-link admin-only onboard-lock" type="button" data-section="apps" data-tooltip="Aplikace"><svg><use href="#i-grid"></use></svg><span>Aplikace</span></button>
+      <button class="nav-link admin-only" type="button" data-section="settings" data-tooltip="Nastavení"><svg><use href="#i-settings"></use></svg><span>Nastavení</span></button>
+      <button class="nav-link admin-only onboard-lock" type="button" data-section="audit" data-tooltip="Audit"><svg><use href="#i-list"></use></svg><span>Audit</span></button>
+    </nav>
+
+    <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Přepnout postranní panel">
+      <svg><use href="#i-chevron-right"></use></svg>
+      <span>Skrýt panel</span>
+    </button>
+
+    <div class="sidebar-user">
+      <span class="avatar" id="sidebarAvatar">?</span>
+      <span>
+        <strong id="sidebarUser"></strong>
+        <small id="sidebarEmail"></small>
+        <small id="sidebarRole"></small>
+      </span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="page" data-page-section="home">
+      <div class="home-hero">
+        <div class="hero-main-layout">
+          <div class="hero-left">
+            <p class="home-hero-greeting" id="heroGreeting"></p>
+            <div class="today-widget">
+              <span class="today-chip">
+                <svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-calendar"></use></svg>
+                <span id="heroDate"></span>
+              </span>
+              <span class="today-chip today-chip--week" id="heroWeekChip"></span>
+              <span class="today-chip today-chip--nameday">
+                <svg width="12" height="12" viewBox="0 0 24 24"><use href="#i-star"></use></svg>
+                <span>Svátek: <strong id="nameDayText">—</strong></span>
+              </span>
+            </div>
+          </div>
+          <div class="hero-right">
+            <div class="hero-stats-grid" id="heroStatsGrid"></div>
+          </div>
+        </div>
+        <div class="hero-weather-bar">
+          <span class="hero-weather-title">Počasí v LC:</span>
+          <div id="lcWeatherChips" class="hero-weather-chips"></div>
+          <div class="hero-actions">
+            <div class="warnings-bell" id="warningsBell" style="display:none">
+              <button class="hero-icon-btn" type="button" id="warningsBellBtn" aria-label="Upozornění">
+                <svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-bell"></use></svg>
+                <span class="warnings-badge" id="warningsBadge">0</span>
+              </button>
+              <div class="warnings-tooltip" id="warningsTooltip"></div>
+            </div>
+            <button class="hero-icon-btn admin-only" type="button" id="heroSyncBtn" aria-label="Synchronizovat filiálky" title="Synchronizovat filiálky">
+              <svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-sync"></use></svg>
+            </button>
+            <button class="hero-icon-btn" type="button" data-action="reload" aria-label="Obnovit data" title="Obnovit data">
+              <svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-refresh"></use></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="module-grid" id="moduleGrid">
+        <p class="modules-empty is-hidden" id="modulesEmpty">Zatím žádné aplikace. Přidejte je v sekci <strong>Administrace → Aplikace</strong>.</p>
+      </div>
+
+    </section>
+
+    <section class="page is-hidden" data-page-section="users">
+      <div class="section-bar">
+        <span class="section-title">Uživatelé</span>
+        <div class="section-bar-actions">
+          <button class="button button-primary write-only" type="button" id="addUserButton"><svg><use href="#i-plus"></use></svg>Přidat uživatele</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <section class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th><button class="th-btn" type="button" data-table="users" data-col="email">E-mail<span class="sort-ind" data-sort-ind="users-email"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="users" data-col="_name">Jméno<span class="sort-ind" data-sort-ind="users-_name"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="users" data-col="role">Role<span class="sort-ind" data-sort-ind="users-role"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="users" data-col="permission">Přístup<span class="sort-ind" data-sort-ind="users-permission"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="users" data-col="location">Lokace<span class="sort-ind" data-sort-ind="users-location"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="users" data-col="active">Stav<span class="sort-ind" data-sort-ind="users-active"></span></button></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="userRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="page is-hidden" data-page-section="roles">
+      <div class="section-bar">
+        <span class="section-title">Oprávnění rolí</span>
+        <div class="section-bar-actions"></div>
+      </div>
+      <div class="section-body">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Matice oprávnění</h2>
+              <p style="color:var(--muted);font-size:13px;margin-top:4px;">Definuje základní přístupy a subaplikace pro jednotlivé systémové role. Osobní nastavení (např. Čtenář) a lokace upřesní zápisová práva konkrétního uživatele.</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <form id="rolePermissionsForm">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Role</th>
+                      <th>Filiálky (Čtení)</th>
+                      <th>Filiálky (Zápis)</th>
+                      <th>Log. centra (Čtení)</th>
+                      <th>Log. centra (Zápis)</th>
+                      <th>Správa uživatelů</th>
+                      <th>Nastavení a Sync</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rolePermissionsRows">
+                    <!-- Načteno dynamicky -->
+                  </tbody>
+                </table>
+              </div>
+              
+              <div class="roles-apps-section" style="margin-top: 28px;">
+                <h3 style="font-size:15px;font-weight:600;margin-bottom:12px;">Povolení subaplikací (modulů)</h3>
+                <div id="rolesAppsContainer" style="display:flex;gap:32px;flex-wrap:wrap;">
+                  <!-- Načteno dynamicky jako checklisty pro ADMIN a USER -->
+                </div>
+              </div>
+              
+              <div class="form-actions" style="margin-top: 28px;border-top:1px solid var(--border);padding-top:20px;">
+                <button class="button button-primary write-only" type="submit" id="saveRolePermissionsButton">
+                  <svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit nastavení rolí
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="page is-hidden" data-page-section="settings">
+      <div class="section-bar">
+        <span class="section-title">Nastavení</span>
+        <div class="section-bar-actions"></div>
+      </div>
+      <div class="section-body">
+        <section class="panel">
+          <form class="form" id="settingsForm">
+            <label>
+              <span>Název aplikace</span>
+              <input name="appName" type="text" required>
+            </label>
+            <label>
+              <span>Podtitul</span>
+              <input name="appSubtitle" type="text">
+            </label>
+            <div class="form-actions">
+              <button class="button button-primary write-only" type="submit"><svg><use href="#i-check"></use></svg>Uložit nastavení</button>
+            </div>
+          </form>
+        </section>
+        <section class="panel">
+          <div class="panel-body" style="display:flex;flex-direction:column;gap:6px">
+            <p class="form-hint">Po přímých úpravách v databázovém sheetu (mazání řádků, editace buněk) může být potřeba vymazat server-side cache, aby se změny projevily okamžitě.</p>
+            <div>
+              <button class="button button-secondary write-only" type="button" id="clearCacheBtn"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-refresh"></use></svg>Vymazat cache</button>
+            </div>
+          </div>
+        </section>
+        <section class="panel superadmin-only is-hidden" id="resetAppPanel">
+          <div class="panel-body" style="display:flex;flex-direction:column;gap:6px">
+            <p class="form-hint" style="color:var(--lidl-red)">Nebezpečná zóna: kompletně odpojí aplikaci od aktuální databáze a spustí znovu úvodní průvodce. Databázový spreadsheet v Disku zůstane zachovaný, jen se na něj appka přestane odkazovat.</p>
+            <div>
+              <button class="button button-danger" type="button" id="resetAppBtn"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-warning"></use></svg>Kompletní reset aplikace</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="page is-hidden" data-page-section="audit">
+      <div class="section-bar">
+        <span class="section-title">Audit</span>
+        <div class="section-bar-actions"></div>
+      </div>
+      <div class="section-body">
+        <section class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th><button class="th-btn" type="button" data-table="audit" data-col="timestamp">Čas<span class="sort-ind" data-sort-ind="audit-timestamp"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="audit" data-col="user">Uživatel<span class="sort-ind" data-sort-ind="audit-user"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="audit" data-col="action">Akce<span class="sort-ind" data-sort-ind="audit-action"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="audit" data-col="detail">Detail<span class="sort-ind" data-sort-ind="audit-detail"></span></button></th>
+                </tr>
+              </thead>
+              <tbody id="auditRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ── Aplikace (admin) ─────────────────────────────── -->
+    <section class="page is-hidden" data-page-section="apps">
+      <div class="section-bar">
+        <span class="section-title">Aplikace</span>
+        <div class="section-bar-actions">
+          <button class="button button-primary" type="button" id="addAppButton"><svg><use href="#i-plus"></use></svg>Přidat aplikaci</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <section class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th><button class="th-btn" type="button" data-table="apps" data-col="order">#<span class="sort-ind" data-sort-ind="apps-order"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="apps" data-col="name">Název<span class="sort-ind" data-sort-ind="apps-name"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="apps" data-col="description">Popis<span class="sort-ind" data-sort-ind="apps-description"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="apps" data-col="status">Status<span class="sort-ind" data-sort-ind="apps-status"></span></button></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="appRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="page is-hidden" data-page-section="stores">
+      <div class="section-bar sf-bar">
+        <span class="section-title sf-bar-title">Filiálky</span>
+        <div class="sf-filters">
+          <div class="sf-group sf-group--lc">
+            <span class="sf-grouplabel sf-grouplabel--lc">LC</span>
+            <div class="sf-badges" id="sfBadgesLc"></div>
+          </div>
+          <div class="sf-group sf-group--vt">
+            <span class="sf-grouplabel sf-grouplabel--vt">VT</span>
+            <div class="sf-badges sf-badges--vt" id="sfBadgesVt"></div>
+          </div>
+          <div class="sf-group sf-group--rm">
+            <span class="sf-grouplabel sf-grouplabel--rm">RM</span>
+            <div class="sf-rm-wrap">
+              <button class="sf-rm-trigger" type="button" id="sfRmTrigger">
+                <span id="sfRmTriggerLabel">Všichni RM</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <button class="sf-rm-clear" type="button" id="sfRmClear" hidden title="Zrušit filtr RM">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+              <div class="sf-rm-dropdown" id="sfRmDropdown" hidden>
+                <input class="sf-rm-search" type="search" placeholder="Hledat RM…" id="sfRmSearch" autocomplete="off">
+                <div class="sf-rm-list" id="sfRmList"></div>
+              </div>
+            </div>
+          </div>
+          <button class="button button-primary button-small write-only" type="button" id="addStoreButton"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>Přidat</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <section class="panel">
+          <div class="table-wrap">
+            <table style="table-layout:fixed;width:100%">
+              <colgroup>
+                <col style="width:70px">
+                <col>
+                <col style="width:60px">
+                <col style="width:160px">
+                <col style="width:160px">
+                <col style="width:110px">
+                <col style="width:90px">
+                <col style="width:80px">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th><button class="th-btn" type="button" data-table="stores" data-col="code">Č.p.<span class="sort-ind" data-sort-ind="stores-code"></span></button></th>
+                  <th>
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <button class="th-btn" type="button" data-table="stores" data-col="name">Název<span class="sort-ind" data-sort-ind="stores-name"></span></button>
+                      <button class="sf-tc-toggle" type="button" id="sfTcToggle" title="Zobrazit jen dočasně uzavřené">Dočasně uzavřena</button>
+                    </div>
+                  </th>
+                  <th><button class="th-btn" type="button" data-table="stores" data-col="lc_code">LC<span class="sort-ind" data-sort-ind="stores-lc_code"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="stores" data-col="area_manager">VT<span class="sort-ind" data-sort-ind="stores-area_manager"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="stores" data-col="regional_manager">RM<span class="sort-ind" data-sort-ind="stores-regional_manager"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="stores" data-col="metropolitni">Metropolitní<span class="sort-ind" data-sort-ind="stores-metropolitni"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="stores" data-col="active">Stav<span class="sort-ind" data-sort-ind="stores-active"></span></button></th>
+                  <th style="text-align:center">Akce</th>
+                </tr>
+              </thead>
+              <tbody id="storeRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="page is-hidden" data-page-section="logistics">
+      <div class="section-bar">
+        <span class="section-title">Logistická centra</span>
+        <div class="section-bar-actions">
+          <button class="button button-secondary write-only" type="button" id="bulkAddLogisticButton"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-sync"></use></svg>Doplnit LC ze souboru</button>
+          <button class="button button-secondary write-only" type="button" id="addLogisticButton"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>Přidat LC</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <section class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th><button class="th-btn" type="button" data-table="logistics" data-col="code">Č.<span class="sort-ind" data-sort-ind="logistics-code"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="logistics" data-col="abbreviation">Zkratka<span class="sort-ind" data-sort-ind="logistics-abbreviation"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="logistics" data-col="name">Název<span class="sort-ind" data-sort-ind="logistics-name"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="logistics" data-col="active">Stav<span class="sort-ind" data-sort-ind="logistics-active"></span></button></th>
+                  <th>Výchozí</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="logisticRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="page is-hidden" data-page-section="sync">
+      <div class="section-bar">
+        <span class="section-title">Synchronizace</span>
+        <div class="section-bar-actions">
+          <button class="button button-primary write-only" type="button" id="runSyncButton"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-sync"></use></svg>Spustit synchronizaci</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="sync-layout">
+          <div class="sync-main">
+          <section class="panel">
+            <div class="panel-header"><div><h2>Konfigurace</h2></div></div>
+            <div class="panel-body">
+              <form class="form" id="syncSettingsForm">
+                <label>
+                  <span>URL složky v Google Drive</span>
+                  <div class="input-with-action">
+                    <input name="syncFolderUrl" type="text" placeholder="https://drive.google.com/drive/folders/...">
+                    <button class="icon-action input-action-btn" type="button" id="openSyncFolderBtn" title="Otevřít složku v Drive" aria-label="Otevřít složku v Drive">
+                      <svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-folder"></use></svg>
+                    </button>
+                  </div>
+                </label>
+                <div class="form-row-2">
+                  <label>
+                    <span>Název listu — filiálky</span>
+                    <input name="syncStoresSheet" type="text" placeholder="VTBZL_export">
+                  </label>
+                  <label>
+                    <span>Prefix listu — dočasné zavření</span>
+                    <input name="syncTempClosedPrefix" type="text" placeholder="Dočasné zavření">
+                  </label>
+                </div>
+                <div class="form-row-2">
+                  <label>
+                    <span>Automatická synchronizace</span>
+                    <select name="autoSyncEnabled">
+                      <option value="false">Vypnuto</option>
+                      <option value="true">Zapnuto</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Čas kontroly</span>
+                    <select name="autoSyncHour">
+                      <option value="0">0:00</option><option value="1">1:00</option><option value="2">2:00</option>
+                      <option value="3">3:00</option><option value="4">4:00</option><option value="5">5:00</option>
+                      <option value="6">6:00</option><option value="7">7:00</option><option value="8">8:00</option>
+                      <option value="9">9:00</option><option value="10">10:00</option><option value="11">11:00</option>
+                      <option value="12">12:00</option><option value="13">13:00</option><option value="14">14:00</option>
+                      <option value="15">15:00</option><option value="16">16:00</option><option value="17">17:00</option>
+                      <option value="18">18:00</option><option value="19">19:00</option><option value="20">20:00</option>
+                      <option value="21">21:00</option><option value="22">22:00</option><option value="23">23:00</option>
+                    </select>
+                  </label>
+                </div>
+                <small class="form-hint">Jednou denně ve zvolenou hodinu se zkontroluje, zda se soubor ve složce změnil — pokud ano, synchronizace proběhne automaticky.</small>
+                <small class="form-hint" id="autoSyncLastCheck"></small>
+                <div class="form-actions">
+                  <button class="button button-secondary write-only" type="submit" id="saveSyncSettingsButton"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit konfiguraci</button>
+                </div>
+              </form>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h2>Historie synchronizací</h2></div></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Datum a čas</th>
+                    <th>Spuštění</th>
+                    <th>Soubor</th>
+                    <th>Výsledek</th>
+                  </tr>
+                </thead>
+                <tbody id="syncHistoryRows"></tbody>
+              </table>
+            </div>
+          </section>
+          </div>
+          <section class="panel">
+            <div class="panel-header"><div><h2>Poslední výsledek</h2></div></div>
+            <div class="panel-body" id="syncResultArea"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <footer class="statusbar">
+      <span>© <span id="footerYear"></span> Lidl</span>
+      <span class="bg-activity" id="bgActivity"><span class="bg-activity-dot"></span><span class="bg-activity-text">Aktualizuji data…</span></span>
+      <span><a href="#" id="version" class="version-link"></a>&nbsp;&nbsp;|&nbsp;&nbsp;Aktualizace: <span id="updatedAt">-</span></span>
+    </footer>
+  </main>
+</div>
+
+<dialog class="modal modal-large" id="syncChangesModal">
+  <div class="modal-header">
+    <span class="modal-icon"><svg><use href="#i-sync"></use></svg></span>
+    <div class="modal-header-text">
+      <p class="kicker">Synchronizace</p>
+      <h2>Změny filiálek</h2>
+    </div>
+    <button class="modal-close" type="button" id="closeSyncChangesModal" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>
+  </div>
+  <div class="modal-body" id="syncChangesBody"></div>
+</dialog>
+
+<dialog class="modal" id="changelogModal">
+  <div class="modal-header">
+    <span class="modal-icon"><svg><use href="#i-info"></use></svg></span>
+    <div class="modal-header-text">
+      <p class="kicker">Aplikace</p>
+      <h2>Historie změn</h2>
+    </div>
+    <button class="modal-close" type="button" id="closeChangelogModal" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>
+  </div>
+  <div class="modal-body" id="changelogBody"></div>
+</dialog>
+
+<dialog class="modal" id="userModal">
+  <form id="userForm">
+    <header class="modal-header">
+      <span class="modal-icon"><svg><use href="#i-users"></use></svg></span>
+      <div class="modal-header-text">
+        <p class="kicker">Administrace</p>
+        <h2 id="userModalTitle">Přidat uživatele</h2>
+      </div>
+      <button class="modal-close" type="button" data-action="close-user-modal" aria-label="Zavřít">
+        <svg><use href="#i-close"></use></svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <div class="form form-plain">
+        <input name="id" type="hidden">
+        <div class="uw-search-wrap" id="uwSearchWrap">
+          <label><span>Hledat zaměstnance v Google Workspace</span></label>
+          <div class="uw-search-row">
+            <input type="text" id="uwSearchInput" class="uw-search-input" placeholder="Jméno nebo e-mail…" autocomplete="off">
+            <span class="uw-search-spinner" id="uwSearchSpinner" hidden>
+              <svg class="uw-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            </span>
+          </div>
+          <ul class="uw-search-results" id="uwSearchResults" hidden></ul>
+        </div>
+        <div class="uw-divider" id="uwDivider" hidden><span>nebo vyplňte ručně</span></div>
+        <label>
+          <span>E-mail</span>
+          <input name="email" type="email" placeholder="jmeno@firma.cz" required>
+        </label>
+        <div class="form-row-2">
+          <label>
+            <span>Jméno</span>
+            <input name="firstName" type="text" placeholder="Jan">
+          </label>
+          <label>
+            <span>Příjmení</span>
+            <input name="lastName" type="text" placeholder="Novák">
+          </label>
+        </div>
+        <div class="form-row-2">
+          <label>
+            <span>Role</span>
+            <select name="role">
+              <option value="USER">Uživatel</option>
+              <option value="ADMIN">Administrátor</option>
+              <option value="SUPERADMIN" id="superadminOption">Superadmin</option>
+            </select>
+          </label>
+          <label>
+            <span>Stav</span>
+            <select name="active">
+              <option value="true">Aktivní</option>
+              <option value="false">Blokován</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row-2">
+          <label>
+            <span>Přístup</span>
+            <select name="permission">
+              <option value="READER">Čtenář (Reader)</option>
+              <option value="EDITOR">Editor (Writer)</option>
+            </select>
+          </label>
+          <label>
+            <span>Výchozí lokace</span>
+            <select name="location" id="userLocationSelect">
+              <option value="HQ">Centrála (HQ)</option>
+              <!-- LC se načtou dynamicky -->
+            </select>
+          </label>
+        </div>
+        <div class="user-apps-section" style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px;">
+          <span style="display:block;font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text);">Přístup k subaplikacím</span>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;">
+            <input type="checkbox" name="useRoleAppsDefault" id="useRoleAppsDefault" checked style="accent-color:var(--lidl-blue);margin:0;width:16px;height:16px;">
+            <span style="font-weight:500;">Použít výchozí oprávnění podle role</span>
+          </label>
+          <div id="userAppsChecklistContainer" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:8px;padding-left:4px;opacity:0.5;pointer-events:none;">
+            <!-- Checkboxy pro jednotlivé subaplikace vykreslené dynamicky -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="modal-actions">
+      <button class="button button-secondary" type="button" data-action="close-user-modal"><svg><use href="#i-close"></use></svg>Zrušit</button>
+      <button class="button button-primary write-only" type="submit"><svg><use href="#i-check"></use></svg>Uložit</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog class="modal" id="logisticModal">
+  <form id="logisticForm">
+    <header class="modal-header">
+      <span class="modal-icon"><svg><use href="#i-truck"></use></svg></span>
+      <div class="modal-header-text">
+        <p class="kicker">Síť</p>
+        <h2 id="logisticModalTitle">Přidat logistické centrum</h2>
+      </div>
+      <button class="modal-close" type="button" data-action="close-logistic-modal" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>
+    </header>
+    <div class="modal-body">
+      <div class="form form-plain">
+        <input name="id" type="hidden">
+        <div class="form-row-2">
+          <label><span>Číslo LC *</span><input name="code" type="text" placeholder="5" required></label>
+          <label><span>Zkratka * (2–4 písmena)</span><input name="abbreviation" type="text" placeholder="BNL" maxlength="4" required></label>
+        </div>
+        <label><span>Název (město) *</span><input name="name" type="text" placeholder="Brandýs nad Labem" required></label>
+        <label><span>Stav</span>
+          <select name="active">
+            <option value="true">Aktivní</option>
+            <option value="false">Neaktivní</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <footer class="modal-actions">
+      <button class="button button-secondary" type="button" data-action="close-logistic-modal"><svg><use href="#i-close"></use></svg>Zrušit</button>
+      <button class="button button-primary write-only" type="submit"><svg><use href="#i-check"></use></svg>Uložit</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog class="modal modal-large" id="bulkLogisticModal">
+  <div class="modal-header">
+    <span class="modal-icon"><svg><use href="#i-truck"></use></svg></span>
+    <div class="modal-header-text">
+      <p class="kicker">Síť</p>
+      <h2>Doplnit logistická centra ze souboru</h2>
+    </div>
+    <button class="modal-close" type="button" id="closeBulkLogisticModal" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>
+  </div>
+  <div class="modal-body">
+    <p class="form-hint" style="margin:0 0 12px">Ve filiálkách byly nalezeny zkratky LC bez vlastního záznamu. Doplň číslo a název — zkratku už známe ze souboru.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px"></th>
+            <th style="width:110px">Číslo LC</th>
+            <th style="width:100px">Zkratka</th>
+            <th>Název (město)</th>
+            <th style="width:100px">Aktivní</th>
+          </tr>
+        </thead>
+        <tbody id="bulkLogisticRows"></tbody>
+      </table>
+    </div>
+  </div>
+  <footer class="modal-actions">
+    <button class="button button-secondary" type="button" id="cancelBulkLogisticModal"><svg><use href="#i-close"></use></svg>Zrušit</button>
+    <button class="button button-primary" type="button" id="saveBulkLogisticButton"><svg><use href="#i-check"></use></svg>Vytvořit vybraná LC</button>
+  </footer>
+</dialog>
+
+<dialog class="modal modal-large" id="storeModal">
+  <div class="modal-header">
+    <h2 class="modal-title" id="storeModalTitle">Detail filiálky</h2>
+    <button class="modal-close" type="button" id="storeModalClose" aria-label="Zavřít">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="sm-saving-overlay" id="smSavingOverlay" hidden>
+    <div class="sm-saving-box">
+      <span class="sp-ring"><svg class="sp-ring-svg" viewBox="0 0 72 72"><circle class="sp-ring-track" cx="36" cy="36" r="30"></circle><circle class="sp-ring-arc" cx="36" cy="36" r="30"></circle></svg><img class="sp-logo sp-ring-logo" alt="" src=""></span>
+      <span class="sm-saving-label">Ukládám…</span>
+    </div>
+  </div>
+  <div class="modal-body" id="storeModalBody" style="padding:0;overflow:hidden">
+    <div class="sm-grid">
+      <div class="sm-info">
+        <div id="smFields"></div>
+        <div class="sm-section-title">Otevírací doby</div>
+        <div class="sm-hours" id="smHours"></div>
+      </div>
+      <div class="sm-calendar-col">
+        <div class="sm-section-title">Dočasné uzavření</div>
+        <div class="sm-cal-hint">Klikněte na den pro začátek rozsahu, druhým klikem rozsah ukončíte. Klik na označený den ho odebere.</div>
+        <div class="sm-cal-nav">
+          <button class="sm-cal-prev icon-action" type="button" id="smCalPrev">&#8249;</button>
+          <span class="sm-cal-label" id="smCalLabel"></span>
+          <button class="sm-cal-next icon-action" type="button" id="smCalNext">&#8250;</button>
+        </div>
+        <div class="sm-cal" id="smCal"></div>
+        <div class="sm-ranges" id="smRanges"></div>
+      </div>
+    </div>
+  </div>
+  <footer class="modal-footer">
+    <button class="button" type="button" id="storeModalCancel">Zrušit</button>
+    <button class="button button-primary" type="button" id="storeModalSave">Uložit</button>
+  </footer>
+</dialog>
+
+<script>
+  // Český jmenný kalendář — zdroj: standardní ČSÚ seznam; ověřit před nasazením
+  const NAME_DAYS = {
+    '1.1':'Nový rok','2.1':'Karina','3.1':'Radmila','4.1':'Diana','5.1':'Dalimil',
+    '6.1':'Tři králové','7.1':'Vilma','8.1':'Čestmír','9.1':'Vladan','10.1':'Břetislav',
+    '11.1':'Bohdana','12.1':'Pravoslav','13.1':'Edita','14.1':'Radovan','15.1':'Alice',
+    '16.1':'Ctirad','17.1':'Drahoslav','18.1':'Vladislav','19.1':'Doubravka','20.1':'Ilona',
+    '21.1':'Běla','22.1':'Slavomír','23.1':'Zdeněk','24.1':'Milena','25.1':'Miloš',
+    '26.1':'Zora','27.1':'Ingrid','28.1':'Otýlie','29.1':'Zdislava','30.1':'Robin','31.1':'Marika',
+    '1.2':'Hynek','2.2':'Nela','3.2':'Blažej','4.2':'Jarmila','5.2':'Dobromila',
+    '6.2':'Vanda','7.2':'Veronika','8.2':'Milada','9.2':'Apolena','10.2':'Mojmír',
+    '11.2':'Božena','12.2':'Slavěna','13.2':'Věnceslav','14.2':'Valentýn','15.2':'Jiřina',
+    '16.2':'Ljuba','17.2':'Miloslava','18.2':'Gizela','19.2':'Patrícia','20.2':'Oldřich',
+    '21.2':'Lenka','22.2':'Isabela','23.2':'Anežka','24.2':'Matěj','25.2':'Liliana',
+    '26.2':'Dorota','27.2':'Alexandr','28.2':'Lumír','29.2':'Horymír',
+    '1.3':'Bedřich','2.3':'Anežka','3.3':'Kamil','4.3':'Stela','5.3':'Kazimír',
+    '6.3':'Miroslav','7.3':'Tomáš','8.3':'Gabriela','9.3':'František','10.3':'Viktorie',
+    '11.3':'Anděla','12.3':'Řehoř','13.3':'Růžena','14.3':'Matylda','15.3':'Ida',
+    '16.3':'Herbert','17.3':'Patrik','18.3':'Eduard','19.3':'Josef','20.3':'Světlana',
+    '21.3':'Radek','22.3':'Leona','23.3':'Ivona','24.3':'Gabriel','25.3':'Mariana',
+    '26.3':'Emanuel','27.3':'Dita','28.3':'Soňa','29.3':'Taťána','30.3':'Arnošt','31.3':'Kvido',
+    '1.4':'Hugo','2.4':'Erika','3.4':'Richard','4.4':'Ivana','5.4':'Miroslava',
+    '6.4':'Vendula','7.4':'Heřman','8.4':'Ema','9.4':'Dušan','10.4':'Darja',
+    '11.4':'Izabela','12.4':'Julius','13.4':'Aleš','14.4':'Vincenc','15.4':'Anastázie',
+    '16.4':'Irena','17.4':'Rudolf','18.4':'Valerie','19.4':'Rostislav','20.4':'Marcela',
+    '21.4':'Alexandra','22.4':'Evženie','23.4':'Vojtěch','24.4':'Jiří','25.4':'Marek',
+    '26.4':'Oto','27.4':'Jaroslav','28.4':'Vlastislav','29.4':'Robert','30.4':'Blahoslav',
+    '1.5':'Svátek práce','2.5':'Zikmund','3.5':'Alexej','4.5':'Květoslav','5.5':'Klaudie',
+    '6.5':'Radoslav','7.5':'Stanislav','8.5':'Blažena','9.5':'Ctibor','10.5':'Blahomír',
+    '11.5':'Svatava','12.5':'Pankrác','13.5':'Servác','14.5':'Bonifác','15.5':'Žofie',
+    '16.5':'Přemysl','17.5':'Aneta','18.5':'Nataša','19.5':'Ivo','20.5':'Zbyněk',
+    '21.5':'Monika','22.5':'Emil','23.5':'Vladimír','24.5':'Jana','25.5':'Viola',
+    '26.5':'Filip','27.5':'Valdemar','28.5':'Vilém','29.5':'Maxmilián','30.5':'Ferdinand','31.5':'Kamila',
+    '1.6':'Laura','2.6':'Jarmil','3.6':'Tamara','4.6':'Dalibor','5.6':'Dobroslav',
+    '6.6':'Norbert','7.6':'Slavoj','8.6':'Medard','9.6':'Stanislava','10.6':'Gita',
+    '11.6':'Bruno','12.6':'Antonie','13.6':'Antonín','14.6':'Roland','15.6':'Vít',
+    '16.6':'Zbyšek','17.6':'Adolf','18.6':'Milan','19.6':'Leoš','20.6':'Květa',
+    '21.6':'Alois','22.6':'Pavla','23.6':'Zdeňka','24.6':'Jan','25.6':'Ivan',
+    '26.6':'Adriana','27.6':'Ladislav','28.6':'Lubomír','29.6':'Petr','30.6':'Pavel',
+    '1.7':'Jaroslava','2.7':'Patricie','3.7':'Radomír','4.7':'Prokop','5.7':'Cyril a Metoděj',
+    '6.7':'Přemysl','7.7':'Bohuslava','8.7':'Nora','9.7':'Drahomíra','10.7':'Libuše',
+    '11.7':'Olga','12.7':'Bořek','13.7':'Markéta','14.7':'Karolína','15.7':'Jindřich',
+    '16.7':'Luboš','17.7':'Martina','18.7':'Drahota','19.7':'Čeněk','20.7':'Ilja',
+    '21.7':'Vítězslav','22.7':'Magdaléna','23.7':'Libor','24.7':'Kristýna','25.7':'Jakub',
+    '26.7':'Anna','27.7':'Věroslav','28.7':'Viktor','29.7':'Marta','30.7':'Bořivoj','31.7':'Ignác',
+    '1.8':'Oskar','2.8':'Gustav','3.8':'Miluše','4.8':'Dominik','5.8':'Kristián',
+    '6.8':'Oldřiška','7.8':'Lada','8.8':'Dobroslav','9.8':'Roman','10.8':'Vavřinec',
+    '11.8':'Zuzana','12.8':'Klára','13.8':'Alena','14.8':'Alan','15.8':'Hana',
+    '16.8':'Jáchym','17.8':'Petra','18.8':'Helena','19.8':'Ludvík','20.8':'Bernard',
+    '21.8':'Johana','22.8':'Bohuslav','23.8':'Sandra','24.8':'Bartoloměj','25.8':'Radim',
+    '26.8':'Luděk','27.8':'Otakar','28.8':'Augustýn','29.8':'Evelína','30.8':'Vladěna','31.8':'Pavlína',
+    '1.9':'Linda','2.9':'Adéla','3.9':'Bronislav','4.9':'Jindřiška','5.9':'Boris',
+    '6.9':'Boleslav','7.9':'Regína','8.9':'Mariana','9.9':'Daniela','10.9':'Irma',
+    '11.9':'Denisa','12.9':'Marie','13.9':'Lubor','14.9':'Radka','15.9':'Jolana',
+    '16.9':'Ludmila','17.9':'Naděžda','18.9':'Kryštof','19.9':'Zita','20.9':'Oleg',
+    '21.9':'Matouš','22.9':'Darina','23.9':'Bořek','24.9':'Jaromír','25.9':'Vladimíra',
+    '26.9':'Andrea','27.9':'Jonáš','28.9':'Václav','29.9':'Michal','30.9':'Jeroným',
+    '1.10':'Igor','2.10':'Olivie','3.10':'Bohumila','4.10':'František','5.10':'Eliška',
+    '6.10':'Hanuš','7.10':'Justýna','8.10':'Věra','9.10':'Štefan','10.10':'Marina',
+    '11.10':'Andělína','12.10':'Marcel','13.10':'Renáta','14.10':'Agáta','15.10':'Tereza',
+    '16.10':'Havel','17.10':'Hedvika','18.10':'Lukáš','19.10':'Michaela','20.10':'Vendelin',
+    '21.10':'Brigita','22.10':'Sabina','23.10':'Teodor','24.10':'Nina','25.10':'Beáta',
+    '26.10':'Erik','27.10':'Šarlota','28.10':'Silvie','29.10':'Tadeáš','30.10':'Štěpánka','31.10':'Aurélie',
+    '1.11':'Felix','2.11':'Dušan','3.11':'Hubert','4.11':'Karel','5.11':'Miriam',
+    '6.11':'Liběna','7.11':'Saša','8.11':'Bohumír','9.11':'Bohdan','10.11':'Evžen',
+    '11.11':'Martin','12.11':'Jana','13.11':'Tibor','14.11':'Sáva','15.11':'Leopold',
+    '16.11':'Otmar','17.11':'Mahulena','18.11':'Romana','19.11':'Alžběta','20.11':'Nikola',
+    '21.11':'Albert','22.11':'Cecílie','23.11':'Klement','24.11':'Emílie','25.11':'Kateřina',
+    '26.11':'Artur','27.11':'Xenie','28.11':'René','29.11':'Zina','30.11':'Ondřej',
+    '1.12':'Iva','2.12':'Blanka','3.12':'Svatoslav','4.12':'Barbora','5.12':'Jitka',
+    '6.12':'Mikuláš','7.12':'Ambrož','8.12':'Květoslava','9.12':'Vratislav','10.12':'Julie',
+    '11.12':'Dana','12.12':'Simona','13.12':'Lucie','14.12':'Lýdie','15.12':'Radana',
+    '16.12':'Albína','17.12':'Daniel','18.12':'Miloslav','19.12':'Ester','20.12':'Dagmar',
+    '21.12':'Natálie','22.12':'Štefanie','23.12':'Vlasta','24.12':'Adam a Eva',
+    '25.12':'Boží hod','26.12':'Štěpán','27.12':'Žaneta','28.12':'Bohumila','29.12':'Judita','30.12':'David','31.12':'Silvestr',
+  };
+</script>
+<script>
+  const App = {
+    boot: window.APP_BOOTSTRAP || {},
+    sectionTitles: {
+      home: 'Domů',
+      stores: 'Filiálky', logistics: 'Logistická centra', sync: 'Synchronizace',
+      users: 'Uživatelé', roles: 'Oprávnění', apps: 'Aplikace', settings: 'Nastavení', audit: 'Audit',
+    },
+    section: 'home',
+    users: [],
+    stores: [],
+    logistics: [],
+    audit: [],
+    apps: [],
+    rolePermissions: [],
+    onboardingComplete: false,
+_sfState: {},
+    _sfMenu: null,
+    lastVisit: null,
+    _colMenuOutside: null,
+
+    toVocative(name) {
+      if (!name) return '';
+      const map = {
+        'Adam':'Adame','Aleš':'Aleši','Alexandr':'Alexandře',
+        'Bohumil':'Bohumile','David':'Davide','Daniel':'Danieli',
+        'Filip':'Filipe','František':'Františku',
+        'Jakub':'Jakube','Jan':'Jane','Jaroslav':'Jaroslave',
+        'Jiří':'Jiří','Josef':'Josefe','Karel':'Karle',
+        'Ladislav':'Ladislave','Lukáš':'Lukáši','Marek':'Marku',
+        'Martin':'Martine','Michal':'Michale','Milan':'Milane',
+        'Miloš':'Miloši','Miroslav':'Miroslave','Ondřej':'Ondřeji',
+        'Pavel':'Pavle','Petr':'Petře','Radek':'Radku',
+        'Robert':'Roberte','Roman':'Romane','Stanislav':'Stanislave',
+        'Tomáš':'Tomáši','Václav':'Václave','Vladimír':'Vladimíre',
+        'Vojtěch':'Vojtěchu','Zdeněk':'Zdeňku','Patrik':'Patriku',
+        'Dominik':'Dominiku','Luboš':'Luboši','Radoslav':'Radoslave',
+        'Alena':'Aleno','Andrea':'Andreo','Anna':'Anno',
+        'Barbora':'Barboro','Dana':'Dano','Denisa':'Deniso',
+        'Eva':'Evo','Hana':'Hano','Helena':'Heleno',
+        'Ivana':'Ivano','Jana':'Jano','Julie':'Julie',
+        'Karolína':'Karolíno','Kateřina':'Kateřino','Klára':'Kláro',
+        'Lenka':'Lenko','Lucie':'Lucie','Markéta':'Markéto',
+        'Marie':'Marie','Martina':'Martino','Michaela':'Michaelo',
+        'Monika':'Moniko','Natálie':'Natálie','Nikola':'Nikolo',
+        'Pavlína':'Pavlíno','Petra':'Petro','Radka':'Radko',
+        'Renata':'Renato','Simona':'Simono','Tereza':'Terezo',
+        'Veronika':'Veroniko','Zuzana':'Zuzano','Jitka':'Jitko',
+        'Věra':'Věro','Blanka':'Blanko','Iveta':'Iveto','Marta':'Marto',
+      };
+      if (map[name]) return map[name];
+      if (/a$/i.test(name)) return name.slice(0, -1) + 'o';
+      if (/ie$/i.test(name)) return name;
+      if (/ek$/i.test(name)) return name.slice(0, -2) + 'ku';
+      if (/el$/i.test(name)) return name.slice(0, -2) + 'le';
+      if (/[áa][sš]$/i.test(name) || /[šžč]$/i.test(name)) return name + 'i';
+      if (/[aio]l$/i.test(name)) return name + 'e';
+      if (/[aeo]v$/i.test(name)) return name + 'e';
+      if (/[aei]n$/i.test(name)) return name + 'e';
+      if (/[aei]d$/i.test(name)) return name + 'e';
+      if (/[aei]p$/i.test(name)) return name + 'e';
+      if (/[aeu]b$/i.test(name)) return name + 'e';
+      if (/[^e]k$/i.test(name)) return name + 'u';
+      if (/r$/i.test(name)) return name + 'e';
+      return name;
+    },
+
+    roleLevel(role) {
+      return { SUPERADMIN: 3, ADMIN: 2, USER: 1 }[role] || 0;
+    },
+
+    roleLabel(role) {
+      return { SUPERADMIN: 'Superadmin', ADMIN: 'Administrátor', USER: 'Uživatel' }[role] || role;
+    },
+
+    get isAdmin() {
+      return this.roleLevel(this.boot.user && this.boot.user.role) >= 2;
+    },
+
+    get hasWriteAccess() {
+      const u = this.boot.user;
+      if (!u) return false;
+      return u.role === 'SUPERADMIN' || u.permission === 'EDITOR';
+    },
+
+    get hasStoresWrite() {
+      const u = this.boot.user;
+      if (!u) return false;
+      return u.role === 'SUPERADMIN' || u.stores_write === true;
+    },
+
+    /**
+     * Sekce s třídou onboard-lock (Uživatelé, Oprávnění, Aplikace, Audit) jsou
+     * zamknuté, dokud neproběhla první synchronizace filiálek a neexistuje
+     * aspoň jedno aktivní LC — do té doby se řeší jen v sekcích Filiálky,
+     * Log. centra, Synchronizace a Nastavení. Výchozí stav je zamčeno, dokud
+     * nepřijde skutečná hodnota z apiGetHome (onboardingComplete).
+     */
+    applyOnboardingLock() {
+      const locked = this.isAdmin && !this.onboardingComplete;
+      document.querySelectorAll('.nav-link.onboard-lock').forEach((btn) => {
+        btn.classList.toggle('is-locked', locked);
+        btn.disabled = locked;
+      });
+    },
+
+    _parseLocalDate(iso) {
+      const [y, m, d] = iso.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    },
+
+    _toIsoDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    },
+
+    _tempClosedRangeLabel(store) {
+      const raw = store.temp_closed_ranges;
+      if (!raw) return '';
+      let ranges;
+      try { ranges = JSON.parse(raw); } catch { return ''; }
+      if (!Array.isArray(ranges)) return '';
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const thisYear = today.getFullYear();
+      const fmt = (iso) => {
+        const d = this._parseLocalDate(iso);
+        const day = d.getDate();
+        const mon = d.getMonth() + 1;
+        const yr  = d.getFullYear();
+        return yr === thisYear ? `${day}. ${mon}.` : `${day}. ${mon}. ${yr}`;
+      };
+      return ranges
+        .filter((r) => today >= this._parseLocalDate(r.from) && today <= this._parseLocalDate(r.to))
+        .map((r) => r.from === r.to ? fmt(r.from) : `${fmt(r.from)} – ${fmt(r.to)}`)
+        .join(', ');
+    },
+
+    _isTempClosed(store) {
+      const raw = store.temp_closed_ranges;
+      if (!raw) return false;
+      let ranges;
+      try { ranges = JSON.parse(raw); } catch { return false; }
+      if (!Array.isArray(ranges) || ranges.length === 0) return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return ranges.some((r) => {
+        const from = this._parseLocalDate(r.from);
+        const to = this._parseLocalDate(r.to);
+        return today >= from && today <= to;
+      });
+    },
+
+    init() {
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res && res.ok) {
+            this.onUserLoaded(res.data);
+          } else {
+            this.onUserDenied((res && res.error) || 'Nemáte přístup do aplikace. Kontaktujte správce.');
+          }
+        })
+        .withFailureHandler((err) => this.onUserDenied(err.message))
+        .apiGetCurrentUser();
+    },
+
+    onUserLoaded(user) {
+      this.boot.user = user;
+      this.applyBranding();
+      this.bindEvents();
+      if (!this.isAdmin) {
+        document.querySelectorAll('.admin-only').forEach((node) => node.classList.add('is-hidden'));
+      }
+      this.applyOnboardingLock();
+      if (!this.hasWriteAccess) {
+        document.querySelectorAll('.write-only').forEach((node) => node.classList.add('is-hidden'));
+      }
+      if (user.role !== 'SUPERADMIN') {
+        document.querySelector('#superadminOption').disabled = true;
+      } else {
+        document.querySelectorAll('.superadmin-only').forEach((node) => node.classList.remove('is-hidden'));
+      }
+      Ui.hideLoader();
+      this.initVisit();
+      this.loadHome();
+      this.bootstrapData();
+    },
+
+    /**
+     * Jedno hromadné volání naplní lokální cache všech sekcí —
+     * přepínání záložek je pak okamžité (render z paměti,
+     * obnova dat běží potichu na pozadí).
+     */
+    bootstrapData() {
+      Ui.call('apiGetBootstrap', null, { silent: true })
+        .then((d) => {
+          if (d.apps) { this.apps = d.apps; this.renderModules(); }
+          if (d.users) this.users = this.decorateUsers(d.users);
+          if (d.stores) { this.stores = d.stores; this._applyMetroOverrides(); }
+          if (d.logistics) this.logistics = d.logistics;
+          if (d.audit) this.audit = d.audit;
+          if (d.settings) this._settings = d.settings;
+          if (d.syncSettings) this._syncSettings = d.syncSettings;
+          if (d.rolePermissions) this.rolePermissions = d.rolePermissions;
+          this.renderSection(this.section);
+        })
+        .catch(() => {});
+    },
+
+    /** Překreslí aktuální sekci z lokální cache (bez volání serveru). */
+    renderSection(name) {
+      if (name === 'users' && this.users.length) this.renderUsers();
+      else if (name === 'apps' && this.apps.length) this.renderApps();
+      else if (name === 'stores' && this.stores.length) { this.renderSfBadges(); this.renderStores(); }
+      else if (name === 'logistics' && this.logistics.length) this.renderLogistics();
+      else if (name === 'audit' && this.audit.length) this.renderAudit();
+      else if (name === 'settings' && this._settings) this.fillSettingsForm(this._settings);
+      else if (name === 'sync' && this._syncSettings) this.fillSyncForm(this._syncSettings);
+      else if (name === 'roles' && this.rolePermissions.length) this.renderRolePermissions();
+    },
+
+    decorateUsers(users) {
+      return users.map((u) => Object.assign({ _name: [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || '–' }, u));
+    },
+
+    onUserDenied(message) {
+      const loader = document.querySelector('#appLoader');
+      loader.innerHTML = '<div class="loader-inner"><strong>Přístup odepřen</strong><span>' +
+        (message || 'Nemáte přístup do aplikace.') + '</span></div>';
+    },
+
+    applyBranding() {
+      const user = this.boot.user || {};
+      const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.email || 'Neznámý uživatel';
+      document.querySelector('#brandLogo').src = this.boot.logoUrl || '';
+      Ui.setText('#brandName', this.boot.appName);
+      Ui.setText('#brandSubtitle', this.boot.appSubtitle);
+      Ui.setText('#sidebarUser', displayName);
+      Ui.setText('#sidebarEmail', user.email || '');
+      Ui.setText('#sidebarRole', this.roleLabel(user.role));
+      Ui.setText('#sidebarAvatar', Ui.getInitials(displayName));
+      Ui.setText('#version', this.boot.version);
+      Ui.setText('#footerYear', new Date().getFullYear());
+
+      const firstName = user.firstName || '';
+      const h = new Date().getHours();
+      const greet = h < 5 ? 'Dobrou noc' : h < 12 ? 'Dobré ráno' : h < 18 ? 'Dobrý den' : 'Dobrý večer';
+      Ui.setText('#heroGreeting', greet + (firstName ? ', ' + this.toVocative(firstName) + '!' : '!'));
+      const d = new Date();
+      const days = ['Neděle', 'Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota'];
+      const months = ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince'];
+      const iso = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      iso.setUTCDate(iso.getUTCDate() + 4 - (iso.getUTCDay() || 7));
+      const week = Math.ceil(((iso - Date.UTC(iso.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+      Ui.setText('#heroDate', days[d.getDay()] + ', ' + d.getDate() + '. ' + months[d.getMonth()] + ' ' + d.getFullYear());
+      Ui.setText('#heroWeekChip', week + '. týden');
+    },
+
+    bindEvents() {
+      if (localStorage.getItem('sidebarCollapsed') === '1') {
+        document.querySelector('.app').classList.add('sidebar-collapsed');
+      }
+      this.syncSidebarToggle();
+
+      document.querySelector('#sidebarToggle').addEventListener('click', () => {
+        const app = document.querySelector('.app');
+        app.classList.toggle('sidebar-collapsed');
+        localStorage.setItem('sidebarCollapsed', app.classList.contains('sidebar-collapsed') ? '1' : '0');
+        this.syncSidebarToggle();
+      });
+
+      document.querySelectorAll('.nav-link').forEach((button) => {
+        button.addEventListener('click', () => this.showSection(button.dataset.section));
+      });
+
+      document.querySelectorAll('[data-action="reload"]').forEach((btn) => {
+        btn.addEventListener('click', () => this.loadSection(this.section));
+      });
+
+      const heroSyncBtn = document.querySelector('#heroSyncBtn');
+      if (heroSyncBtn) {
+        heroSyncBtn.addEventListener('click', () => this.heroRunSync());
+      }
+
+      document.querySelector('#version').addEventListener('click', (e) => { e.preventDefault(); this.openChangelog(); });
+      document.querySelector('#closeChangelogModal').addEventListener('click', () => Ui.closeModal(document.querySelector('#changelogModal')));
+
+      document.querySelector('#warningsBellBtn').addEventListener('click', () => {
+        const btn = document.querySelector('#warningsBellBtn');
+        if (btn._syncOnly) {
+          this.openSyncChangesModal();
+        } else {
+          document.querySelector('#warningsTooltip').classList.toggle('is-visible');
+        }
+      });
+      document.querySelector('#closeSyncChangesModal').addEventListener('click', () => {
+        Ui.closeModal(document.querySelector('#syncChangesModal'));
+        this._syncWarning = null;
+        this._syncResult = null;
+        this.renderWarnings((this._home && this._home.warnings) || []);
+      });
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#warningsBell')) {
+          document.querySelector('#warningsTooltip').classList.remove('is-visible');
+        }
+      });
+
+      document.querySelector('#addUserButton').addEventListener('click', () => this.openUserModal(null));
+      document.querySelector('#addAppButton').addEventListener('click', () => this.openAppModal(null));
+      document.querySelectorAll('[data-action="close-user-modal"]').forEach((b) => {
+        b.addEventListener('click', () => Ui.closeModal(document.querySelector('#userModal')));
+      });
+      document.querySelector('#userForm').addEventListener('submit', (e) => {
+        e.preventDefault(); this.saveUser(e.submitter);
+      });
+      document.querySelector('#useRoleAppsDefault').addEventListener('change', () => {
+        const defaultCheckbox = document.querySelector('#useRoleAppsDefault');
+        const container = document.querySelector('#userAppsChecklistContainer');
+        if (defaultCheckbox && container) {
+          const isDefault = defaultCheckbox.checked;
+          container.style.opacity = isDefault ? '0.5' : '1';
+          container.style.pointerEvents = isDefault ? 'none' : 'auto';
+          if (isDefault) {
+            this.syncUserAppsChecklistWithRole();
+          }
+        }
+      });
+      document.querySelector('select[name="role"]').addEventListener('change', () => {
+        const defaultCheckbox = document.querySelector('#useRoleAppsDefault');
+        if (defaultCheckbox && defaultCheckbox.checked) {
+          this.syncUserAppsChecklistWithRole();
+        }
+      });
+      document.querySelector('#settingsForm').addEventListener('submit', (e) => {
+        e.preventDefault(); this.saveSettings(e.submitter);
+      });
+      document.querySelector('#clearCacheBtn').addEventListener('click', (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        Ui.call('apiClearCache', null, { silent: true, busy: 'Mažu cache…' })
+          .then(() => { btn.disabled = false; Ui.toast('Cache vymazána — data se nyní načtou čerstvě.'); })
+          .catch((err) => { btn.disabled = false; Ui.toast(err.message, 'error'); });
+      });
+      document.querySelector('#resetAppBtn')?.addEventListener('click', () => this.resetApplication());
+      document.querySelector('#rolePermissionsForm').addEventListener('submit', (e) => {
+        e.preventDefault(); this.saveRolePermissions(e.submitter);
+      });
+
+      document.querySelector('#addStoreButton').addEventListener('click', () => this.openStoreModal(null));
+      document.querySelector('#addLogisticButton').addEventListener('click', () => this.openLogisticModal(null));
+      document.querySelectorAll('[data-action="close-logistic-modal"]').forEach((b) => {
+        b.addEventListener('click', () => Ui.closeModal(document.querySelector('#logisticModal')));
+      });
+      document.querySelector('#logisticForm').addEventListener('submit', (e) => {
+        e.preventDefault(); this.saveLogistic(e.submitter);
+      });
+      document.querySelector('#bulkAddLogisticButton').addEventListener('click', () => this.openBulkLogisticModal());
+      document.querySelector('#closeBulkLogisticModal').addEventListener('click', () => Ui.closeModal(document.querySelector('#bulkLogisticModal')));
+      document.querySelector('#cancelBulkLogisticModal').addEventListener('click', () => Ui.closeModal(document.querySelector('#bulkLogisticModal')));
+      document.querySelector('#saveBulkLogisticButton').addEventListener('click', () => this.saveBulkLogistics());
+
+      document.querySelector('#syncSettingsForm').addEventListener('submit', (e) => {
+        e.preventDefault(); this.saveSyncSettings(e.submitter);
+      });
+      document.querySelector('#runSyncButton').addEventListener('click', () => this.runSync());
+      document.querySelector('#openSyncFolderBtn').addEventListener('click', () => {
+        const url = document.querySelector('#syncSettingsForm').elements.syncFolderUrl.value.trim();
+        if (!url) { Ui.toast('Nejprve zadejte URL složky.', 'error'); return; }
+        window.open(url, '_blank', 'noopener');
+      });
+
+      document.querySelectorAll('[data-go-section]').forEach((btn) => {
+        btn.addEventListener('click', () => this.showSection(btn.dataset.goSection));
+      });
+
+      document.addEventListener('click', (e) => {
+        const thBtn = e.target.closest('.th-btn[data-table][data-col]')
+          || e.target.closest('th')?.querySelector('.th-btn[data-table][data-col]');
+        if (thBtn) {
+          const tableKey = thBtn.dataset.table;
+          const col = thBtn.dataset.col;
+          const renderFns = {
+            users: () => this.renderUsers(),
+            stores: () => this.renderStores(),
+            logistics: () => this.renderLogistics(),
+            audit: () => this.renderAudit(),
+            apps: () => this.renderApps(),
+          };
+          if (renderFns[tableKey]) this.openColMenu(thBtn, tableKey, col, this[tableKey] || [], renderFns[tableKey]);
+        }
+        const actionBtn = e.target.closest('[data-action]');
+        if (actionBtn) {
+          const action = actionBtn.dataset.action;
+          const id = actionBtn.dataset.id;
+          if (action === 'edit-app') this.openAppModal(id);
+          else if (action === 'delete-app') this.deleteApp(id);
+        }
+      });
+
+    },
+
+    showSection(name) {
+      this.section = name;
+      document.querySelectorAll('.nav-link').forEach((item) => {
+        item.classList.toggle('is-active', item.dataset.section === name);
+      });
+      document.querySelectorAll('[data-page-section]').forEach((sectionNode) => {
+        sectionNode.classList.toggle('is-hidden', sectionNode.dataset.pageSection !== name);
+      });
+      this.loadSection(name);
+    },
+
+    loadSection(name) {
+      if (name === 'home') this.loadHome();
+      if (name === 'users') this.loadUsers();
+      if (name === 'apps') this.loadApps();
+      if (name === 'stores') this.loadStores();
+      if (name === 'logistics') this.loadLogistics();
+      if (name === 'sync') this.loadSync();
+      if (name === 'settings') this.loadSettings();
+      if (name === 'audit') this.loadAudit();
+      if (name === 'roles') this.loadRolePermissions();
+    },
+
+    markUpdated() {
+      const d = new Date();
+      const date = d.getDate() + '.' + (d.getMonth() + 1) + '.' + d.getFullYear();
+      const time = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      Ui.setText('#updatedAt', date + ' ' + time);
+    },
+
+    loadHome() {
+      if (this._home) this.renderHome(this._home);
+      Ui.call('apiGetHome', null, { silent: true })
+        .then((data) => {
+          this._home = data;
+          this.renderHome(data);
+          this.markUpdated();
+        })
+        .catch((error) => Ui.toast(error.message, 'error'));
+      this.renderNameDay();
+      this.loadWeather();
+      this.loadModules();
+    },
+
+    renderHome(data) {
+      this.onboardingComplete = !!data.onboardingComplete;
+      this.applyOnboardingLock();
+
+      const warnings = [...(data.warnings || [])];
+      if (this._syncWarning) warnings.push(this._syncWarning);
+      this.renderWarnings(warnings);
+
+      const grid = document.querySelector('#heroStatsGrid');
+      if (!grid) return;
+      const click = this.isAdmin;
+      
+      const storesCount = typeof data.storesActive === 'number' ? data.storesActive : 0;
+      const closedCount = typeof data.storesTempClosed === 'number' ? data.storesTempClosed : 0;
+      const lcCount = typeof data.logisticsActive === 'number' ? data.logisticsActive : 0;
+      
+      const closedClass = closedCount > 0 ? ' hero-grid-item--warn' : '';
+      
+      let lastChangeText = '—';
+      let lastChangeUser = '—';
+      if (data.lastChange && data.lastChange.timestamp) {
+        lastChangeText = this.fmtRelative(new Date(data.lastChange.timestamp));
+        lastChangeUser = String(data.lastChange.user || '').replace(/@.*/, '');
+      }
+
+      grid.innerHTML = `
+        <!-- Řádek 1: Statistiky sítě (LC, Filiálky, Uzavřené) -->
+        <div class="hero-grid-item${click ? ' hero-grid-item--click' : ''}"${click ? ' data-section-link="logistics"' : ''} title="Aktivní logistická centra">
+          <svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-truck"></use></svg>
+          <span>LC: <strong>${lcCount}</strong></span>
+        </div>
+        <div class="hero-grid-item${click ? ' hero-grid-item--click' : ''}"${click ? ' data-section-link="stores"' : ''} title="Aktivní filiálky">
+          <svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-store"></use></svg>
+          <span>Filiálky: <strong>${storesCount}</strong></span>
+        </div>
+        <div class="hero-grid-item${closedClass}${click ? ' hero-grid-item--click' : ''}"${click ? ' data-section-link="stores"' : ''} title="Dočasně uzavřené filiálky">
+          <svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-clock"></use></svg>
+          <span>Uzavřené: <strong>${closedCount}</strong></span>
+        </div>
+
+        <!-- Řádek 2: Systémové informace (Login, Sync, Změna) -->
+        <div class="hero-grid-item" title="Vaše poslední přihlášení">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>Login: <strong id="lastVisitText">—</strong></span>
+        </div>
+        <div class="hero-grid-item" title="Poslední synchronizace dat z Google Drive">
+          <svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-sync"></use></svg>
+          <span>Sync: <strong id="heroSyncTime">—</strong></span>
+        </div>
+        <div class="hero-grid-item${click ? ' hero-grid-item--click' : ''}"${click ? ' data-section-link="audit"' : ''} title="Poslední změna v databázi (${lastChangeUser})">
+          <svg width="13" height="13" viewBox="0 0 24 24"><use href="#i-pencil"></use></svg>
+          <span>Změna: <strong>${lastChangeText}</strong></span>
+        </div>
+      `;
+
+      grid.querySelectorAll('[data-section-link]').forEach((el) => {
+        el.addEventListener('click', () => this.showSection(el.dataset.sectionLink));
+      });
+
+      // Srozumitelný stav dat filiálek místo nejasného „Sync:"
+      const syncEl = document.querySelector('#heroSyncTime');
+      if (syncEl) {
+        if (data.lastSyncAt) {
+          const d = new Date(data.lastSyncAt);
+          syncEl.textContent = this.fmtRelative(d);
+          syncEl.classList.toggle('is-stale', Date.now() - d.getTime() > 48 * 3600 * 1000);
+        } else {
+          syncEl.textContent = 'Nenačtena';
+          syncEl.classList.add('is-stale');
+        }
+      }
+
+      // Vykreslit poslední přihlášení (vyřešení race condition při prvním načtení)
+      this.renderLastVisit();
+    },
+
+    /** Český výběr tvaru podle počtu: 1 / 2–4 / ostatní. */
+    plural(n, one, few, many) {
+      return n === 1 ? one : (n >= 2 && n <= 4 ? few : many);
+    },
+
+    /** „dnes v 9:15", „včera v 22:14", jinak plné datum s časem. */
+    fmtRelative(d) {
+      if (Number.isNaN(d.getTime())) return '-';
+      const hm = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+      const today = new Date();
+      const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+      const diffDays = Math.round((startOfDay(today) - startOfDay(d)) / 86400000);
+      if (diffDays === 0) return 'dnes v ' + hm;
+      if (diffDays === 1) return 'včera v ' + hm;
+      return Ui.formatDateTime(d.toISOString());
+    },
+
+    renderNameDay() {
+      const d = new Date();
+      const key = d.getDate() + '.' + (d.getMonth() + 1);
+      const name = NAME_DAYS[key] || '';
+      Ui.setText('#nameDayText', name || '—');
+    },
+
+    loadWeather() {
+      const container = document.querySelector('#lcWeatherChips');
+      if (!container) return;
+      // Počasí stačí obnovit jednou za 10 minut — chipy mezitím zůstávají.
+      if (container.children.length && this._weatherAt && Date.now() - this._weatherAt < 600000) return;
+      this._weatherAt = Date.now();
+      container.innerHTML = '';
+      const renderChips = (lcs) => {
+          const active = (lcs || []).filter((lc) => lc.active === true);
+          if (!active.length) return;
+          active.forEach((lc) => {
+            const chip = document.createElement('div');
+            chip.className = 'hero-info-chip hero-info-chip--center';
+            chip.innerHTML = '<span class="wlabel">' + Ui.escape(lc.abbreviation) + ':</span><strong> …</strong>';
+            container.appendChild(chip);
+            fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(lc.name) + '&count=1&language=cs&format=json')
+              .then((r) => r.json())
+              .then((geo) => {
+                const res = geo.results && geo.results[0];
+                if (!res) return;
+                return fetch('https://api.open-meteo.com/v1/forecast?latitude=' + res.latitude +
+                  '&longitude=' + res.longitude + '&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code&timezone=auto')
+                  .then((r) => r.json())
+                  .then((json) => {
+                    const c = json.current;
+                    const desc = this._wmoDesc(c.weather_code);
+                    chip.querySelector('strong').textContent = desc.icon + ' ' + Math.round(c.temperature_2m) + '°C';
+                    chip.dataset.weatherTip = JSON.stringify({
+                      city: lc.name,
+                      label: desc.label,
+                      icon: desc.icon,
+                      temp: Math.round(c.temperature_2m),
+                      feels: Math.round(c.apparent_temperature),
+                      humidity: c.relative_humidity_2m,
+                      wind: Math.round(c.wind_speed_10m),
+                    });
+                    chip.classList.add('has-weather-tip');
+                  });
+              })
+              .catch(() => { chip.querySelector('strong').textContent = '—'; });
+          });
+      };
+      if (this.logistics.length) {
+        renderChips(this.logistics);
+      } else {
+        Ui.call('apiListLogistics', null, { silent: true })
+          .then((lcs) => { this.logistics = lcs || []; renderChips(this.logistics); })
+          .catch(() => {});
+      }
+      this._initWeatherTooltip();
+    },
+
+    _initWeatherTooltip() {
+      if (this._weatherTipBound) return;
+      this._weatherTipBound = true;
+      let tip = null;
+      const show = (chip) => {
+        const d = JSON.parse(chip.dataset.weatherTip || 'null');
+        if (!d) return;
+        hide();
+        tip = document.createElement('div');
+        tip.className = 'weather-tooltip';
+        tip.innerHTML = `
+          <div class="wt-city">${Ui.escape(d.city)}</div>
+          <div class="wt-main">${d.icon} <span class="wt-temp">${d.temp}°C</span></div>
+          <div class="wt-desc">${Ui.escape(d.label)}</div>
+          <div class="wt-details">
+            <span>🌡️ Pocit ${d.feels}°C</span>
+            <span>💧 ${d.humidity}%</span>
+            <span>💨 ${d.wind} km/h</span>
+          </div>`;
+        document.body.appendChild(tip);
+        const r = chip.getBoundingClientRect();
+        const tw = tip.offsetWidth || 180;
+        let left = r.left + r.width / 2 - tw / 2;
+        if (left < 8) left = 8;
+        if (left + tw > window.innerWidth - 8) left = window.innerWidth - 8 - tw;
+        tip.style.left = left + 'px';
+        tip.style.top = (r.bottom + 8) + 'px';
+        requestAnimationFrame(() => tip.classList.add('is-visible'));
+      };
+      const hide = () => { if (tip) { tip.remove(); tip = null; } };
+      document.addEventListener('mouseover', (e) => {
+        const chip = e.target.closest('.has-weather-tip');
+        if (chip) show(chip);
+      });
+      document.addEventListener('mouseout', (e) => {
+        const chip = e.target.closest('.has-weather-tip');
+        if (chip && !chip.contains(e.relatedTarget)) hide();
+      });
+    },
+
+    _wmoDesc(code) {
+      const map = {
+        0: { label: 'Jasno', icon: '☀️' },
+        1: { label: 'Převážně jasno', icon: '🌤️' },
+        2: { label: 'Polojasno', icon: '⛅' },
+        3: { label: 'Zataženo', icon: '☁️' },
+        45: { label: 'Mlha', icon: '🌫️' }, 48: { label: 'Námraza', icon: '🌫️' },
+        51: { label: 'Slabé mrholení', icon: '🌦️' }, 53: { label: 'Mrholení', icon: '🌦️' }, 55: { label: 'Silné mrholení', icon: '🌧️' },
+        61: { label: 'Slabý déšť', icon: '🌧️' }, 63: { label: 'Déšť', icon: '🌧️' }, 65: { label: 'Silný déšť', icon: '🌧️' },
+        71: { label: 'Slabé sněžení', icon: '🌨️' }, 73: { label: 'Sněžení', icon: '❄️' }, 75: { label: 'Silné sněžení', icon: '❄️' },
+        80: { label: 'Přeháňky', icon: '🌦️' }, 81: { label: 'Přeháňky', icon: '🌧️' }, 82: { label: 'Silné přeháňky', icon: '⛈️' },
+        95: { label: 'Bouřka', icon: '⛈️' }, 96: { label: 'Bouřka s krupobitím', icon: '⛈️' }, 99: { label: 'Silná bouřka', icon: '⛈️' },
+      };
+      return map[code] || { label: 'Proměnlivě', icon: '🌡️' };
+    },
+
+    initVisit() {
+      Ui.call('apiUpdateLastVisit', null, { silent: true })
+        .then((data) => {
+          this.lastVisit = data && data.previous ? data.previous : null;
+          this.renderLastVisit();
+        })
+        .catch(() => {});
+    },
+
+    renderLastVisit() {
+      const el = document.querySelector('#lastVisitText');
+      if (!el) return;
+      if (!this.lastVisit) { el.textContent = 'První přihlášení'; return; }
+      const prev = new Date(this.lastVisit);
+      const now = new Date();
+      const diffMs = now - prev;
+      const diffDays = Math.floor(diffMs / 86400000);
+      const hm = prev.getHours() + ':' + String(prev.getMinutes()).padStart(2, '0');
+      if (diffDays === 0) el.textContent = 'Dnes v ' + hm;
+      else if (diffDays === 1) el.textContent = 'Včera v ' + hm;
+      else el.textContent = 'Před ' + diffDays + ' dny v ' + hm;
+    },
+
+    renderWarnings(warnings) {
+      const bell = document.querySelector('#warningsBell');
+      const badge = document.querySelector('#warningsBadge');
+      const tooltip = document.querySelector('#warningsTooltip');
+      if (!warnings.length) { bell.style.display = 'none'; return; }
+
+      const syncWarning = warnings.find((w) => w.modal === 'sync');
+      const adminWarnings = warnings.filter((w) => w.modal !== 'sync');
+
+      bell.style.display = 'flex';
+      badge.textContent = warnings.length;
+
+      if (syncWarning && !adminWarnings.length) {
+        // Pouze sync upozornění — klik otevře modal
+        tooltip.innerHTML = '';
+        bell.querySelector('#warningsBellBtn')._syncOnly = true;
+      } else {
+        bell.querySelector('#warningsBellBtn')._syncOnly = false;
+        tooltip.innerHTML = adminWarnings.map((w) => `
+          <div class="tooltip-warning-item">
+            <span>${Ui.escape(w.message)}</span>
+            ${w.section ? `<button class="tooltip-warning-action" type="button" data-section="${Ui.escape(w.section)}">${Ui.escape(w.action)}</button>` : ''}
+          </div>
+        `).join('');
+        tooltip.querySelectorAll('.tooltip-warning-action').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            tooltip.classList.remove('is-visible');
+            this.showSection(btn.dataset.section);
+          });
+        });
+      }
+    },
+
+    openSyncChangesModal() {
+      const result = this._syncResult;
+      if (!result) return;
+      const esc = Ui.escape.bind(Ui);
+      const s = result.stores || {};
+      const ch = s.changes || {};
+      const sections = [];
+      const group = (label, cls, items) => {
+        if (!(items || []).length) return '';
+        return `<div class="sync-change-group">
+          <div class="sync-change-label ${cls}">${label} (${items.length})</div>
+          ${items.map((it) => it.fields
+            ? `<details class="sync-change-store"><summary>${esc(it.code)} — ${esc(it.name)}</summary>
+                <table class="sync-diff-table">${it.fields.map((f) => `<tr>
+                  <td class="sync-diff-field">${esc(f.field)}</td>
+                  <td class="sync-diff-old">${esc(f.old) || '<em>prázdné</em>'}</td>
+                  <td class="sync-diff-arrow">→</td>
+                  <td class="sync-diff-new">${esc(f.new) || '<em>prázdné</em>'}</td>
+                </tr>`).join('')}</table></details>`
+            : `<div class="sync-change-row">${esc(it.code)} — ${esc(it.name)}</div>`
+          ).join('')}
+        </div>`;
+      };
+      sections.push(group('Přidáno', 'is-green', ch.added));
+      sections.push(group('Deaktivováno', 'is-red', ch.deactivated));
+      sections.push(group('Reaktivováno', 'is-orange', ch.reactivated));
+      sections.push(group('Upraveno', 'is-blue', ch.updated));
+      const body = sections.filter(Boolean).join('') || '<p style="color:var(--muted)">Žádné změny.</p>';
+      document.querySelector('#syncChangesBody').innerHTML = body;
+      Ui.openModal(document.querySelector('#syncChangesModal'));
+    },
+
+
+    openChangelog() {
+      Ui.call('apiGetChangelog', null, { silent: true, busy: 'Načítám historii změn…' })
+        .then((entries) => {
+          document.querySelector('#changelogBody').innerHTML = entries.map((e) => `
+            <div class="changelog-entry">
+              <div class="changelog-version">${Ui.escape(e.version)}<span class="changelog-date">${Ui.escape(e.date)}</span></div>
+              <p>${Ui.escape(e.message)}</p>
+            </div>`).join('');
+          Ui.openModal(document.querySelector('#changelogModal'));
+        })
+        .catch(() => Ui.openModal(document.querySelector('#changelogModal')));
+    },
+
+    loadUsers() {
+      const cached = this.users.length > 0;
+      if (cached) this.renderUsers();
+      Ui.call('apiListUsers', null, cached ? { silent: true } : { silent: true, busy: 'Načítám uživatele…' })
+        .then((users) => {
+          this.users = this.decorateUsers(users);
+          this.renderUsers();
+          this.markUpdated();
+        })
+        .catch((error) => Ui.toast(error.message, 'error'));
+    },
+
+    renderUsers() {
+      const rows = this.sortFilter('users', this.users);
+      document.querySelector('#userRows').innerHTML = rows.map((user) => {
+        const permLabel = user.permission === 'EDITOR' ? 'Editor' : 'Čtenář';
+        const permClass = user.permission === 'EDITOR' ? 'is-green' : 'is-blue';
+        const locLabel = user.location === 'HQ' ? 'Centrála (HQ)' : (user.location || 'HQ');
+        return `
+          <tr>
+            <td>${Ui.escape(user.email)}</td>
+            <td>${Ui.escape(user._name)}</td>
+            <td><span class="pill">${Ui.escape(this.roleLabel(user.role))}</span></td>
+            <td><span class="pill ${permClass}">${Ui.escape(permLabel)}</span></td>
+            <td><strong>${Ui.escape(locLabel)}</strong></td>
+            <td>${user.active === true ? 'Aktivní' : 'Blokován'}</td>
+            <td style="white-space:nowrap">
+              ${this.hasWriteAccess
+                ? `<button class="icon-action" type="button" data-user-id="${Ui.escape(user.id)}" title="Upravit uživatele">
+                    <svg><use href="#i-pencil"></use></svg>
+                   </button>${user.email !== (this.boot.user && this.boot.user.email)
+                     ? `<button class="icon-action danger" type="button" data-user-del="${Ui.escape(user.id)}" title="Smazat uživatele">
+                         <svg><use href="#i-trash"></use></svg>
+                        </button>`
+                     : ''}`
+                : '—'
+              }
+            </td>
+          </tr>
+        `;
+      }).join('') || '<tr><td colspan="7">Žádní uživatelé.</td></tr>';
+      document.querySelectorAll('[data-user-id]').forEach((btn) => {
+        btn.addEventListener('click', () => this.openUserModal(this.users.find((u) => u.id === btn.dataset.userId)));
+      });
+      document.querySelectorAll('[data-user-del]').forEach((btn) => {
+        btn.addEventListener('click', () => this.deleteUser(btn.dataset.userDel));
+      });
+      this.updateSortIndicators('users');
+    },
+
+    deleteUser(id) {
+      const user = this.users.find((u) => u.id === id);
+      if (!user) return;
+      Ui.confirm({
+        kicker: 'Uživatelé',
+        title: 'Smazat uživatele?',
+        message: 'Opravdu trvale smazat uživatele ' + user.email + '?',
+        note: 'Pokud mu chcete jen zakázat přístup, použijte v editaci stav Blokován.',
+      }).then((ok) => {
+        if (!ok) return;
+        Ui.call('apiDeleteUser', id, { silent: true, busy: 'Mažu uživatele…' })
+          .then(() => { Ui.toast('Uživatel byl smazán.'); this.loadUsers(); })
+          .catch((e) => Ui.toast(e.message, 'error'));
+      });
+    },
+
+    openUserModal(user) {
+      const form = document.querySelector('#userForm');
+      form.reset();
+
+      // Dynamické naplnění lokací
+      const locSelect = document.querySelector('#userLocationSelect');
+      if (locSelect) {
+        locSelect.innerHTML = '<option value="HQ">Centrála (HQ)</option>';
+        (this.logistics || []).forEach(lc => {
+          if (lc.active === true) {
+            locSelect.innerHTML += `<option value="${Ui.escape(lc.abbreviation)}">${Ui.escape(lc.name)} (${Ui.escape(lc.abbreviation)})</option>`;
+          }
+        });
+      }
+
+      form.elements.id.value = user ? user.id : '';
+      form.elements.email.value = user ? user.email : '';
+      form.elements.firstName.value = user ? (user.firstName || '') : '';
+      form.elements.lastName.value = user ? (user.lastName || '') : '';
+      form.elements.role.value = user ? user.role : 'USER';
+      form.elements.active.value = user && user.active !== true ? 'false' : 'true';
+      form.elements.permission.value = user ? (user.permission || 'READER') : 'READER';
+      const defaultLcCode = (this._settings && this._settings.defaultLcCode) || 'HQ';
+      form.elements.location.value = user ? (user.location || 'HQ') : defaultLcCode;
+
+      this.renderUserAppsChecklist(user);
+
+      // Search widget — zobrazit jen při vytváření nového uživatele
+      const isNew = !user;
+      document.querySelector('#uwSearchWrap').hidden = !isNew;
+      document.querySelector('#uwDivider').hidden = !isNew;
+      const searchInput = document.querySelector('#uwSearchInput');
+      if (searchInput) searchInput.value = '';
+      const resultsList = document.querySelector('#uwSearchResults');
+      if (resultsList) { resultsList.hidden = true; resultsList.innerHTML = ''; }
+
+      if (isNew && !this._uwBound) {
+        this._uwBound = true;
+        this._uwInitSearch();
+      }
+
+      Ui.setText('#userModalTitle', user ? 'Upravit uživatele' : 'Přidat uživatele');
+      Ui.openModal(document.querySelector('#userModal'));
+    },
+
+    _uwTimer: null,
+
+    _uwInitSearch() {
+      const input   = document.querySelector('#uwSearchInput');
+      const spinner = document.querySelector('#uwSearchSpinner');
+      const results = document.querySelector('#uwSearchResults');
+      const form    = document.querySelector('#userForm');
+
+      const stripDia = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+      let _lastAutoEmail = '';
+      const syncEmail = () => {
+        const f = form.elements.firstName.value.trim();
+        const l = form.elements.lastName.value.trim();
+        const cur = form.elements.email.value;
+        if (cur === '' || cur === _lastAutoEmail) {
+          const p1 = f ? stripDia(f).toLowerCase().replace(/\s+/g, '') : '';
+          const p2 = l ? stripDia(l).toLowerCase().replace(/\s+/g, '') : '';
+          _lastAutoEmail = p1 ? (p1 + '.' + p2 + '@lidl.cz') : '';
+          form.elements.email.value = _lastAutoEmail;
+        }
+      };
+      form.elements.firstName.addEventListener('input', syncEmail);
+      form.elements.lastName.addEventListener('input', syncEmail);
+
+      const showResults = (users) => {
+        if (!users.length) {
+          results.innerHTML = '<li class="uw-no-results">Žádné výsledky</li>';
+        } else {
+          results.innerHTML = users.map((u, i) =>
+            `<li class="uw-result-item" data-idx="${i}">${Ui.escape(u.firstName)} ${Ui.escape(u.lastName)} <span class="uw-result-email">${Ui.escape(u.email)}</span></li>`
+          ).join('');
+          results.querySelectorAll('.uw-result-item').forEach((li) => {
+            li.addEventListener('mousedown', (e) => {
+              e.preventDefault();
+              const u = users[Number(li.dataset.idx)];
+              form.elements.firstName.value = u.firstName;
+              form.elements.lastName.value  = u.lastName;
+              form.elements.email.value     = u.email;
+              results.hidden = true;
+              input.value = '';
+            });
+          });
+        }
+        results.hidden = false;
+      };
+
+      input.addEventListener('input', () => {
+        clearTimeout(this._uwTimer);
+        const q = input.value.trim();
+        if (q.length < 2) { results.hidden = true; return; }
+        spinner.hidden = false;
+        this._uwTimer = setTimeout(() => {
+          Ui.call('apiSearchWorkspaceUsers', q, { silent: true })
+            .then((users) => { spinner.hidden = true; showResults(users); })
+            .catch((e) => {
+              spinner.hidden = true;
+              const msg = /authorization|permission|Insufficient|scope/i.test(e.message)
+                ? 'Vyhledávání vyžaduje nové oprávnění — otevřete aplikaci znovu pro opětovnou autorizaci.'
+                : e.message;
+              results.innerHTML = `<li class="uw-no-results">${Ui.escape(msg)}</li>`;
+              results.hidden = false;
+            });
+        }, 350);
+      });
+
+      input.addEventListener('blur', () => setTimeout(() => { results.hidden = true; }, 150));
+    },
+
+    renderUserAppsChecklist(user) {
+      const container = document.querySelector('#userAppsChecklistContainer');
+      if (!container) return;
+      
+      if (!this.apps.length) {
+        container.innerHTML = '<p style="color:var(--muted);font-size:12px;grid-column:1/-1;">Žádné subaplikace k dispozici.</p>';
+        return;
+      }
+      
+      const allowedAppsVal = user ? String(user.allowed_apps || '').trim() : 'default';
+      const isDefault = !allowedAppsVal || allowedAppsVal.toLowerCase() === 'default';
+      
+      const defaultCheckbox = document.querySelector('#useRoleAppsDefault');
+      if (defaultCheckbox) {
+        defaultCheckbox.checked = isDefault;
+      }
+      
+      container.style.opacity = isDefault ? '0.5' : '1';
+      container.style.pointerEvents = isDefault ? 'none' : 'auto';
+      
+      let allowedList = [];
+      if (!isDefault) {
+        allowedList = allowedAppsVal.split(',').map(s => s.trim().toLowerCase());
+      }
+      
+      container.innerHTML = this.apps.map((app) => {
+        let checkedAttr = '';
+        if (!isDefault) {
+          checkedAttr = (allowedAppsVal === '*' || allowedList.includes(String(app.slug || app.id).trim().toLowerCase())) ? 'checked' : '';
+        }
+        
+        return `
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin:2px 0;">
+            <input type="checkbox" class="user-app-checkbox" data-app-slug="${Ui.escape(app.slug || app.id)}" ${checkedAttr} style="accent-color:var(--lidl-blue);margin:0;width:14px;height:14px;">
+            <span>${Ui.escape(app.name)}</span>
+          </label>
+        `;
+      }).join('');
+      
+      if (isDefault) {
+        this.syncUserAppsChecklistWithRole();
+      }
+    },
+
+    syncUserAppsChecklistWithRole() {
+      const roleSelect = document.querySelector('select[name="role"]');
+      if (!roleSelect) return;
+      const selectedRole = roleSelect.value;
+      
+      const rolePerm = (this.rolePermissions || []).find(r => r.role === selectedRole);
+      const allowedStr = rolePerm ? String(rolePerm.allowed_apps || '').trim() : '*';
+      const allowedList = allowedStr.split(',').map(s => s.trim().toLowerCase());
+      
+      const checkboxes = document.querySelectorAll('.user-app-checkbox');
+      checkboxes.forEach((cb) => {
+        const slug = cb.dataset.appSlug.toLowerCase();
+        cb.checked = (allowedStr === '*' || allowedList.includes(slug));
+      });
+    },
+
+    saveUser(button) {
+      const form = document.querySelector('#userForm');
+
+      let allowedAppsStr = 'default';
+      const defaultCheckbox = document.querySelector('#useRoleAppsDefault');
+      if (defaultCheckbox && !defaultCheckbox.checked) {
+        const checkedApps = Array.from(document.querySelectorAll('.user-app-checkbox:checked'))
+          .map(cb => cb.dataset.appSlug);
+        const totalApps = Array.from(document.querySelectorAll('.user-app-checkbox'));
+        if (checkedApps.length === totalApps.length && totalApps.length > 0) {
+          allowedAppsStr = '*';
+        } else {
+          allowedAppsStr = checkedApps.join(',');
+        }
+      }
+
+      const payload = {
+        id: form.elements.id.value || null,
+        email: form.elements.email.value,
+        firstName: form.elements.firstName.value,
+        lastName: form.elements.lastName.value,
+        role: form.elements.role.value,
+        active: form.elements.active.value === 'true',
+        permission: form.elements.permission.value,
+        location: form.elements.location.value,
+        allowed_apps: allowedAppsStr,
+      };
+      // Dialog se zavře hned — spinner (busy overlay) by jinak zůstal schovaný pod ním.
+      Ui.closeModal(document.querySelector('#userModal'));
+      Ui.call('apiSaveUser', payload, { silent: true, busy: 'Ukládám uživatele…' })
+        .then(() => {
+          Ui.toast('Uživatel byl uložen.');
+          this.loadUsers();
+        })
+        .catch((error) => {
+          Ui.toast(error.message, 'error');
+          this.openUserModal(Object.assign({}, payload, { id: payload.id || '' })); // vrátí dialog s rozepsanými hodnotami
+        });
+    },
+
+    loadSettings() {
+      const cached = !!this._settings;
+      if (cached) this.fillSettingsForm(this._settings);
+      Ui.call('apiGetSettings', null, cached ? { silent: true } : { silent: true, busy: 'Načítám nastavení…' })
+        .then((settings) => {
+          this._settings = settings;
+          this.fillSettingsForm(settings);
+          this.markUpdated();
+        })
+        .catch((error) => Ui.toast(error.message, 'error'));
+    },
+
+    fillSettingsForm(settings) {
+      const form = document.querySelector('#settingsForm');
+      form.elements.appName.value = settings.appName || '';
+      form.elements.appSubtitle.value = settings.appSubtitle || '';
+    },
+
+    saveSettings(button) {
+      const form = document.querySelector('#settingsForm');
+      Ui.setButtonLoading(button, true);
+      Ui.call('apiSaveSettings', {
+        appName: form.elements.appName.value,
+        appSubtitle: form.elements.appSubtitle.value,
+      }, { silent: true, busy: 'Ukládám nastavení…' })
+        .then((settings) => {
+          Ui.setButtonLoading(button, false);
+          this.boot.appName = settings.appName;
+          this.boot.appSubtitle = settings.appSubtitle;
+          this.applyBranding();
+          Ui.toast('Nastavení bylo uloženo.');
+        })
+        .catch((error) => {
+          Ui.setButtonLoading(button, false);
+          Ui.toast(error.message, 'error');
+        });
+    },
+
+    resetApplication() {
+      Ui.confirm({
+        kicker: 'Nebezpečná zóna',
+        title: 'Kompletní reset aplikace?',
+        message: 'Aplikace se odpojí od aktuální databáze a všichni uživatelé (včetně tebe) uvidí při dalším otevření znovu úvodní průvodce.',
+        note: 'Databázový spreadsheet v Disku zůstane zachovaný — appka se na něj jen přestane odkazovat. Tuto akci nelze vzít zpět z aplikace.',
+        confirmLabel: 'Resetovat aplikaci',
+      }).then((ok) => {
+        if (!ok) return;
+        Ui.call('apiResetApplication', null, { silent: true, busy: 'Resetuji aplikaci…' })
+          .then(() => { window.location.href = this.boot.execUrl || window.location.href; })
+          .catch((e) => Ui.toast(e.message, 'error'));
+      });
+    },
+
+    loadAudit() {
+      const cached = this.audit.length > 0;
+      if (cached) this.renderAudit();
+      Ui.call('apiGetAudit', null, cached ? { silent: true } : { silent: true, busy: 'Načítám audit…' })
+        .then((rows) => {
+          this.audit = rows;
+          this.renderAudit();
+          this.markUpdated();
+        })
+        .catch((error) => Ui.toast(error.message, 'error'));
+    },
+
+    renderAudit() {
+      const rows = this.sortFilter('audit', this.audit);
+      document.querySelector('#auditRows').innerHTML = rows.map((row) => `
+        <tr>
+          <td>${Ui.escape(Ui.formatDateTime(row.timestamp))}</td>
+          <td>${Ui.escape(row.user)}</td>
+          <td>${Ui.escape(row.action)}</td>
+          <td>${Ui.escape(row.detail)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="4">Zatím žádné události.</td></tr>';
+      this.updateSortIndicators('audit');
+    },
+
+    /* ── Aplikace ────────────────────────────────── */
+
+    loadApps() {
+      const cached = this.apps.length > 0;
+      if (cached) this.renderApps();
+      Ui.call('apiListApps', null, cached ? { silent: true } : { silent: true, busy: 'Načítám aplikace…' })
+        .then((rows) => {
+          this.apps = rows;
+          this.renderApps();
+          this.renderModules();
+          this.markUpdated();
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    renderApps() {
+      const STATUS_LABEL = { available: 'Dostupná', coming: 'V přípravě', inactive: 'Nedostupná' };
+      const rows = this.sortFilter('apps', this.apps);
+      document.querySelector('#appRows').innerHTML = rows.map((app) => `
+        <tr>
+          <td style="width:40px;text-align:center;color:var(--muted)">${Ui.escape(String(app.order || ''))}</td>
+          <td><strong>${Ui.escape(app.name)}</strong></td>
+          <td style="color:var(--muted)">${Ui.escape(app.description || '')}</td>
+          <td><span class="app-status-badge app-status--${Ui.escape(app.status || 'coming')}">${Ui.escape(STATUS_LABEL[app.status] || app.status)}</span></td>
+          <td class="td-actions">
+            <button class="icon-action" type="button" title="Upravit" data-action="edit-app" data-id="${Ui.escape(app.id)}"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-pencil"></use></svg></button>
+            <button class="icon-action icon-action--danger" type="button" title="Smazat" data-action="delete-app" data-id="${Ui.escape(app.id)}"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg></button>
+          </td>
+        </tr>`).join('') || '<tr><td colspan="5">Zatím žádné aplikace.</td></tr>';
+      this.updateSortIndicators('apps');
+    },
+
+    loadRolePermissions() {
+      const cached = this.rolePermissions.length > 0;
+      if (cached) this.renderRolePermissions();
+      Ui.call('apiGetRolePermissions', null, cached ? { silent: true } : { silent: true, busy: 'Načítám oprávnění…' })
+        .then((rows) => {
+          this.rolePermissions = rows || [];
+          this.renderRolePermissions();
+          this.markUpdated();
+        })
+        .catch((error) => Ui.toast(error.message, 'error'));
+    },
+
+    renderRolePermissions() {
+      const isSuperAdmin = this.boot.user && this.boot.user.role === 'SUPERADMIN';
+      const disabledAttr = !isSuperAdmin ? 'disabled' : '';
+      
+      const rolesOrder = ['SUPERADMIN', 'ADMIN', 'USER'];
+      const list = this.rolePermissions.slice().sort((a, b) => {
+        return rolesOrder.indexOf(a.role) - rolesOrder.indexOf(b.role);
+      });
+      
+      const rowsHtml = list.map((role) => {
+        const isRoleSuperAdmin = role.role === 'SUPERADMIN';
+        const cellDisabled = (isRoleSuperAdmin || !isSuperAdmin) ? 'disabled' : '';
+        const roleLbl = this.roleLabel(role.role);
+        const checked = (val) => (val === true || String(val) === 'true') ? 'checked' : '';
+        
+        return `
+          <tr>
+            <td><strong>${Ui.escape(roleLbl)}</strong></td>
+            <td style="text-align:center;">
+              <input type="checkbox" name="${role.role}_stores_read" ${checked(role.stores_read)} ${cellDisabled} style="margin:0;width:16px;height:16px;accent-color:var(--lidl-blue);">
+            </td>
+            <td style="text-align:center;">
+              <input type="checkbox" name="${role.role}_stores_write" ${checked(role.stores_write)} ${cellDisabled} style="margin:0;width:16px;height:16px;accent-color:var(--lidl-blue);">
+            </td>
+            <td style="text-align:center;">
+              <input type="checkbox" name="${role.role}_logistics_read" ${checked(role.logistics_read)} ${cellDisabled} style="margin:0;width:16px;height:16px;accent-color:var(--lidl-blue);">
+            </td>
+            <td style="text-align:center;">
+              <input type="checkbox" name="${role.role}_logistics_write" ${checked(role.logistics_write)} ${cellDisabled} style="margin:0;width:16px;height:16px;accent-color:var(--lidl-blue);">
+            </td>
+            <td style="text-align:center;">
+              <input type="checkbox" name="${role.role}_users_manage" ${checked(role.users_manage)} ${cellDisabled} style="margin:0;width:16px;height:16px;accent-color:var(--lidl-blue);">
+            </td>
+            <td style="text-align:center;">
+              <input type="checkbox" name="${role.role}_settings_manage" ${checked(role.settings_manage)} ${cellDisabled} style="margin:0;width:16px;height:16px;accent-color:var(--lidl-blue);">
+            </td>
+          </tr>
+        `;
+      }).join('');
+      
+      document.querySelector('#rolePermissionsRows').innerHTML = rowsHtml;
+      
+      const rolesForApps = list.filter(r => r.role !== 'SUPERADMIN');
+      const appsContainer = document.querySelector('#rolesAppsContainer');
+      
+      if (!this.apps.length) {
+        appsContainer.innerHTML = '<p style="color:var(--muted);font-size:13px;">Žádné subaplikace k dispozici.</p>';
+      } else {
+        appsContainer.innerHTML = rolesForApps.map((role) => {
+          const roleLbl = this.roleLabel(role.role);
+          const allowedStr = String(role.allowed_apps || '').trim();
+          const allowedList = allowedStr.split(',').map(s => s.trim().toLowerCase());
+          
+          const appsHtml = this.apps.map((app) => {
+            const isChecked = allowedStr === '*' || allowedList.includes(String(app.slug || app.id).trim().toLowerCase());
+            return `
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:${!isSuperAdmin ? 'default' : 'pointer'};margin:4px 0;">
+                <input type="checkbox" data-role="${Ui.escape(role.role)}" data-app-slug="${Ui.escape(app.slug || app.id)}" ${isChecked ? 'checked' : ''} ${disabledAttr} style="accent-color:var(--lidl-blue);margin:0;width:16px;height:16px;">
+                <span>${Ui.escape(app.name)}</span>
+              </label>
+            `;
+          }).join('');
+          
+          return `
+            <div class="role-apps-card" style="flex:1;min-width:240px;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);">
+              <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:8px;">
+                <svg width="16" height="16" style="color:var(--lidl-blue);fill:currentColor;"><use href="#i-layers"></use></svg>
+                Oprávnění pro: ${Ui.escape(roleLbl)}
+              </h4>
+              <div style="display:flex;flex-direction:column;gap:4px;">
+                ${appsHtml}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      const saveBtn = document.querySelector('#saveRolePermissionsButton');
+      if (saveBtn) {
+        if (isSuperAdmin) {
+          saveBtn.classList.remove('is-hidden');
+        } else {
+          saveBtn.classList.add('is-hidden');
+        }
+      }
+    },
+
+    saveRolePermissions(button) {
+      Ui.setButtonLoading(button, true);
+      const rolesToSave = ['ADMIN', 'USER'];
+      const payload = rolesToSave.map((roleName) => {
+        const checkedAppSlugs = Array.from(document.querySelectorAll(`input[data-role="${roleName}"][data-app-slug]:checked`))
+          .map(el => el.dataset.appSlug);
+        const totalApps = Array.from(document.querySelectorAll(`input[data-role="${roleName}"][data-app-slug]`));
+        
+        let allowedAppsStr = '';
+        if (checkedAppSlugs.length === totalApps.length && totalApps.length > 0) {
+          allowedAppsStr = '*';
+        } else {
+          allowedAppsStr = checkedAppSlugs.join(',');
+        }
+        
+        return {
+          role: roleName,
+          stores_read: document.querySelector(`input[name="${roleName}_stores_read"]`).checked,
+          stores_write: document.querySelector(`input[name="${roleName}_stores_write"]`).checked,
+          logistics_read: document.querySelector(`input[name="${roleName}_logistics_read"]`).checked,
+          logistics_write: document.querySelector(`input[name="${roleName}_logistics_write"]`).checked,
+          users_manage: document.querySelector(`input[name="${roleName}_users_manage"]`).checked,
+          settings_manage: document.querySelector(`input[name="${roleName}_settings_manage"]`).checked,
+          allowed_apps: allowedAppsStr
+        };
+      });
+      
+      Ui.call('apiSaveRolePermissions', payload, { silent: true, busy: 'Ukládám oprávnění…' })
+        .then(() => {
+          Ui.setButtonLoading(button, false);
+          Ui.toast('Oprávnění rolí byla úspěšně uložena.');
+          this.rolePermissions = this.rolePermissions.map((orig) => {
+            const updated = payload.find(p => p.role === orig.role);
+            if (updated) {
+              return Object.assign({}, orig, updated, {
+                updated_at: new Date().toISOString(),
+                updated_by: this.boot.user.email
+              });
+            }
+            return orig;
+          });
+          this.renderRolePermissions();
+        })
+        .catch((error) => {
+          Ui.setButtonLoading(button, false);
+          Ui.toast(error.message, 'error');
+        });
+    },
+
+    loadModules() {
+      if (this.apps.length) { this.renderModules(); return; }
+      Ui.call('apiListApps', null, { silent: true })
+        .then((rows) => {
+          this.apps = rows || [];
+          this.renderModules();
+        })
+        .catch(() => {});
+    },
+
+    /** Kolik "duchů" (volných slotů pro budoucí aplikace) se má doplnit do mřížky. */
+    GHOST_MIN_MODULES: 4,
+
+    renderModules() {
+      const grid = document.querySelector('#moduleGrid');
+      const empty = document.querySelector('#modulesEmpty');
+      const active = this.apps || [];
+      grid.querySelectorAll('.module-card, .mc-ghost').forEach((c) => c.remove());
+
+      const ghostCount = this.isAdmin ? Math.max(0, this.GHOST_MIN_MODULES - active.length) : 0;
+      if (!active.length && !ghostCount) {
+        if (empty) empty.classList.remove('is-hidden');
+        return;
+      }
+      if (empty) empty.classList.add('is-hidden');
+      const COLOR_CLASS = { dark: 'mc-side--dark', light: 'mc-side--light', yellow: 'mc-side--yellow', red: 'mc-side--red', green: 'mc-side--green', teal: 'mc-side--teal', orange: 'mc-side--orange', purple: 'mc-side--purple', slate: 'mc-side--slate', pink: 'mc-side--pink', indigo: 'mc-side--indigo' };
+      const STATUS_CLASS = { available: 'mc--available', coming: 'mc--coming', inactive: 'mc--inactive' };
+      const STATUS_BADGE = { available: 'Dostupná', coming: 'V přípravě', inactive: 'Nedostupná' };
+      const STATUS_ICON = { coming: '#i-clock', inactive: '#i-lock' };
+      active.forEach((app) => {
+        const colorCls = COLOR_CLASS[app.color] || '';
+        const statusCls = STATUS_CLASS[app.status] || 'mc--coming';
+        const statusIcon = STATUS_ICON[app.status] ? `<div class="mc-status-icon"><svg><use href="${STATUS_ICON[app.status]}"></use></svg></div>` : '';
+        const isAvailable = app.status === 'available';
+        const isComing = app.status === 'coming';
+        const sideIcon = isComing ? 'clock' : (app.icon || 'info');
+        const art = document.createElement('article');
+        art.className = 'module-card mc--sidebar ' + statusCls;
+        art.dataset.appId = app.id;
+        art.innerHTML = `
+          <div class="mc-side ${colorCls}">
+            <svg><use href="#i-${Ui.escape(sideIcon)}"></use></svg>
+            <i></i>
+          </div>
+          <div class="mc-body">
+            ${statusIcon}
+            <h2>${Ui.escape(app.name)}</h2>
+            <span class="mc-badge">${Ui.escape(STATUS_BADGE[app.status] || '')}</span>
+            <p>${Ui.escape(app.description || '')}</p>
+            <footer>
+              ${isAvailable
+                ? `<a class="button button-secondary button-small" href="${Ui.escape((this.boot.execUrl || '') + '?app=' + (app.slug || app.id))}" target="_blank" rel="noopener">Otevřít</a>`
+                : '<button class="button button-secondary button-small" type="button" disabled>Otevřít</button>'}
+            </footer>
+          </div>`;
+        grid.appendChild(art);
+      });
+
+      for (let i = 0; i < ghostCount; i++) {
+        const ghost = document.createElement('article');
+        ghost.className = 'mc-ghost';
+        ghost.innerHTML = `
+          <div class="mc-ghost-inner">
+            <svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>
+            <span>Přidat aplikaci</span>
+          </div>`;
+        ghost.addEventListener('click', () => this.openAppModal(null));
+        grid.appendChild(ghost);
+      }
+    },
+
+    openAppModal(appIdOrObj) {
+      document.querySelector('#appModal')?.remove();
+      const app = typeof appIdOrObj === 'string'
+        ? (this.apps || []).find((a) => a.id === appIdOrObj) || null
+        : appIdOrObj;
+      const isNew = !app;
+      const name = isNew ? '' : (app.name || '');
+      const desc = isNew ? '' : (app.description || '');
+      const icon = isNew ? 'info' : (app.icon || 'info');
+      const color = isNew ? '' : (app.color || '');
+      const status = isNew ? 'coming' : (app.status || 'coming');
+      const order = isNew ? '' : String(app.order || '');
+      const COLORS = [
+        { value: '',        label: 'Lidl modrá',    hex: '#0053b3' },
+        { value: 'dark',    label: 'Tmavě modrá',   hex: '#002466' },
+        { value: 'light',   label: 'Světle modrá',  hex: '#008cd2' },
+        { value: 'yellow',  label: 'Žlutá',         hex: '#ffd100' },
+        { value: 'red',     label: 'Červená',        hex: '#e60a14' },
+        { value: 'green',   label: 'Zelená',         hex: '#00833e' },
+        { value: 'teal',    label: 'Tyrkysová',     hex: '#00a0af' },
+        { value: 'orange',  label: 'Oranžová',      hex: '#e87722' },
+        { value: 'purple',  label: 'Fialová',       hex: '#6b21a8' },
+        { value: 'slate',   label: 'Šedá',          hex: '#475569' },
+        { value: 'pink',    label: 'Růžová',        hex: '#db2777' },
+        { value: 'indigo',  label: 'Indigová',      hex: '#4338ca' },
+      ];
+      const statuses = [['available', 'Dostupná'], ['coming', 'V přípravě'], ['inactive', 'Nedostupná']];
+      const STATUS_BADGE = { available: 'Dostupná', coming: 'V přípravě', inactive: 'Nedostupná' };
+      const ICON_GROUPS = [
+        { label: 'Provoz', icons: [['store','Filiálka'],['truck','Logistika'],['map-pin','Mapa'],['package','Sklad'],['tag','Ceny/Štítky'],['sync','Synchronizace']] },
+        { label: 'Analytika & finance', icons: [['chart','Analytika'],['euro','Finance'],['star','KPI'],['award','Ocenění'],['file-text','Dokumenty'],['clipboard','Úkoly']] },
+        { label: 'Lidé & správa', icons: [['users','Uživatelé'],['shield','Bezpečnost'],['settings','Nastavení'],['bell','Upozornění'],['zap','Automatizace'],['layers','Víceúrovňové']] },
+        { label: 'Obecné', icons: [['home','Domů'],['calendar','Kalendář'],['folder','Složka'],['list','Seznam'],['info','Info'],['refresh','Obnovit']] },
+      ];
+      const COLOR_CLASS = { dark: 'mc-side--dark', light: 'mc-side--light', yellow: 'mc-side--yellow', red: 'mc-side--red', green: 'mc-side--green', teal: 'mc-side--teal', orange: 'mc-side--orange', purple: 'mc-side--purple', slate: 'mc-side--slate', pink: 'mc-side--pink', indigo: 'mc-side--indigo' };
+      const STATUS_CLASS = { available: 'mc--available', coming: 'mc--coming', inactive: 'mc--inactive' };
+      const STATUS_ICON_REF = { coming: '#i-clock', inactive: '#i-lock' };
+
+      const buildPreviewHTML = (pName, pDesc, pIcon, pColor, pStatus) => {
+        const colorCls = COLOR_CLASS[pColor] || '';
+        const statusCls = STATUS_CLASS[pStatus] || '';
+        const statusIconHtml = STATUS_ICON_REF[pStatus] ? `<div class="mc-status-icon"><svg><use href="${STATUS_ICON_REF[pStatus]}"></use></svg></div>` : '';
+        const isAvail = pStatus === 'available';
+        return `<article class="module-card mc--sidebar ${statusCls}" style="pointer-events:none;width:100%">
+          <div class="mc-side ${colorCls}"><svg><use href="#i-${pIcon || 'info'}"></use></svg><i></i></div>
+          <div class="mc-body">${statusIconHtml}
+            <h2>${pName || '<em style="opacity:.4">Název aplikace</em>'}</h2>
+            <span class="mc-badge">${STATUS_BADGE[pStatus] || ''}</span>
+            <p>${pDesc || '<em style="opacity:.4">Popis aplikace</em>'}</p>
+            <footer><button class="button button-secondary button-small" ${isAvail ? '' : 'disabled'}>Otevřít</button></footer>
+          </div></article>`;
+      };
+
+      const dialog = document.createElement('dialog');
+      dialog.id = 'appModal';
+      dialog.className = 'modal modal-app';
+      dialog.innerHTML = `
+        <form id="appForm">
+          <header class="modal-header">
+            <span class="modal-icon"><svg><use href="#i-settings"></use></svg></span>
+            <div class="modal-header-text"><p class="kicker">Administrace</p><h2>${isNew ? 'Nová aplikace' : 'Upravit aplikaci'}</h2></div>
+            <button class="modal-close" type="button" id="closeAppModal" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>
+          </header>
+          <div class="modal-body modal-app-body">
+            <div class="form form-plain modal-app-form">
+              ${app ? `<input type="hidden" name="id" value="${Ui.escape(app.id)}">` : ''}
+              <label><span>Název</span><input name="name" id="appName" type="text" value="${Ui.escape(name)}" required autofocus></label>
+              <label><span>Popis</span><input name="description" id="appDesc" type="text" value="${Ui.escape(desc)}"></label>
+              <label><span>Odkaz v URL (?app=…)</span><input name="slug" id="appSlug" type="text" value="${Ui.escape(isNew ? '' : (app.slug || ''))}" placeholder="např. sklad" pattern="[a-z0-9-]+" title="Jen malá písmena, číslice a pomlčky"></label>
+              <div>
+                <span class="form-field-label">Ikona</span>
+                <input type="hidden" name="icon" id="appIconInput" value="${Ui.escape(icon)}">
+                <div class="icon-picker-groups">
+                  ${ICON_GROUPS.map((g) => `
+                    <div class="icon-picker-group">
+                      <span class="icon-picker-group-label">${g.label}</span>
+                      <div class="icon-picker">
+                        ${g.icons.map(([k, l]) => `<button type="button" class="icon-picker-btn${k === icon ? ' is-selected' : ''}" data-icon="${k}" title="${l}"><svg><use href="#i-${k}"></use></svg><span>${l}</span></button>`).join('')}
+                      </div>
+                    </div>`).join('')}
+                </div>
+              </div>
+            </div>
+            <div class="modal-app-preview">
+              <span class="form-field-label">Náhled</span>
+              <div id="appPreview">${buildPreviewHTML(name, desc, icon, color, status)}</div>
+              <div class="form form-plain" style="margin-top: 16px; border-top: 1px solid var(--line-soft); padding-top: 16px; display: flex; flex-direction: column; gap: 14px;">
+                <div>
+                  <span class="form-field-label">Barva pruhu</span>
+                  <input type="hidden" name="color" id="appColor" value="${Ui.escape(color)}">
+                  <div class="color-picker">
+                    ${COLORS.map((c) => `<button type="button" class="color-picker-btn${c.value === color ? ' is-selected' : ''}" data-color="${c.value}" data-hex="${c.hex}" title="${c.label}" style="--swatch:${c.hex}"></button>`).join('')}
+                  </div>
+                </div>
+                <div class="form-row-2">
+                  <label><span>Status</span>
+                    <select name="status" id="appStatus" style="width: 100%; min-height: 34px; padding: 6px 10px;">${statuses.map(([v, l]) => `<option value="${v}"${v === status ? ' selected' : ''}>${l}</option>`).join('')}</select>
+                  </label>
+                  <label><span>Pořadí</span>
+                    <input name="order" type="number" value="${Ui.escape(order)}" min="0" style="width: 100%; min-height: 34px; padding: 6px 10px;">
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <footer class="modal-actions">
+            <button class="button button-secondary" type="button" id="closeAppModal2"><svg><use href="#i-close"></use></svg>Zrušit</button>
+            <button class="button button-primary" type="button" id="saveAppBtn"><svg><use href="#i-check"></use></svg>${isNew ? 'Vytvořit' : 'Uložit'}</button>
+          </footer>
+        </form>`;
+      document.body.appendChild(dialog);
+
+      const updatePreview = () => {
+        const p = dialog.querySelector('#appPreview');
+        if (p) p.innerHTML = buildPreviewHTML(
+          dialog.querySelector('#appName').value,
+          dialog.querySelector('#appDesc').value,
+          dialog.querySelector('#appIconInput').value,
+          dialog.querySelector('#appColor').value,
+          dialog.querySelector('#appStatus').value
+        );
+      };
+
+      const close = () => { Ui.closeModal(dialog); setTimeout(() => dialog.remove(), 400); };
+      dialog.querySelector('#closeAppModal').addEventListener('click', close);
+      dialog.querySelector('#closeAppModal2').addEventListener('click', close);
+      let _mousedownOnBackdrop = false;
+      dialog.addEventListener('mousedown', (e) => { _mousedownOnBackdrop = e.target === dialog; });
+      dialog.addEventListener('click', (e) => { if (e.target === dialog && _mousedownOnBackdrop) close(); });
+
+      dialog.querySelectorAll('.icon-picker-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          dialog.querySelectorAll('.icon-picker-btn').forEach((b) => b.classList.remove('is-selected'));
+          btn.classList.add('is-selected');
+          dialog.querySelector('#appIconInput').value = btn.dataset.icon;
+          updatePreview();
+        });
+      });
+      ['#appName','#appDesc','#appStatus'].forEach((sel) => {
+        dialog.querySelector(sel).addEventListener('input', updatePreview);
+        dialog.querySelector(sel).addEventListener('change', updatePreview);
+      });
+
+      // Slug se předvyplňuje z názvu, dokud ho uživatel ručně neupraví.
+      const slugInput = dialog.querySelector('#appSlug');
+      const slugify = (v) => String(v || '').trim().toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      let slugTouched = !isNew && !!slugInput.value;
+      slugInput.addEventListener('input', () => { slugTouched = slugInput.value !== ''; });
+      dialog.querySelector('#appName').addEventListener('input', () => {
+        if (!slugTouched) slugInput.value = slugify(dialog.querySelector('#appName').value);
+      });
+      dialog.querySelectorAll('.color-picker-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          dialog.querySelectorAll('.color-picker-btn').forEach((b) => b.classList.remove('is-selected'));
+          btn.classList.add('is-selected');
+          dialog.querySelector('#appColor').value = btn.dataset.color;
+          updatePreview();
+        });
+      });
+
+      dialog.querySelector('#saveAppBtn').addEventListener('click', () => {
+        const form = dialog.querySelector('#appForm');
+        if (!form.reportValidity()) return;
+        const fd = new FormData(form);
+        const payload = { id: fd.get('id') || undefined, name: fd.get('name'), description: fd.get('description'), slug: fd.get('slug'), icon: fd.get('icon'), color: fd.get('color'), status: fd.get('status'), order: parseInt(fd.get('order')) || 0 };
+        // Dialog se zavře hned — spinner (busy overlay) by jinak zůstal schovaný pod ním.
+        close();
+        Ui.call('apiSaveApp', payload, { silent: true, busy: 'Ukládám aplikaci…' })
+          .then(() => { Ui.toast('Aplikace byla uložena.'); this.loadApps(); })
+          .catch((err) => {
+            Ui.toast(err.message, 'error');
+            this.openAppModal(payload); // vrátí dialog s rozepsanými hodnotami
+          });
+      });
+      Ui.openModal(dialog);
+    },
+
+    deleteApp(id) {
+      const app = (this.apps || []).find((a) => a.id === id);
+      Ui.confirm({
+        kicker: 'Aplikace',
+        title: 'Smazat aplikaci?',
+        message: 'Opravdu smazat aplikaci ' + ((app && app.name) || '') + '?',
+      }).then((ok) => {
+        if (!ok) return;
+        Ui.call('apiDeleteApp', id, { silent: true, busy: 'Mažu aplikaci…' })
+          .then(() => { Ui.toast('Aplikace byla smazána.'); this.loadApps(); })
+          .catch((err) => Ui.toast(err.message, 'error'));
+      });
+    },
+
+    /* ── Filiálky ─────────────────────────────────── */
+
+    loadStores() {
+      if (!this._sfTcBound) {
+        this._sfTcBound = true;
+        document.querySelector('#sfTcToggle').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this._sfFilters.tc = !this._sfFilters.tc;
+          this.renderStores();
+        });
+      }
+      const cached = this.stores.length > 0;
+      if (cached) { this.renderSfBadges(); this.renderStores(); }
+      Ui.call('apiListStores', null, cached ? { silent: true } : { silent: true, busy: 'Načítám filiálky…' })
+        .then((stores) => {
+          this.stores = stores;
+          this._applyMetroOverrides();
+          this.renderSfBadges();
+          this.renderStores();
+          this.markUpdated();
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    renderStores() {
+      const { lc, vt, rm, tc } = this._sfFilters;
+      let rows = this.sortFilter('stores', this.stores);
+      if (lc.size) rows = rows.filter((s) => lc.has(s.lc_code));
+      if (vt.size) rows = rows.filter((s) => vt.has(s.area_manager));
+      if (rm.size) rows = rows.filter((s) => rm.has(s.regional_manager));
+      if (tc) rows = rows.filter((s) => this._isTempClosed(s));
+      const tcBtn = document.querySelector('#sfTcToggle');
+      if (tcBtn) tcBtn.classList.toggle('is-on', tc);
+      document.querySelector('#storeRows').innerHTML = rows.length
+        ? rows.map((s) => {
+            const tempClosed = this._isTempClosed(s);
+            return `
+          <tr class="${s.active === false ? 'is-muted' : ''}">
+            <td><strong>${Ui.escape(s.code)}</strong></td>
+            <td><span class="store-name-cell">${Ui.escape(s.name)}${tempClosed ? `<span class="store-tc-right"><span class="store-tc-range">${Ui.escape(this._tempClosedRangeLabel(s))}</span><span class="pill is-orange">Dočasně uzavřena</span></span>` : ''}</span></td>
+            <td>${Ui.escape(s.lc_code || '–')}</td>
+            <td>${Ui.escape(s.area_manager || '–')}</td>
+            <td>${Ui.escape(s.regional_manager || '–')}</td>
+            <td style="text-align:center"><input type="checkbox" class="store-metro-toggle" data-store-metro="${Ui.escape(s.id)}"${s.metropolitni === true ? ' checked' : ''}${this.hasStoresWrite ? '' : ' disabled'} title="Metropolitní filiálka"></td>
+            <td>${s.active === false ? '<span class="pill is-red">Neaktivní</span>' : '<span class="pill is-green">Aktivní</span>'}</td>
+            <td style="text-align:center;white-space:nowrap">
+              ${this.hasStoresWrite
+                ? `<button class="icon-action" type="button" data-store-edit="${Ui.escape(s.id)}" title="Upravit filiálku">
+                    <svg><use href="#i-pencil"></use></svg>
+                   </button>`
+                : ''}
+              ${this.hasWriteAccess
+                ? `<button class="icon-action${s.manually_inactive === true ? '' : (s.active === false ? '' : ' danger')}" type="button"
+                    data-store-toggle="${Ui.escape(s.id)}"
+                    title="${s.active === false ? 'Aktivovat filiálku' : 'Deaktivovat filiálku'}">
+                    <svg><use href="#i-power"></use></svg>
+                   </button>`
+                : (!this.hasStoresWrite ? '—' : '')
+              }
+            </td>
+          </tr>`;
+          }).join('')
+        : '<tr><td colspan="8">Žádné filiálky. Spusťte synchronizaci.</td></tr>';
+      document.querySelectorAll('[data-store-toggle]').forEach((btn) => {
+        btn.addEventListener('click', () => this.toggleStoreActive(btn.dataset.storeToggle));
+      });
+      document.querySelectorAll('[data-store-edit]').forEach((btn) => {
+        btn.addEventListener('click', () => this.openStoreModal(btn.dataset.storeEdit));
+      });
+      document.querySelectorAll('[data-store-metro]').forEach((cb) => {
+        cb.addEventListener('change', () => this.toggleStoreMetro(cb.dataset.storeMetro, cb.checked));
+      });
+      this.updateSortIndicators('stores');
+    },
+
+    /**
+     * Optimistické změny checkboxu Metropolitní. Override mapa chrání změnu
+     * před přepsáním starší odpovědí ze serveru — tichá obnova seznamu mohla
+     * být načtena ještě před uložením změny a dorazit až po něm.
+     */
+    _metroOverrides: {},
+
+    _applyMetroOverrides() {
+      const now = Date.now();
+      Object.keys(this._metroOverrides).forEach((id) => {
+        const o = this._metroOverrides[id];
+        if (now - o.at > 60000) { delete this._metroOverrides[id]; return; }
+        const s = this.stores.find((x) => x.id === id);
+        if (s) s.metropolitni = o.value;
+      });
+    },
+
+    /** Optimistická změna příznaku Metropolitní — projeví se hned, server běží na pozadí. */
+    toggleStoreMetro(id, checked) {
+      const s = this.stores.find((x) => x.id === id);
+      if (!s) return;
+      const previous = s.metropolitni === true;
+      s.metropolitni = checked;
+      this._metroOverrides[id] = { value: checked, at: Date.now() };
+      Ui.call('apiSetStoreMetropolitni', { id: id, metropolitni: checked }, { silent: true })
+        .then(() => {
+          Ui.toast(s.code + ' ' + s.name + ': ' + (checked ? 'označena jako Metropolitní.' : 'označení Metropolitní zrušeno.'));
+        })
+        .catch((e) => {
+          if (this._metroOverrides[id] && this._metroOverrides[id].value === checked) {
+            delete this._metroOverrides[id];
+            s.metropolitni = previous;
+            this.renderStores(); // vrátí checkbox do původního stavu
+          }
+          Ui.toast(e.message, 'error');
+        });
+    },
+
+    toggleStoreActive(id) {
+      Ui.call('apiToggleStoreActive', id, { silent: true, busy: 'Ukládám stav filiálky…' })
+        .then(() => { Ui.toast('Stav filiálky byl změněn.'); this.loadStores(); })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /* ── Filiálky – modal detail ──────────────────── */
+
+    _smStore: null,
+    _smEditable: false,
+    _smRanges: [],
+    _smCalYear: 0,
+    _smCalMonth: 0,
+    _smSelStart: null,
+
+    openStoreModal(id) {
+      // id = null → nová filiálka (prázdný formulář)
+      const store = id
+        ? this.stores.find((s) => s.id === id)
+        : { id: '', code: '', name: '', lc_code: '', phone: '', area_manager: '', regional_manager: '', rm_phone: '', active: true, metropolitni: false, temp_closed_ranges: '' };
+      if (!store) return;
+      if (!id && !this.hasStoresWrite) return;
+      this._smStore = store;
+      this._smEditable = this.hasStoresWrite;
+
+      let ranges = [];
+      try {
+        const raw = store.temp_closed_ranges;
+        const parsed = raw ? JSON.parse(String(raw)) : [];
+        ranges = Array.isArray(parsed) ? parsed : [];
+      } catch { ranges = []; }
+      this._smRanges = ranges.map((r) => ({ from: r.from, to: r.to }));
+      this._smSelStart = null;
+
+      const now = new Date();
+      this._smCalYear = now.getFullYear();
+      this._smCalMonth = now.getMonth();
+
+      document.querySelector('#storeModalTitle').textContent = id ? (store.code + ' – ' + store.name) : 'Přidat filiálku';
+
+      this._smRenderFields(store);
+      this._smRenderHours(store);
+      this._smRenderCal();
+      this._smRenderRangeList();
+
+      const modal = document.querySelector('#storeModal');
+      if (!modal._smBound) {
+        modal._smBound = true;
+        document.querySelector('#storeModalClose').addEventListener('click', () => Ui.closeModal(modal));
+        document.querySelector('#storeModalCancel').addEventListener('click', () => Ui.closeModal(modal));
+        document.querySelector('#smCalPrev').addEventListener('click', () => {
+          if (this._smCalMonth === 0) { this._smCalMonth = 11; this._smCalYear--; }
+          else this._smCalMonth--;
+          this._smRenderCal();
+        });
+        document.querySelector('#smCalNext').addEventListener('click', () => {
+          if (this._smCalMonth === 11) { this._smCalMonth = 0; this._smCalYear++; }
+          else this._smCalMonth++;
+          this._smRenderCal();
+        });
+        document.querySelector('#storeModalSave').addEventListener('click', () => this._smSave());
+        modal.addEventListener('click', (e) => { if (e.target === modal && !modal._justOpened) Ui.closeModal(modal); });
+        const logoImg = document.querySelector('#smSavingOverlay .sp-ring-logo');
+        if (logoImg) logoImg.src = (window.APP_BOOTSTRAP || {}).logoUrl || '';
+      }
+
+      modal._justOpened = true;
+      setTimeout(() => { modal._justOpened = false; }, 0);
+      Ui.openModal(modal);
+    },
+
+    _smRenderFields(s) {
+      const ico = {
+        store:  `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+        lc:     `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
+        person: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+        phone:  `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.56 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l1.37-1.37a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+        status: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+      };
+      const statusHtml = s.active === false
+        ? `<span class="pill is-red">Neaktivní</span>`
+        : `<span class="pill is-green">Aktivní</span>`;
+      const edit = this._smEditable === true;
+      const isNew = !s.id;
+      const val = (f) => Ui.escape(s[f] || '');
+      const textField = (label, field, extra) => edit
+        ? `<div class="sm-field${extra || ''}"><span class="sm-label">${label}</span><input class="sm-input" data-sm-field="${field}" value="${val(field)}"></div>`
+        : `<div class="sm-field${extra || ''}"><span class="sm-label">${label}</span><span class="sm-value">${val(field) || '–'}</span></div>`;
+      const lcOptions = (this.logistics || [])
+        .filter((lc) => lc.active === true)
+        .map((lc) => `<option value="${Ui.escape(lc.abbreviation)}"${lc.abbreviation === s.lc_code ? ' selected' : ''}>${Ui.escape(lc.abbreviation)} — ${Ui.escape(lc.name)}</option>`)
+        .join('');
+      document.querySelector('#smFields').innerHTML = `
+        ${edit ? '<p class="sm-sync-note">Pole z měsíčního exportu (název, LC, VT, RM, telefony, otevírací doby) budou při příští synchronizaci přepsána podle zdrojového souboru.</p>' : ''}
+        <div class="sm-card">
+          <div class="sm-card-icon sm-card-icon--store">${ico.store}</div>
+          <div class="sm-card-body">
+            <div class="sm-field-row">
+              ${edit && isNew
+                ? `<div class="sm-field"><span class="sm-label">Číslo prodejny</span><input class="sm-input" data-sm-field="code" value="${val('code')}" placeholder="001"></div>`
+                : `<div class="sm-field"><span class="sm-label">Číslo prodejny</span><span class="sm-value sm-value--bold">${val('code')}</span></div>`}
+              ${textField('Název', 'name', ' sm-field--wide')}
+              ${textField('Telefon prodejny', 'phone')}
+            </div>
+          </div>
+        </div>
+        <div class="sm-card">
+          <div class="sm-card-icon sm-card-icon--lc">${ico.lc}</div>
+          <div class="sm-card-body">
+            <div class="sm-field-row">
+              ${edit
+                ? `<div class="sm-field"><span class="sm-label">LC</span><select class="sm-input" data-sm-field="lc_code"><option value=""></option>${lcOptions}</select></div>`
+                : `<div class="sm-field"><span class="sm-label">LC</span><span class="sm-value sm-value--bold">${val('lc_code') || '–'}</span></div>`}
+              <div class="sm-field"><span class="sm-label">Metropolitní</span>${edit
+                ? `<label class="sm-check"><input type="checkbox" data-sm-field="metropolitni"${s.metropolitni === true ? ' checked' : ''}><span>Ano</span></label>`
+                : `<span class="sm-value">${s.metropolitni === true ? 'Ano' : 'Ne'}</span>`}</div>
+            </div>
+          </div>
+        </div>
+        <div class="sm-card">
+          <div class="sm-card-icon sm-card-icon--vt">${ico.person}</div>
+          <div class="sm-card-body">
+            <div class="sm-field-row">
+              ${textField('VT', 'area_manager', ' sm-field--wide')}
+            </div>
+          </div>
+        </div>
+        <div class="sm-card">
+          <div class="sm-card-icon sm-card-icon--rm">${ico.person}</div>
+          <div class="sm-card-body">
+            <div class="sm-field-row">
+              ${textField('RM', 'regional_manager', ' sm-field--wide')}
+              ${textField('Telefon RM', 'rm_phone')}
+            </div>
+          </div>
+        </div>
+        <div class="sm-card">
+          <div class="sm-card-icon sm-card-icon--status">${ico.status}</div>
+          <div class="sm-card-body">
+            <div class="sm-field-row">
+              <div class="sm-field"><span class="sm-label">Stav filiálky</span>${edit
+                ? `<select class="sm-input" data-sm-field="active"><option value="true"${s.active !== false ? ' selected' : ''}>Aktivní</option><option value="false"${s.active === false ? ' selected' : ''}>Neaktivní</option></select>`
+                : `<span class="sm-value">${statusHtml}</span>`}</div>
+            </div>
+          </div>
+        </div>`;
+    },
+
+    _smRenderHours(s) {
+      const days = [
+        ['Po', 'mon', false], ['Út', 'tue', false], ['St', 'wed', false],
+        ['Čt', 'thu', false], ['Pá', 'fri', false], ['So', 'sat', true], ['Ne', 'sun', true],
+      ];
+      const edit = this._smEditable === true;
+      document.querySelector('#smHours').innerHTML = days.map(([label, d, weekend]) => {
+        const o = s[d + '_open'] || '', c = s[d + '_close'] || '';
+        const val = o && c ? o + '–' + c : '–';
+        return `<div class="sm-hour-item${weekend ? ' sm-hour-item--weekend' : ''}">
+          <span class="sm-hour-day">${label}</span>
+          ${edit
+            ? `<span class="sm-hour-edit"><input class="sm-input sm-hour-input" data-sm-field="${d}_open" value="${Ui.escape(o)}" placeholder="7:00">–<input class="sm-input sm-hour-input" data-sm-field="${d}_close" value="${Ui.escape(c)}" placeholder="20:00"></span>`
+            : `<span class="sm-hour-val">${Ui.escape(val)}</span>`}
+        </div>`;
+      }).join('');
+    },
+
+    _smRenderCal() {
+      const year = this._smCalYear, month = this._smCalMonth;
+      const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];
+      document.querySelector('#smCalLabel').textContent = MONTHS[month] + ' ' + year;
+
+      const today = new Date(); today.setHours(0,0,0,0);
+      const firstDay = new Date(year, month, 1);
+      // Monday-based week: 0=Mon … 6=Sun
+      let startOffset = firstDay.getDay() - 1; if (startOffset < 0) startOffset = 6;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      const ranges = this._smRanges;
+      const isInRange = (d) => {
+        const t = d.getTime();
+        return ranges.some((r) => {
+          const f = this._parseLocalDate(r.from);
+          const to = this._parseLocalDate(r.to);
+          return t >= f.getTime() && t <= to.getTime();
+        });
+      };
+
+      const DAY_HEADS = ['Po','Út','St','Čt','Pá','So','Ne'];
+      let html = '<div class="sm-cal-head">' + DAY_HEADS.map((d) => `<span>${d}</span>`).join('') + '</div>';
+      html += '<div class="sm-cal-grid">';
+      for (let i = 0; i < startOffset; i++) html += '<span></span>';
+      for (let day = 1; day <= daysInMonth; day++) {
+        const d = new Date(year, month, day);
+        const iso = this._toIsoDate(d);
+        const isToday = d.getTime() === today.getTime();
+        const marked = isInRange(d);
+        html += `<button class="sm-cal-day${marked ? ' is-marked' : ''}${isToday ? ' is-today' : ''}" type="button" data-date="${iso}">${day}</button>`;
+      }
+      const trailing = 42 - startOffset - daysInMonth;
+      for (let i = 0; i < trailing; i++) html += '<span></span>';
+      html += '</div>';
+      document.querySelector('#smCal').innerHTML = html;
+
+      document.querySelectorAll('#smCal .sm-cal-day').forEach((btn) => {
+        btn.addEventListener('click', () => this._smCalDayClick(btn.dataset.date));
+      });
+    },
+
+    _smCalDayClick(iso) {
+      const d = this._parseLocalDate(iso);
+
+      // Klik na označený den = odebrat tento den z rozsahů
+      const isMarked = this._smRanges.some((r) => {
+        const f = this._parseLocalDate(r.from);
+        const to = this._parseLocalDate(r.to);
+        return d >= f && d <= to;
+      });
+      if (isMarked) {
+        this._smRemoveDay(iso);
+        this._smSelStart = null;
+        this._smRenderCal();
+        this._smRenderRangeList();
+        return;
+      }
+
+      if (!this._smSelStart) {
+        this._smSelStart = iso;
+        // Zvýrazni začátek výběru
+        document.querySelectorAll('#smCal .sm-cal-day').forEach((btn) => {
+          btn.classList.toggle('is-selecting', btn.dataset.date === iso);
+        });
+        return;
+      }
+
+      // Druhý klik = konec rozsahu
+      let from = this._smSelStart, to = iso;
+      if (from > to) { const tmp = from; from = to; to = tmp; }
+      this._smRanges.push({ from, to });
+      this._smRanges = this._smMergeRanges(this._smRanges);
+      this._smSelStart = null;
+      this._smRenderCal();
+      this._smRenderRangeList();
+    },
+
+    _smRemoveDay(iso) {
+      const d = this._parseLocalDate(iso);
+      const result = [];
+      this._smRanges.forEach((r) => {
+        const f = this._parseLocalDate(r.from);
+        const to = this._parseLocalDate(r.to);
+        if (d < f || d > to) { result.push(r); return; }
+        // Rozděl rozsah
+        if (d.getTime() > f.getTime()) {
+          const prev = new Date(d); prev.setDate(prev.getDate() - 1);
+          result.push({ from: r.from, to: this._toIsoDate(prev) });
+        }
+        if (d.getTime() < to.getTime()) {
+          const next = new Date(d); next.setDate(next.getDate() + 1);
+          result.push({ from: this._toIsoDate(next), to: r.to });
+        }
+      });
+      this._smRanges = result;
+    },
+
+    _smMergeRanges(ranges) {
+      if (!ranges.length) return [];
+      const sorted = [...ranges].sort((a, b) => a.from < b.from ? -1 : 1);
+      const merged = [{ ...sorted[0] }];
+      for (let i = 1; i < sorted.length; i++) {
+        const last = merged[merged.length - 1];
+        if (sorted[i].from <= last.to) {
+          if (sorted[i].to > last.to) last.to = sorted[i].to;
+        } else {
+          merged.push({ ...sorted[i] });
+        }
+      }
+      return merged;
+    },
+
+    _smRenderRangeList() {
+      const el = document.querySelector('#smRanges');
+      if (!this._smRanges.length) { el.innerHTML = '<div class="sm-no-ranges">Žádné dočasné uzavření</div>'; return; }
+      const fmt = (iso) => {
+        const [y, m, d] = iso.split('-');
+        return d + '. ' + m + '. ' + y;
+      };
+      el.innerHTML = this._smRanges.map((r, i) =>
+        `<div class="sm-range-item">
+          <span>${fmt(r.from)}${r.from !== r.to ? ' – ' + fmt(r.to) : ''}</span>
+          <button class="sm-range-del" type="button" data-range-idx="${i}" title="Odstranit">×</button>
+        </div>`
+      ).join('');
+      el.querySelectorAll('.sm-range-del').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          this._smRanges.splice(Number(btn.dataset.rangeIdx), 1);
+          this._smRenderCal();
+          this._smRenderRangeList();
+        });
+      });
+    },
+
+    _smSave() {
+      const store = this._smStore;
+      if (!store) return;
+
+      if (!this._smEditable) {
+        // Uživatel bez práva zápisu nemá co ukládat (modal se mu ani neotvírá)
+        Ui.closeModal(document.querySelector('#storeModal'));
+        return;
+      }
+
+      const payload = { id: store.id || null, temp_closed_ranges: this._smRanges, active: store.active !== false, metropolitni: false };
+      document.querySelectorAll('#storeModal [data-sm-field]').forEach((el) => {
+        if (el.type === 'checkbox') payload[el.dataset.smField] = el.checked;
+        else payload[el.dataset.smField] = el.value;
+      });
+      if (payload.code === undefined) payload.code = store.code; // u existující filiálky se číslo needituje
+      payload.active = payload.active === true || payload.active === 'true'; // select vrací string
+
+      const overlay = document.querySelector('#smSavingOverlay');
+      if (overlay) overlay.hidden = false;
+      Ui.call('apiSaveStore', payload, { silent: true })
+        .then(() => {
+          if (overlay) overlay.hidden = true;
+          Ui.closeModal(document.querySelector('#storeModal'));
+          Ui.toast('Filiálka byla uložena.');
+          this.loadStores();
+        })
+        .catch((e) => {
+          if (overlay) overlay.hidden = true;
+          Ui.toast(e.message, 'error'); // modal zůstává otevřený, hodnoty se neztratí
+        });
+    },
+
+    /* ── Filiálky – filtrování ────────────────────── */
+
+    _sfFilters: { lc: new Set(), vt: new Set(), rm: new Set(), tc: false },
+
+    _sfCs: new Intl.Collator('cs'),
+
+    renderSfBadges() {
+      const stores = this.stores;
+      const { lc, vt, rm } = this._sfFilters;
+      const cs = this._sfCs;
+
+      const allLcs  = [...new Set(stores.map((s) => s.lc_code).filter(Boolean))].sort((a, b) => cs.compare(a, b));
+      const lcMatch = lc.size ? stores.filter((s) => lc.has(s.lc_code)) : stores;
+
+      const allVts     = [...new Set(stores.map((s) => s.area_manager).filter(Boolean))].sort((a, b) => cs.compare(a, b));
+      const inScopeVts = new Set(lcMatch.map((s) => s.area_manager).filter(Boolean));
+      const vtMatch    = vt.size ? lcMatch.filter((s) => vt.has(s.area_manager)) : lcMatch;
+
+      const allRms     = [...new Set(stores.map((s) => s.regional_manager).filter(Boolean))].sort((a, b) => cs.compare(a, b));
+      const inScopeRms = new Set(vtMatch.map((s) => s.regional_manager).filter(Boolean));
+
+      // Parent highlights: selected VT → highlight parent LC; selected RM → highlight parent VT + LC
+      const parentLcs = new Set();
+      const parentVts = new Set();
+      stores.forEach((s) => {
+        if (vt.size && vt.has(s.area_manager) && s.lc_code) parentLcs.add(s.lc_code);
+        if (rm.size && rm.has(s.regional_manager)) {
+          if (s.area_manager) parentVts.add(s.area_manager);
+          if (s.lc_code) parentLcs.add(s.lc_code);
+        }
+      });
+
+      this._sfRenderGroup('sfBadgesLc', allLcs, lc, new Set(allLcs), 'lc', parentLcs);
+      this._sfRenderGroup('sfBadgesVt', allVts, vt, inScopeVts,      'vt', parentVts);
+      this._sfRenderRmDropdown(allRms, rm, inScopeRms);
+    },
+
+    _sfRenderGroup(id, all, selected, inScope, group, isParent = new Set()) {
+      const el = document.querySelector('#' + id);
+      if (!el) return;
+      el.innerHTML = all.map((val) => {
+        const on     = selected.has(val);
+        const parent = !on && isParent.has(val);
+        const dim    = !inScope.has(val);
+        let inner;
+        if (group === 'vt') {
+          const sp = val.indexOf(' ');
+          if (sp > 0) {
+            inner = `<span class="sf-badge-sn">${Ui.escape(val.slice(0, sp))}</span>` +
+                    `<span class="sf-badge-fn">${Ui.escape(val.slice(sp + 1))}</span>`;
+          } else {
+            inner = Ui.escape(val);
+          }
+        } else {
+          inner = Ui.escape(val);
+        }
+        return `<button class="sf-badge${on ? ' is-on' : ''}${parent ? ' is-parent' : ''}${dim ? ' is-dim' : ''}" type="button"
+          data-sfg="${group}" data-sfv="${Ui.escape(val)}">${inner}</button>`;
+      }).join('');
+      el.querySelectorAll('.sf-badge').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const g = btn.dataset.sfg;
+          const v = btn.dataset.sfv;
+          if (this._sfFilters[g].has(v)) this._sfFilters[g].delete(v);
+          else this._sfFilters[g].add(v);
+          if (g === 'lc') this._sfFilters.vt = new Set();
+          if (g === 'lc' || g === 'vt') this._sfFilters.rm = new Set();
+          this.renderSfBadges();
+          this.renderStores();
+        });
+      });
+    },
+
+    _sfRmDropdownOpen: false,
+
+    _sfRenderRmDropdown(allRms, selected, inScope) {
+      const trigger  = document.querySelector('#sfRmTrigger');
+      const dropdown = document.querySelector('#sfRmDropdown');
+      const listEl   = document.querySelector('#sfRmList');
+      const searchEl = document.querySelector('#sfRmSearch');
+      if (!trigger || !listEl) return;
+
+      const renderList = (filter) => {
+        const q = (filter || '').toLowerCase();
+        const filtered = allRms.filter((v) => !q || v.toLowerCase().includes(q));
+        const hasScope  = inScope.size < allRms.length;
+        const inArr  = filtered.filter((v) =>  inScope.has(v));
+        const outArr = filtered.filter((v) => !inScope.has(v));
+        const mkItem = (val) => {
+          const on  = selected.has(val);
+          const dim = !inScope.has(val);
+          return `<label class="sf-rm-item${on ? ' is-on' : ''}${dim ? ' is-dim' : ''}">` +
+            `<input type="checkbox" data-sfv="${Ui.escape(val)}"${on ? ' checked' : ''}><span>${Ui.escape(val)}</span></label>`;
+        };
+        let html = '';
+        if (hasScope && inArr.length && outArr.length) {
+          html = inArr.map(mkItem).join('') +
+            '<div class="sf-rm-sep"></div>' +
+            outArr.map(mkItem).join('');
+        } else {
+          html = filtered.map(mkItem).join('');
+        }
+        listEl.innerHTML = html;
+        listEl.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+          cb.addEventListener('change', () => {
+            const v = cb.dataset.sfv;
+            if (cb.checked) this._sfFilters.rm.add(v);
+            else this._sfFilters.rm.delete(v);
+            this.renderSfBadges();
+            this.renderStores();
+          });
+        });
+      };
+
+      renderList(searchEl ? searchEl.value : '');
+
+      const count = selected.size;
+      trigger.querySelector('#sfRmTriggerLabel').textContent =
+        count === 0 ? 'Všichni RM' : count === 1 ? [...selected][0] : `${count} RM`;
+      trigger.classList.toggle('is-on', count > 0);
+
+      const clearBtn = document.querySelector('#sfRmClear');
+      if (clearBtn) {
+        clearBtn.hidden = count === 0;
+        if (!clearBtn._sfBound) {
+          clearBtn._sfBound = true;
+          clearBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._sfFilters.rm = new Set();
+            this.renderSfBadges();
+            this.renderStores();
+          });
+        }
+      }
+
+
+      /* Portal dropdown to body so overflow:hidden on section doesn't clip it */
+      if (dropdown.parentElement !== document.body) {
+        document.body.appendChild(dropdown);
+      }
+
+      const sfPosition = () => {
+        const r = trigger.getBoundingClientRect();
+        dropdown.style.top  = (r.bottom + 4) + 'px';
+        dropdown.style.right = (window.innerWidth - r.right) + 'px';
+      };
+
+      const sfOpen  = () => { sfPosition(); dropdown.classList.add('sf-rm-open'); };
+      const sfClose = () => { dropdown.classList.remove('sf-rm-open'); };
+
+      if (!trigger._sfBound) {
+        trigger._sfBound = true;
+        trigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this._sfRmDropdownOpen = !this._sfRmDropdownOpen;
+          this._sfRmDropdownOpen ? sfOpen() : sfClose();
+          if (this._sfRmDropdownOpen) searchEl.focus({ preventScroll: true });
+        });
+        searchEl.addEventListener('input', () => renderList(searchEl.value));
+        document.addEventListener('click', (e) => {
+          if (!e.target.closest('#sfRmTrigger') && !e.target.closest('#sfRmDropdown')) {
+            this._sfRmDropdownOpen = false;
+            sfClose();
+          }
+        });
+      }
+      this._sfRmDropdownOpen ? sfOpen() : sfClose();
+    },
+
+    /* ── Logistická centra ────────────────────────── */
+
+    loadLogistics() {
+      const cached = this.logistics.length > 0;
+      if (cached) this.renderLogistics();
+      Ui.call('apiListLogistics', null, cached ? { silent: true } : { silent: true, busy: 'Načítám logistická centra…' })
+        .then((list) => {
+          this.logistics = list;
+          this.renderLogistics();
+          this.markUpdated();
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    renderLogistics() {
+      const rows = this.sortFilter('logistics', this.logistics);
+      const defaultLc = String((this._settings && this._settings.defaultLcCode) || '').toUpperCase();
+      document.querySelector('#logisticRows').innerHTML = rows.length
+        ? rows.map((lc) => {
+          const isDefault = lc.abbreviation && String(lc.abbreviation).toUpperCase() === defaultLc;
+          return `
+          <tr class="${lc.active === false ? 'is-muted' : ''}">
+            <td>${Ui.escape(lc.code)}</td>
+            <td><strong>${Ui.escape(lc.abbreviation)}</strong></td>
+            <td>${Ui.escape(lc.name)}</td>
+            <td>${lc.active === false ? '<span class="pill is-red">Neaktivní</span>' : '<span class="pill is-green">Aktivní</span>'}</td>
+            <td>
+              ${this.isAdmin && lc.active !== false
+                ? `<button class="icon-action${isDefault ? ' is-active' : ''}" type="button" data-lc-default-id="${Ui.escape(lc.id)}" title="${isDefault ? 'Výchozí logistické centrum' : 'Nastavit jako výchozí'}">
+                    <svg><use href="#i-star"></use></svg>
+                   </button>`
+                : (isDefault ? '<svg width="16" height="16"><use href="#i-star"></use></svg>' : '—')
+              }
+            </td>
+            <td>
+              ${this.hasWriteAccess
+                ? `<button class="icon-action" type="button" data-lc-id="${Ui.escape(lc.id)}" title="Upravit">
+                    <svg><use href="#i-pencil"></use></svg>
+                   </button>`
+                : '—'
+              }
+            </td>
+          </tr>`;
+        }).join('')
+        : '<tr><td colspan="6">Žádná logistická centra.</td></tr>';
+      document.querySelectorAll('[data-lc-id]').forEach((btn) => {
+        btn.addEventListener('click', () => this.openLogisticModal(this.logistics.find((lc) => lc.id === btn.dataset.lcId)));
+      });
+      document.querySelectorAll('[data-lc-default-id]').forEach((btn) => {
+        btn.addEventListener('click', () => this.setDefaultLogistic(btn.dataset.lcDefaultId));
+      });
+      this.updateSortIndicators('logistics');
+    },
+
+    setDefaultLogistic(id) {
+      Ui.call('apiSetDefaultLogistic', id, { silent: true, busy: 'Nastavuji výchozí LC…' })
+        .then((res) => {
+          this._settings = Object.assign({}, this._settings, { defaultLcCode: res.defaultLcCode });
+          Ui.toast('Výchozí logistické centrum bylo nastaveno.');
+          this.renderLogistics();
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    openLogisticModal(lc) {
+      const form = document.querySelector('#logisticForm');
+      form.reset();
+      form.elements.id.value = lc ? lc.id : '';
+      form.elements.code.value = lc ? (lc.code || '') : '';
+      form.elements.name.value = lc ? (lc.name || '') : '';
+      form.elements.abbreviation.value = lc ? (lc.abbreviation || '') : '';
+      form.elements.active.value = lc && lc.active === false ? 'false' : 'true';
+      Ui.setText('#logisticModalTitle', lc ? 'Upravit logistické centrum' : 'Přidat logistické centrum');
+      Ui.openModal(document.querySelector('#logisticModal'));
+    },
+
+    saveLogistic(button) {
+      const form = document.querySelector('#logisticForm');
+      const payload = {
+        id: form.elements.id.value || null,
+        code: form.elements.code.value,
+        name: form.elements.name.value,
+        abbreviation: form.elements.abbreviation.value,
+        active: form.elements.active.value === 'true',
+      };
+      // Dialog se zavře hned — spinner (busy overlay) by jinak zůstal schovaný pod ním.
+      Ui.closeModal(document.querySelector('#logisticModal'));
+      Ui.call('apiSaveLogistic', payload, { silent: true, busy: 'Ukládám logistické centrum…' })
+        .then(() => {
+          Ui.toast('Logistické centrum bylo uloženo.');
+          this.loadLogistics();
+        })
+        .catch((e) => {
+          Ui.toast(e.message, 'error');
+          this.openLogisticModal(Object.assign({}, payload, { id: payload.id || '' })); // vrátí dialog s rozepsanými hodnotami
+        });
+    },
+
+    /** Zkratky LC nalezené ve filiálkách, které zatím nemají vlastní záznam v Log. centrech. */
+    _missingLogisticAbbreviations() {
+      const known = new Set((this.logistics || []).map((lc) => String(lc.abbreviation || '').trim().toUpperCase()));
+      const found = new Set();
+      (this.stores || []).forEach((s) => {
+        const abbr = String(s.lc_code || '').trim().toUpperCase();
+        if (abbr && !known.has(abbr)) found.add(abbr);
+      });
+      return [...found].sort();
+    },
+
+    openBulkLogisticModal() {
+      if (!this.stores.length) {
+        Ui.call('apiListStores', null, { silent: true, busy: 'Načítám filiálky…' })
+          .then((stores) => { this.stores = stores || []; this._openBulkLogisticModalReady(); })
+          .catch((e) => Ui.toast(e.message, 'error'));
+        return;
+      }
+      this._openBulkLogisticModalReady();
+    },
+
+    _openBulkLogisticModalReady() {
+      const missing = this._missingLogisticAbbreviations();
+      if (!missing.length) {
+        Ui.toast('Všechny LC ze souboru už mají svůj záznam.');
+        return;
+      }
+      document.querySelector('#bulkLogisticRows').innerHTML = missing.map((abbr, i) => `
+        <tr>
+          <td style="text-align:center"><input type="checkbox" class="bulk-lc-use" data-idx="${i}" checked></td>
+          <td><input class="sm-input" data-idx="${i}" data-bulk-field="code" placeholder="5"></td>
+          <td><strong>${Ui.escape(abbr)}</strong><input type="hidden" data-idx="${i}" data-bulk-field="abbreviation" value="${Ui.escape(abbr)}"></td>
+          <td><input class="sm-input" data-idx="${i}" data-bulk-field="name" placeholder="Brandýs nad Labem"></td>
+          <td style="text-align:center"><input type="checkbox" data-idx="${i}" data-bulk-field="active" checked></td>
+        </tr>`).join('');
+      Ui.openModal(document.querySelector('#bulkLogisticModal'));
+    },
+
+    saveBulkLogistics() {
+      const rows = [];
+      document.querySelectorAll('#bulkLogisticRows tr').forEach((tr) => {
+        if (!tr.querySelector('.bulk-lc-use').checked) return;
+        const row = {};
+        tr.querySelectorAll('[data-bulk-field]').forEach((el) => {
+          row[el.dataset.bulkField] = el.type === 'checkbox' ? el.checked : el.value.trim();
+        });
+        rows.push(row);
+      });
+      if (!rows.length) { Ui.toast('Nevybrali jste žádné LC k vytvoření.', 'error'); return; }
+      const missingFields = rows.some((r) => !r.code || !r.name);
+      if (missingFields) { Ui.toast('U vybraných LC vyplňte číslo i název.', 'error'); return; }
+
+      Ui.closeModal(document.querySelector('#bulkLogisticModal'));
+      Ui.call('apiBulkCreateLogistics', rows, { silent: true, busy: 'Vytvářím logistická centra…' })
+        .then((result) => {
+          const errs = result.errors || [];
+          if (result.created > 0) Ui.toast('Vytvořeno LC: ' + result.created + (errs.length ? ' (' + errs.length + ' se nezdařilo)' : '.'));
+          if (errs.length) Ui.toast('Chyby: ' + errs.join('; '), 'error');
+          this.loadLogistics();
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /* ── Synchronizace ────────────────────────────── */
+
+    loadSync() {
+      const cached = !!this._syncSettings;
+      if (cached) this.fillSyncForm(this._syncSettings);
+      Ui.call('apiGetSyncSettings', null, cached ? { silent: true } : { silent: true, busy: 'Načítám konfiguraci…' })
+        .then((s) => {
+          this._syncSettings = s;
+          this.fillSyncForm(s);
+          this.markUpdated();
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    fillSyncForm(s) {
+      const form = document.querySelector('#syncSettingsForm');
+      form.elements.syncFolderUrl.value = s.syncFolderUrl || '';
+      form.elements.syncStoresSheet.value = s.syncStoresSheet || '';
+      form.elements.syncTempClosedPrefix.value = s.syncTempClosedPrefix || '';
+      form.elements.autoSyncEnabled.value = s.autoSyncEnabled ? 'true' : 'false';
+      form.elements.autoSyncHour.value = String(s.autoSyncHour ?? 3);
+      const lastCheck = document.querySelector('#autoSyncLastCheck');
+      if (lastCheck) {
+        lastCheck.textContent = s.autoSyncLastCheckAt
+          ? 'Poslední automatická kontrola: ' + Ui.formatDateTime(s.autoSyncLastCheckAt)
+            + (s.autoSyncLastCheckResult ? ' — ' + s.autoSyncLastCheckResult : '') + '.'
+          : (s.autoSyncEnabled ? 'Automatická kontrola zatím neproběhla.' : '');
+      }
+      if (s.lastSyncAt || s.lastSyncResult) {
+        this.renderSyncResult(s.lastSyncAt, s.lastSyncResult, false);
+      } else {
+        document.querySelector('#syncResultArea').innerHTML =
+          '<p style="color:var(--muted);font-size:13px">Synchronizace zatím nebyla spuštěna.</p>';
+      }
+      this.renderSyncHistory(s.syncHistory || []);
+    },
+
+    renderSyncHistory(history) {
+      const tbody = document.querySelector('#syncHistoryRows');
+      if (!tbody) return;
+      tbody.innerHTML = (history || []).slice(0, 10).map((h) => `
+        <tr>
+          <td style="white-space:nowrap">${Ui.escape(Ui.formatDateTime(h.at))}</td>
+          <td>${h.auto ? '<span class="pill is-blue">Automaticky</span>' : Ui.escape(String(h.by || '').replace(/@.*/, ''))}</td>
+          <td style="color:var(--muted)">${Ui.escape(h.file || '')}</td>
+          <td><div class="sync-pills">${this._syncStatPills(h)}</div></td>
+        </tr>`).join('')
+        || '<tr><td colspan="4" style="color:var(--muted)">Zatím žádné synchronizace.</td></tr>';
+    },
+
+    /** Přidá právě doběhlou synchronizaci na začátek lokální historie (bez refetche). */
+    _syncHistoryPrepend(result) {
+      if (!this._syncSettings) return;
+      const st = result.stores || {};
+      const h = this._syncSettings.syncHistory = this._syncSettings.syncHistory || [];
+      h.unshift({
+        at: new Date().toISOString(),
+        by: (this.boot.user && this.boot.user.email) || '',
+        auto: false,
+        file: result.fileName || '',
+        added: st.added || 0, updated: st.updated || 0,
+        deactivated: st.deactivated || 0, reactivated: st.reactivated || 0,
+        unchanged: st.unchanged || 0,
+        errors: (st.errors || []).length,
+      });
+      if (h.length > 20) h.length = 20;
+      this.renderSyncHistory(h);
+    },
+
+    saveSyncSettings(button) {
+      const form = document.querySelector('#syncSettingsForm');
+      Ui.setButtonLoading(button, true);
+      Ui.call('apiSaveSyncSettings', {
+        syncFolderUrl: form.elements.syncFolderUrl.value,
+        syncStoresSheet: form.elements.syncStoresSheet.value,
+        syncTempClosedPrefix: form.elements.syncTempClosedPrefix.value,
+        autoSyncEnabled: form.elements.autoSyncEnabled.value === 'true',
+        autoSyncHour: parseInt(form.elements.autoSyncHour.value, 10),
+      }, { silent: true, busy: 'Ukládám konfiguraci…' })
+        .then((res) => {
+          Ui.setButtonLoading(button, false);
+          Ui.toast('Konfigurace uložena.' + (res && res.autoSyncTriggerActive ? ' Automatická synchronizace je aktivní.' : ''));
+        })
+        .catch((e) => { Ui.setButtonLoading(button, false); Ui.toast(e.message, 'error'); });
+    },
+
+    heroRunSync() {
+      const btn = document.querySelector('#heroSyncBtn');
+      if (btn) { btn.disabled = true; btn.classList.add('is-spinning'); }
+      Ui.call('apiRunSync', null, { silent: true, busy: 'Synchronizace probíhá… může trvat až minutu' })
+        .then((result) => {
+          if (btn) { btn.disabled = false; btn.classList.remove('is-spinning'); }
+          const s = result.stores || {};
+          const parts = [
+            s.added > 0 ? '+' + s.added + ' přidáno' : '',
+            s.updated > 0 ? s.updated + ' upraveno' : '',
+            s.deactivated > 0 ? s.deactivated + ' deaktivováno' : '',
+            s.reactivated > 0 ? s.reactivated + ' reaktivováno' : '',
+          ].filter(Boolean);
+          const hasChanges = parts.length > 0;
+          Ui.toast('Synchronizace dokončena' + (hasChanges ? ': ' + parts.join(', ') : ' — žádné změny') + '.');
+          if (hasChanges) {
+            this._syncResult = result;
+            this._syncWarning = { message: 'Synchronizace: ' + parts.join(', '), modal: 'sync' };
+          } else {
+            this._syncResult = null;
+            this._syncWarning = null;
+          }
+          this._syncHistoryPrepend(result);
+          this.loadHome();
+        })
+        .catch((e) => {
+          if (btn) { btn.disabled = false; btn.classList.remove('is-spinning'); }
+          Ui.toast('Synchronizace selhala: ' + e.message, 'error');
+        });
+    },
+
+    runSync() {
+      const button = document.querySelector('#runSyncButton');
+      Ui.setButtonLoading(button, true);
+      document.querySelector('#syncResultArea').innerHTML =
+        '<p style="color:var(--muted);font-size:13px">⏳ Synchronizace probíhá, prosím čekejte — může trvat až minutu…</p>';
+      Ui.call('apiRunSync', null, { silent: true, busy: 'Synchronizuji data… může to trvat až minutu' })
+        .then((result) => {
+          Ui.setButtonLoading(button, false);
+          this.renderSyncResult(new Date().toISOString(), result, true);
+          this._syncHistoryPrepend(result);
+          Ui.toast('Synchronizace dokončena.');
+        })
+        .catch((e) => {
+          Ui.setButtonLoading(button, false);
+          document.querySelector('#syncResultArea').innerHTML =
+            '<p style="color:var(--lidl-red);font-size:13px">✕ ' + Ui.escape(e.message) + '</p>';
+          Ui.toast(e.message, 'error');
+        });
+    },
+
+    /** Pilulky se souhrnem synchronizace — bere plné stats (errors pole) i záznam historie (errors číslo). */
+    _syncStatPills(stats) {
+      if (!stats) return '<span class="pill">Neprobíhala</span>';
+      const fmt = (n) => n > 0 ? n : 0;
+      const errs = Array.isArray(stats.errors) ? stats.errors.length : (stats.errors || 0);
+      return [
+        stats.added    > 0 ? `<span class="pill is-green">+${fmt(stats.added)} přidáno</span>` : '',
+        stats.updated  > 0 ? `<span class="pill is-blue">${fmt(stats.updated)} upraveno</span>` : '',
+        stats.deactivated > 0 ? `<span class="pill is-red">${fmt(stats.deactivated)} deaktivováno</span>` : '',
+        stats.reactivated > 0 ? `<span class="pill is-orange">${fmt(stats.reactivated)} reaktivováno</span>` : '',
+        `<span class="pill">${fmt(stats.unchanged)} beze změny</span>`,
+        errs > 0 ? `<span class="pill is-red">${errs} chyb</span>` : '',
+      ].filter(Boolean).join('');
+    },
+
+    renderSyncResult(syncAt, result, fresh) {
+      if (!result) return;
+      const esc = Ui.escape.bind(Ui);
+      const statPills = (stats) => this._syncStatPills(stats);
+      const errList = (stats) => {
+        if (!stats || !(stats.errors || []).length) return '';
+        return '<div class="sync-errors">' + stats.errors.map((e) => esc(e)).join('<br>') + '</div>';
+      };
+      const changeDetail = (stats) => {
+        const ch = stats && stats.changes;
+        if (!ch) return '';
+        const sections = [];
+        if ((ch.added || []).length) {
+          sections.push(`<div class="sync-change-group">
+            <div class="sync-change-label is-green">Přidáno (${ch.added.length}${stats.added > ch.added.length ? '+' : ''})</div>
+            ${ch.added.map((s) => `<div class="sync-change-row">${esc(s.code)} — ${esc(s.name)}</div>`).join('')}
+          </div>`);
+        }
+        if ((ch.deactivated || []).length) {
+          sections.push(`<div class="sync-change-group">
+            <div class="sync-change-label is-red">Deaktivováno (${ch.deactivated.length}${stats.deactivated > ch.deactivated.length ? '+' : ''})</div>
+            ${ch.deactivated.map((s) => `<div class="sync-change-row">${esc(s.code)} — ${esc(s.name)}</div>`).join('')}
+          </div>`);
+        }
+        if ((ch.reactivated || []).length) {
+          sections.push(`<div class="sync-change-group">
+            <div class="sync-change-label is-orange">Reaktivováno (${ch.reactivated.length}${stats.reactivated > ch.reactivated.length ? '+' : ''})</div>
+            ${ch.reactivated.map((s) => `<div class="sync-change-row">${esc(s.code)} — ${esc(s.name)}</div>`).join('')}
+          </div>`);
+        }
+        if ((ch.updated || []).length) {
+          sections.push(`<div class="sync-change-group">
+            <div class="sync-change-label is-blue">Upraveno (${ch.updated.length}${stats.updated > ch.updated.length ? '+' : ''})</div>
+            ${ch.updated.map((s) => `
+              <details class="sync-change-store">
+                <summary>${esc(s.code)} — ${esc(s.name)}</summary>
+                <table class="sync-diff-table">
+                  ${s.fields.map((f) => `<tr>
+                    <td class="sync-diff-field">${esc(f.field)}</td>
+                    <td class="sync-diff-old">${esc(f.old) || '<em>prázdné</em>'}</td>
+                    <td class="sync-diff-arrow">→</td>
+                    <td class="sync-diff-new">${esc(f.new) || '<em>prázdné</em>'}</td>
+                  </tr>`).join('')}
+                </table>
+              </details>`).join('')}
+          </div>`);
+        }
+        if (!sections.length) return '';
+        return `<details class="sync-change-detail"><summary>Zobrazit detail změn</summary>
+          <div class="sync-detail-tools"><button class="button button-secondary button-small sync-expand-all" type="button" data-state="closed">Rozbalit vše</button></div>
+          ${sections.join('')}</details>`;
+      };
+      const ts = syncAt ? Ui.formatDateTime(syncAt) : '';
+      const area = document.querySelector('#syncResultArea');
+      area.innerHTML = `
+        <div class="sync-result">
+          <div class="sync-result-header">
+            <span class="sync-badge is-success">✓</span>
+            <strong>${fresh ? 'Synchronizace dokončena' : 'Poslední synchronizace'}</strong>
+            <span class="sync-result-timestamp">${esc(ts)}</span>
+          </div>
+          <div class="sync-result-body">
+            ${result.fileName ? `<p style="font-size:12px;color:var(--muted);margin:0">Soubor: <strong>${esc(result.fileName)}</strong></p>` : ''}
+            <div class="sync-result-row">
+              <span>Filiálky</span>
+              <div class="sync-pills">${statPills(result.stores)}</div>
+              ${errList(result.stores)}
+              ${changeDetail(result.stores)}
+            </div>
+          </div>
+        </div>`;
+
+      const expandBtn = area.querySelector('.sync-expand-all');
+      if (expandBtn) {
+        expandBtn.addEventListener('click', () => {
+          const open = expandBtn.dataset.state !== 'open';
+          area.querySelectorAll('details.sync-change-store').forEach((d) => { d.open = open; });
+          expandBtn.dataset.state = open ? 'open' : 'closed';
+          expandBtn.textContent = open ? 'Sbalit vše' : 'Rozbalit vše';
+        });
+      }
+    },
+
+    /* ── Sort / filter ────────────────────────────── */
+
+    _colDisplayVal(tableKey, col, rawVal) {
+      if (col === 'active') return rawVal === true || rawVal === 'true' ? 'Aktivní' : 'Neaktivní';
+      if (col === 'metropolitni') return rawVal === true || rawVal === 'true' ? 'Ano' : 'Ne';
+      if (col === 'role') return this.roleLabel(rawVal) || String(rawVal || '');
+      if (col === 'timestamp') return Ui.formatDateTime(rawVal);
+      return String(rawVal !== null && rawVal !== undefined ? rawVal : '');
+    },
+
+    sortFilter(tableKey, rows) {
+      const st = this._sfState[tableKey];
+      if (!st) return rows;
+      let result = rows;
+      if (st.filters) {
+        Object.entries(st.filters).forEach(([col, vals]) => {
+          if (vals && vals.size > 0) {
+            result = result.filter((r) => vals.has(this._colDisplayVal(tableKey, col, r[col])));
+          }
+        });
+      }
+      const sorts = st.sorts || [];
+      if (sorts.length) {
+        result = [...result].sort((a, b) => {
+          for (const { col, dir } of sorts) {
+            const av = this._colDisplayVal(tableKey, col, a[col]);
+            const bv = this._colDisplayVal(tableKey, col, b[col]);
+            const cmp = this._compareVals(av, bv);
+            if (cmp !== 0) return dir === 'desc' ? -cmp : cmp;
+          }
+          return 0;
+        });
+      }
+      return result;
+    },
+
+    /** Číselné hodnoty (i s vedoucími nulami, např. čísla filiálek) řadí numericky, jinak abecedně (cs). */
+    _compareVals(av, bv) {
+      const na = Number(av), nb = Number(bv);
+      if (String(av).trim() !== '' && String(bv).trim() !== '' && !isNaN(na) && !isNaN(nb)) return na - nb;
+      return String(av).localeCompare(String(bv), 'cs');
+    },
+
+    updateSortIndicators(tableKey) {
+      const st = this._sfState[tableKey] || {};
+      const sorts = st.sorts || [];
+      const filters = st.filters || {};
+      document.querySelectorAll(`[data-sort-ind^="${tableKey}-"]`).forEach((el) => {
+        const col = el.dataset.sortInd.slice(tableKey.length + 1);
+        const sortIdx = sorts.findIndex((s) => s.col === col);
+        const hasFilter = filters[col] && filters[col].size > 0;
+        const btn = el.closest('.th-btn');
+        if (btn) {
+          btn.classList.toggle('is-sorted', sortIdx >= 0);
+          btn.classList.toggle('is-filtered', hasFilter);
+        }
+        if (sortIdx >= 0) {
+          const arrow = sorts[sortIdx].dir === 'desc' ? '▼' : '▲';
+          el.textContent = sorts.length > 1 ? ' ' + (sortIdx + 1) + arrow : ' ' + arrow;
+        } else {
+          el.textContent = hasFilter ? ' ⬤' : '';
+        }
+      });
+    },
+
+    openColMenu(thEl, tableKey, col, allRows, applyFn) {
+      this.closeColMenu();
+      if (!this._sfState[tableKey]) this._sfState[tableKey] = { sorts: [], filters: {} };
+      const st = this._sfState[tableKey];
+      if (!st.sorts) st.sorts = [];
+      if (!st.filters) st.filters = {};
+      const activeFilters = st.filters[col] || null;
+      const sortIdx = st.sorts.findIndex((s) => s.col === col);
+      const curDir = sortIdx >= 0 ? st.sorts[sortIdx].dir : null;
+      const uniqueVals = [...new Set(allRows.map((r) => this._colDisplayVal(tableKey, col, r[col])))]
+        .sort((a, b) => this._compareVals(a, b));
+
+      const menu = document.createElement('div');
+      menu.className = 'col-menu';
+      menu.innerHTML = `
+        <div class="col-menu-head">
+          <span>Sloupec: <strong>${Ui.escape(col)}</strong></span>
+          <span style="display:flex;align-items:center;gap:8px">
+            ${st.sorts.length > 0 ? `<span>↕ řazení</span>` : ''}
+            ${st.filters[col] ? `<button class="col-menu-clear-filter" type="button" title="Vymazat filtr tohoto sloupce">⊟ filtr ×</button>` : ''}
+            <button class="col-menu-close" type="button" title="Zavřít"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </span>
+        </div>
+        <div class="col-menu-sort-row">
+          <button class="col-menu-sort-btn${curDir === 'asc' ? ' is-active' : ''}" type="button" data-action="sort-primary" data-dir="asc">
+            <span class="csb-arrow">↑</span><span class="csb-label">A → Z</span>
+          </button>
+          <button class="col-menu-sort-btn${curDir === 'desc' ? ' is-active' : ''}" type="button" data-action="sort-primary" data-dir="desc">
+            <span class="csb-arrow">↓</span><span class="csb-label">Z → A</span>
+          </button>
+        </div>
+        <div class="col-menu-sort-extras">
+          ${st.sorts.length > 0 && sortIdx < 0 ? `
+          <button class="col-menu-sort-secondary" type="button" data-action="sort-add" data-dir="asc">
+            + Přidat A → Z jako ${st.sorts.length + 1}. klíč <span class="col-menu-sort-badge">${st.sorts.length + 1}</span>
+          </button>
+          <button class="col-menu-sort-secondary" type="button" data-action="sort-add" data-dir="desc">
+            + Přidat Z → A jako ${st.sorts.length + 1}. klíč <span class="col-menu-sort-badge">${st.sorts.length + 1}</span>
+          </button>` : ''}
+          ${sortIdx >= 0 ? `<button class="col-menu-sort-clear" type="button" data-action="sort-clear">✕ Zrušit řazení tohoto sloupce</button>` : ''}
+          ${st.sorts.length > 1 ? `<button class="col-menu-sort-clear" type="button" data-action="sort-clear-all">✕ Zrušit veškeré řazení</button>` : ''}
+        </div>
+        <div class="col-menu-divider"></div>
+        <div class="col-menu-filter-head">
+          <span class="col-menu-filter-label">Filtr hodnot</span>
+          <span>
+            <button type="button" class="col-menu-sel-all">Vše</button>
+            <button type="button" class="col-menu-sel-none">Nic</button>
+          </span>
+        </div>
+        <div class="col-menu-search">
+          <input type="text" class="col-menu-search-input" placeholder="Hledat…" autocomplete="off">
+        </div>
+        <div class="col-menu-filters">
+          ${uniqueVals.map((v) => `
+            <label class="col-menu-item">
+              <input type="checkbox" value="${Ui.escape(v)}"${!activeFilters || activeFilters.has(v) ? ' checked' : ''}>
+              ${Ui.escape(v || '(prázdné)')}
+            </label>`).join('')}
+        </div>
+        <div class="col-menu-actions">
+          <button class="col-menu-apply button button-primary button-small" type="button">Použít</button>
+        </div>`;
+
+      const rect = thEl.getBoundingClientRect();
+      const menuLeft = Math.min(rect.left, window.innerWidth - 220);
+      menu.style.top = rect.bottom + 4 + 'px';
+      menu.style.left = Math.max(4, menuLeft) + 'px';
+      document.body.appendChild(menu);
+
+      menu.querySelectorAll('[data-action^="sort"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          const dir = btn.dataset.dir;
+          if (action === 'sort-primary') {
+            st.sorts = st.sorts.filter((s) => s.col !== col);
+            st.sorts.unshift({ col, dir });
+          } else if (action === 'sort-add') {
+            st.sorts = st.sorts.filter((s) => s.col !== col);
+            st.sorts.push({ col, dir });
+          } else if (action === 'sort-clear') {
+            st.sorts = st.sorts.filter((s) => s.col !== col);
+          } else if (action === 'sort-clear-all') {
+            st.sorts = [];
+          }
+          this.closeColMenu();
+          applyFn();
+          this.updateSortIndicators(tableKey);
+        });
+      });
+
+      menu.querySelector('.col-menu-search-input').addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase();
+        menu.querySelectorAll('.col-menu-item').forEach((item) => {
+          item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none';
+        });
+      });
+      menu.querySelector('.col-menu-sel-all').addEventListener('click', () => {
+        menu.querySelectorAll('.col-menu-item:not([style*="none"]) input').forEach((i) => { i.checked = true; });
+      });
+      menu.querySelector('.col-menu-sel-none').addEventListener('click', () => {
+        menu.querySelectorAll('.col-menu-item:not([style*="none"]) input').forEach((i) => { i.checked = false; });
+      });
+
+      menu.querySelector('.col-menu-apply').addEventListener('click', () => {
+        const checked = [...menu.querySelectorAll('.col-menu-filters input:checked')].map((i) => i.value);
+        st.filters[col] = checked.length === uniqueVals.length ? null : new Set(checked);
+        this.closeColMenu();
+        applyFn();
+        this.updateSortIndicators(tableKey);
+      });
+
+      menu.querySelector('.col-menu-close').addEventListener('click', () => this.closeColMenu());
+      const clearFilterBtn = menu.querySelector('.col-menu-clear-filter');
+      if (clearFilterBtn) {
+        clearFilterBtn.addEventListener('click', () => {
+          st.filters[col] = null;
+          this.closeColMenu();
+          applyFn();
+          this.updateSortIndicators(tableKey);
+        });
+      }
+
+      this._sfMenu = { el: menu, tableKey, col };
+      setTimeout(() => {
+        document.addEventListener('click', this._colMenuOutside = (e) => {
+          if (!menu.contains(e.target)) this.closeColMenu();
+        });
+      }, 0);
+    },
+
+    closeColMenu() {
+      if (this._sfMenu) {
+        this._sfMenu.el.remove();
+        this._sfMenu = null;
+        if (this._colMenuOutside) {
+          document.removeEventListener('click', this._colMenuOutside);
+          this._colMenuOutside = null;
+        }
+      }
+    },
+
+    syncSidebarToggle() {
+      const app = document.querySelector('.app');
+      const toggle = document.querySelector('#sidebarToggle');
+      const collapsed = app.classList.contains('sidebar-collapsed');
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      toggle.setAttribute('title', collapsed ? 'Zobrazit texty panelu' : 'Skrýt texty panelu');
+    },
+  };
+</script>

@@ -1,0 +1,329 @@
+<div class="gate">
+  <div class="gate-card">
+    <header class="gate-header">
+      <img id="wizLogo" alt="Logo">
+      <div class="gate-header-text">
+        <p class="kicker">Průvodce nastavením</p>
+        <h1 id="wizTitle">Nová aplikace</h1>
+      </div>
+    </header>
+
+    <ol class="wizard-steps" id="wizSteps">
+      <li data-step="1" class="is-active"><i>1</i><span>Účet</span></li>
+      <li data-step="2"><i>2</i><span>Aplikace</span></li>
+      <li data-step="3"><i>3</i><span>Souhrn</span></li>
+    </ol>
+
+    <div class="gate-body wizard-body" id="wizBody">
+      <section class="wizard-panel is-active" data-panel="1">
+        <p class="gate-note">Vítejte! Průvodce provede prvním spuštěním: založí databázi (spreadsheet) a vytvoří účet superadministrátora.</p>
+        <div class="info-row">
+          <span class="status-icon"><svg width="18" height="18" viewBox="0 0 24 24"><use href="#i-user"></use></svg></span>
+          <div>
+            <span>Superadmin</span>
+            <strong id="wizEmail">–</strong>
+          </div>
+        </div>
+        <div class="info-row">
+          <span class="status-icon"><svg width="18" height="18" viewBox="0 0 24 24"><use href="#i-folder"></use></svg></span>
+          <div>
+            <span>Databáze vznikne ve složce</span>
+            <strong id="wizFolder">–</strong>
+          </div>
+        </div>
+        <div class="gate-warning is-hidden" id="wizWarning"></div>
+      </section>
+
+      <section class="wizard-panel" data-panel="2">
+        <div class="form-row-2">
+          <label>
+            <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9.5L12 3l9 6.5V21h-6v-6H9v6H3z"/></svg> Název aplikace *</span>
+            <input id="wizAppName" type="text" placeholder="Například: Plánování akcí" required>
+          </label>
+          <label>
+            <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Podtitul</span>
+            <input id="wizAppSubtitle" type="text" placeholder="Správa prodejní sítě Lidl ČR">
+          </label>
+        </div>
+        <div class="form-row-2">
+          <label>
+            <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Vaše jméno (volitelné)</span>
+            <input id="wizFirstName" type="text" placeholder="Jan">
+          </label>
+          <label>
+            <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Vaše příjmení (volitelné)</span>
+            <input id="wizLastName" type="text" placeholder="Novák">
+          </label>
+        </div>
+        <label>
+          <span class="label-with-status">
+            <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> URL složky pro synchronizaci filiálek (volitelné)</span>
+            <span id="wizFolderStatus" class="folder-status"></span>
+          </span>
+          <input id="wizSyncFolderUrl" type="url" placeholder="https://drive.google.com/drive/folders/...">
+          <small class="form-hint">Budoucí superadmin musí mít složku nasdílenu. Lze nastavit i později.</small>
+        </label>
+      </section>
+
+      <section class="wizard-panel" data-panel="3">
+        <dl class="summary-list">
+          <div><dt>Název aplikace</dt><dd id="sumAppName">–</dd></div>
+          <div><dt>Podtitul</dt><dd id="sumAppSubtitle">–</dd></div>
+          <div><dt>Superadmin</dt><dd id="sumEmail">–</dd></div>
+          <div><dt>Složka databáze</dt><dd id="sumFolder">–</dd></div>
+        </dl>
+        <p class="gate-note">Po potvrzení se vytvoří spreadsheet s databází, zapíše se superadmin a aplikace bude připravena k použití.</p>
+      </section>
+
+      <section class="wizard-panel" data-panel="progress">
+        <div class="wizard-progress">
+          <p class="wizard-progress-title">Inicializuji aplikaci, prosím čekejte…</p>
+          <div class="wiz-step" data-wiz-step="db">
+            <span class="wiz-step-icon"></span>
+            <span>Vytvářím databázi…</span>
+          </div>
+          <div class="wiz-step" data-wiz-step="user">
+            <span class="wiz-step-icon"></span>
+            <span>Registruji superadmina…</span>
+          </div>
+          <div class="wiz-step" data-wiz-step="settings">
+            <span class="wiz-step-icon"></span>
+            <span>Zapisuji nastavení…</span>
+          </div>
+          <div class="wiz-step is-hidden" data-wiz-step="sync">
+            <span class="wiz-step-icon"></span>
+            <span>Načítám data filiálek…</span>
+          </div>
+          <div class="wiz-step" data-wiz-step="done">
+            <span class="wiz-step-icon"></span>
+            <span>Dokončuji…</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="wizard-panel" data-panel="4">
+        <div class="wizard-success">
+          <span class="success-icon"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-check"></use></svg></span>
+          <h2>Aplikace je připravena</h2>
+          <p class="gate-note">Databáze byla vytvořena — <a id="wizDbLink" href="#" target="_blank" rel="noopener">otevřít spreadsheet</a>.</p>
+        </div>
+      </section>
+    </div>
+
+    <footer class="gate-actions">
+      <button class="button button-secondary" type="button" id="wizBack">Zpět</button>
+      <button class="button button-primary" type="button" id="wizNext">Pokračovat</button>
+    </footer>
+  </div>
+</div>
+
+<script>
+  const Wizard = {
+    step: 1,
+    appUrl: null,
+    folderAccessOk: false,
+    emailLoaded: false,
+    info: (window.APP_BOOTSTRAP && window.APP_BOOTSTRAP.setup) || {},
+    _progressTimer: null,
+
+    init() {
+      const boot = window.APP_BOOTSTRAP || {};
+      document.querySelector('#wizLogo').src = boot.logoUrl || '';
+      Ui.setText('#wizTitle', this.info.defaultAppName || boot.appName);
+      Ui.setText('#wizEmail', 'Načítám…');
+      Ui.setText('#wizFolder', this.info.folderName || 'Kořen „Můj disk"');
+      document.querySelector('#wizNext').disabled = true;
+
+      document.querySelector('#wizBack').addEventListener('click', () => this.goTo(this.step - 1));
+      document.querySelector('#wizNext').addEventListener('click', () => this.next());
+      document.querySelector('#wizSyncFolderUrl').addEventListener('change', () => this.checkFolderAccess());
+      this.goTo(1);
+
+      google.script.run
+        .withSuccessHandler((res) => this.onEmailLoaded(res.data.email, res.data.folderName))
+        .withFailureHandler(() => this.onEmailLoaded('', null))
+        .wizardGetOwnerEmail();
+    },
+
+    onEmailLoaded(email, folderName) {
+      this.info.email = email;
+      this.info.folderName = folderName;
+      Ui.setText('#wizEmail', email || 'E-mail se nepodařilo zjistit');
+      Ui.setText('#wizFolder', folderName || 'Kořen „Můj disk"');
+      Ui.setText('#sumEmail', email);
+      Ui.setText('#sumFolder', folderName || 'Kořen „Můj disk"');
+      const warning = document.querySelector('#wizWarning');
+      if (!email) {
+        warning.textContent = 'Nepodařilo se zjistit váš e-mail. Otevřete aplikaci přihlášení pod účtem vlastníka skriptu.';
+        warning.classList.remove('is-hidden');
+      } else {
+        this.emailLoaded = true;
+        document.querySelector('#wizNext').disabled = false;
+      }
+    },
+
+    next() {
+      if (this.step === 4) {
+        const next = document.querySelector('#wizNext');
+        next.textContent = 'Přesměrovávám…';
+        Ui.setButtonLoading(next, true);
+        setTimeout(() => { window.location.href = this.appUrl || window.location.href; }, 300);
+        return;
+      }
+      if (this.step === 2) {
+        const appName = document.querySelector('#wizAppName').value.trim();
+        if (!appName) {
+          this.shakeInvalid(document.querySelector('#wizAppName'), 'Název aplikace je povinný.');
+          return;
+        }
+        Ui.setText('#sumAppName', appName);
+        Ui.setText('#sumAppSubtitle', document.querySelector('#wizAppSubtitle').value.trim() || '–');
+        Ui.setText('#sumEmail', this.info.email);
+        Ui.setText('#sumFolder', this.info.folderName || 'Kořen „Můj disk"');
+      }
+      if (this.step === 3) {
+        this.initialize();
+        return;
+      }
+      this.goTo(this.step + 1);
+    },
+
+    goTo(step, dir) {
+      const prev = this.step;
+      this.step = Math.min(Math.max(step, 1), 4);
+      const direction = dir || (step >= prev ? 'forward' : 'back');
+
+      const body = document.querySelector('#wizBody');
+      body.dataset.dir = direction;
+
+      document.querySelectorAll('.wizard-panel').forEach((panel) => {
+        panel.classList.toggle('is-active', Number(panel.dataset.panel) === this.step);
+      });
+      document.querySelectorAll('#wizSteps li').forEach((item) => {
+        const index = Number(item.dataset.step);
+        item.classList.toggle('is-active', index === this.step);
+        item.classList.toggle('is-done', index < this.step);
+      });
+
+      if (this.step === 2) this.checkFolderAccess();
+
+      const card = document.querySelector('.gate-card');
+      card.dataset.state = this.step === 4 ? 'success' : '';
+
+      const back = document.querySelector('#wizBack');
+      const next = document.querySelector('#wizNext');
+      back.classList.toggle('is-hidden', this.step === 1 || this.step === 4);
+      Ui.setButtonLoading(next, false);
+      next.disabled = this.step === 1 && !this.emailLoaded;
+      next.textContent = this.step === 3 ? 'Inicializovat aplikaci' : (this.step === 4 ? 'Spustit aplikaci' : 'Pokračovat');
+    },
+
+    showProgressPanel() {
+      const body = document.querySelector('#wizBody');
+      body.dataset.dir = 'forward';
+      document.querySelectorAll('.wizard-panel').forEach((panel) => {
+        panel.classList.toggle('is-active', panel.dataset.panel === 'progress');
+      });
+      document.querySelector('.gate-card').dataset.state = 'progress';
+      document.querySelector('#wizBack').classList.add('is-hidden');
+    },
+
+    initialize() {
+      const next = document.querySelector('#wizNext');
+      Ui.setButtonLoading(next, true);
+      this.showProgressPanel();
+
+      const syncStep = document.querySelector('[data-wiz-step="sync"]');
+      const doneStep = document.querySelector('[data-wiz-step="done"]');
+      if (this.folderAccessOk) syncStep.classList.remove('is-hidden');
+      // Kroky animované timerem: vše kromě sync a done
+      const timerSteps = Array.from(document.querySelectorAll('.wiz-step:not(.is-hidden)')).filter(
+        (s) => s.dataset.wizStep !== 'sync' && s.dataset.wizStep !== 'done'
+      );
+      timerSteps[0].classList.add('is-active');
+      let stepIdx = 0;
+      this._progressTimer = setInterval(() => {
+        if (stepIdx < timerSteps.length - 1) {
+          timerSteps[stepIdx].classList.remove('is-active');
+          timerSteps[stepIdx].classList.add('is-done');
+          stepIdx++;
+          timerSteps[stepIdx].classList.add('is-active');
+        }
+      }, 1800);
+
+      Ui.call('setupInitialize', {
+        appName: document.querySelector('#wizAppName').value.trim(),
+        appSubtitle: document.querySelector('#wizAppSubtitle').value.trim(),
+        firstName: document.querySelector('#wizFirstName').value.trim(),
+        lastName: document.querySelector('#wizLastName').value.trim(),
+        syncFolderUrl: document.querySelector('#wizSyncFolderUrl').value.trim(),
+      }, { silent: true })
+        .then((result) => {
+          clearInterval(this._progressTimer);
+          timerSteps.forEach((el) => { el.classList.remove('is-active'); el.classList.add('is-done'); });
+          this.appUrl = result.appUrl;
+          document.querySelector('#wizDbLink').href = result.spreadsheetUrl;
+          const finish = () => {
+            doneStep.classList.remove('is-active');
+            doneStep.classList.add('is-done');
+            setTimeout(() => { Ui.setButtonLoading(next, false); this.goTo(4); }, 400);
+          };
+          if (this.folderAccessOk) {
+            syncStep.classList.add('is-active');
+            Ui.call('apiRunSync', null, { silent: true })
+              .then(() => { syncStep.classList.remove('is-active'); syncStep.classList.add('is-done'); doneStep.classList.add('is-active'); setTimeout(finish, 600); })
+              .catch(() => { syncStep.classList.remove('is-active'); doneStep.classList.add('is-active'); setTimeout(finish, 600); });
+          } else {
+            doneStep.classList.add('is-active');
+            setTimeout(finish, 700);
+          }
+        })
+        .catch((error) => {
+          clearInterval(this._progressTimer);
+          timerSteps.forEach((el) => { el.classList.remove('is-active'); el.classList.remove('is-done'); });
+          this.goTo(3, 'back');
+          Ui.toast(error.message, 'error');
+        });
+    },
+
+    checkFolderAccess() {
+      const url = document.querySelector('#wizSyncFolderUrl').value.trim();
+      const status = document.querySelector('#wizFolderStatus');
+      const hint = document.querySelector('#wizFolderHint');
+      if (!url) { status.textContent = ''; status.className = 'folder-status'; this.folderAccessOk = false; return; }
+      status.textContent = 'Ověřuji přístup…';
+      status.className = 'folder-status is-checking';
+      google.script.run
+        .withSuccessHandler((res) => {
+          this.folderAccessOk = res.data.ok;
+          if (res.data.ok) {
+            status.textContent = '✓ ' + res.data.message;
+            status.className = 'folder-status is-ok';
+          } else {
+            status.textContent = '✗ ' + res.data.message;
+            status.className = 'folder-status is-error';
+          }
+        })
+        .withFailureHandler(() => {
+          status.textContent = '✗ Kontrolu se nepodařilo provést.';
+          status.className = 'folder-status is-error';
+        })
+        .wizardCheckFolderAccess(url);
+    },
+
+    shakeInvalid(input, message) {
+      const original = input.placeholder;
+      input.classList.remove('is-invalid');
+      void input.offsetWidth;
+      input.classList.add('is-invalid', 'is-invalid-placeholder');
+      input.placeholder = message;
+      input.focus();
+      const restore = () => {
+        input.classList.remove('is-invalid', 'is-invalid-placeholder');
+        input.placeholder = original;
+      };
+      input.addEventListener('input', restore, { once: true });
+      setTimeout(restore, 3000);
+    },
+  };
+</script>

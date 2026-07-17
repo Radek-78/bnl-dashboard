@@ -1,0 +1,94 @@
+<div class="subapp-shell">
+  <header class="subapp-topbar">
+    <div class="subapp-brand">
+      <img class="subapp-logo" id="subappLogo" alt="Lidl">
+      <div class="subapp-brand-text">
+        <strong id="subappShellName"></strong>
+        <small id="subappShellDesc"></small>
+      </div>
+    </div>
+    <div class="subapp-topbar-right">
+      <a class="button button-secondary button-small" id="subappBackLink" href="#"><svg><use href="#i-home"></use></svg>Hlavní aplikace</a>
+      <span class="avatar" id="subappAvatar">?</span>
+    </div>
+  </header>
+
+  <main class="subapp-main" id="subappContent">
+    <div class="subapp-placeholder">
+      <div class="subapp-icon" id="subappShellIcon"></div>
+      <h2 id="subappPhName"></h2>
+      <p id="subappPhDesc"></p>
+      <span class="subapp-wip">Tato subaplikace je ve vývoji.</span>
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <span>© <span id="subappFooterYear"></span> Lidl</span>
+    <span class="bg-activity" id="bgActivity"><span class="bg-activity-dot"></span><span class="bg-activity-text">Aktualizuji data…</span></span>
+    <span><span id="subappVersion"></span></span>
+  </footer>
+</div>
+
+<script>
+  /**
+   * Shell samostatné subaplikace (?app=<id>).
+   * Sdílí core, styly i serverové API s hlavní aplikací — jednotlivé
+   * subaplikace se registrují v SUBAPP_VIEWS podle id a kreslí se
+   * do #subappContent. Bez registrace se ukáže placeholder „ve vývoji".
+   */
+  const SUBAPP_VIEWS = {
+    // '<slug aplikace>': (container, app, user) => { ... },
+  };
+
+  const SubApp = {
+    boot: window.APP_BOOTSTRAP || {},
+
+    init() {
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res && res.ok) this.onUserLoaded(res.data);
+          else this.onDenied((res && res.error) || 'Nemáte přístup do aplikace.');
+        })
+        .withFailureHandler((err) => this.onDenied(err.message))
+        .apiGetCurrentUser();
+    },
+
+    onUserLoaded(user) {
+      const app = this.boot.subApp || {};
+      
+      const allowed = String(user.allowed_apps || '').trim();
+      const isAllowed = (user.role === 'SUPERADMIN') || (allowed === '*') || 
+        allowed.split(',').map(s => s.trim().toLowerCase()).includes(String(app.slug || app.id).trim().toLowerCase());
+        
+      if (!isAllowed) {
+        this.onDenied('Nemáte oprávnění pro přístup do této subaplikace.');
+        return;
+      }
+
+      document.querySelector('#subappLogo').src = this.boot.logoUrl || '';
+      Ui.setText('#subappShellName', app.name || 'Aplikace');
+      Ui.setText('#subappShellDesc', app.description || '');
+      Ui.setText('#subappAvatar', Ui.getInitials([user.firstName, user.lastName].filter(Boolean).join(' ') || user.email));
+      Ui.setText('#subappFooterYear', new Date().getFullYear());
+      Ui.setText('#subappVersion', this.boot.version || '');
+      document.querySelector('#subappBackLink').href = this.boot.execUrl || '#';
+      Ui.hideLoader();
+
+      const view = SUBAPP_VIEWS[app.slug] || SUBAPP_VIEWS[app.id];
+      if (view) {
+        view(document.querySelector('#subappContent'), app, user);
+      } else {
+        Ui.setText('#subappPhName', app.name || '');
+        Ui.setText('#subappPhDesc', app.description || '');
+        const iconEl = document.querySelector('#subappShellIcon');
+        if (iconEl) iconEl.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24"><use href="#i-' + Ui.escape(app.icon || 'info') + '"></use></svg>';
+      }
+    },
+
+    onDenied(message) {
+      const loader = document.querySelector('#appLoader');
+      loader.innerHTML = '<div class="loader-inner"><strong>Přístup odepřen</strong><span>' +
+        (message || 'Nemáte přístup do aplikace.') + '</span></div>';
+    },
+  };
+</script>

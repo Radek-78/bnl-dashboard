@@ -1,0 +1,254 @@
+<script>
+  /**
+   * Sdílené jádro frontendu: volání serveru, loader, toasty, modaly.
+   * Server vrací obálku { ok, data, error } — Ui.call ji rozbalí,
+   * úspěch předá dál a chybu vyhodí jako Error.
+   */
+  const Ui = {
+    loader: null,
+    toastRegion: null,
+    _busyCount: 0,
+
+    init() {
+      this.loader = document.querySelector('#appLoader');
+      this.toastRegion = document.querySelector('#toastRegion');
+
+      const overlay = document.createElement('div');
+      overlay.className = 'busy-overlay';
+      overlay.id = 'busyOverlay';
+      overlay.innerHTML =
+        '<div class="busy-box">' +
+        '<span class="sp-ring">' +
+        '<svg class="sp-ring-svg" viewBox="0 0 72 72">' +
+        '<circle class="sp-ring-track" cx="36" cy="36" r="30"></circle>' +
+        '<circle class="sp-ring-arc" cx="36" cy="36" r="30"></circle>' +
+        '</svg>' +
+        '<img class="sp-logo sp-ring-logo" alt="" src="' + ((window.APP_BOOTSTRAP || {}).logoUrl || '') + '">' +
+        '</span>' +
+        '<span class="busy-label" id="busyLabel"></span>' +
+        '</div>';
+      document.body.appendChild(overlay);
+    },
+
+    busy(label) {
+      this._busyCount++;
+      const overlay = document.querySelector('#busyOverlay');
+      if (!overlay) return;
+      document.querySelector('#busyLabel').textContent = label || 'Pracuji…';
+      overlay.classList.add('is-visible');
+    },
+
+    endBusy() {
+      this._busyCount = Math.max(0, this._busyCount - 1);
+      if (this._busyCount === 0) {
+        const overlay = document.querySelector('#busyOverlay');
+        if (overlay) overlay.classList.remove('is-visible');
+      }
+    },
+
+    call(functionName, payload, options) {
+      const settings = options || {};
+      if (!settings.silent) this.showLoader();
+      if (settings.busy) this.busy(settings.busy);
+      const bgLabel = (settings.silent && !settings.busy) ? this._bgLabel(functionName) : null;
+      if (bgLabel) this.bgStart(bgLabel);
+
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler((result) => {
+            if (!settings.silent) this.hideLoader();
+            if (settings.busy) this.endBusy();
+            if (bgLabel) this.bgEnd(bgLabel);
+            if (result && result.ok) {
+              resolve(result.data);
+            } else {
+              reject(new Error((result && result.error) || 'Neznámá chyba serveru.'));
+            }
+          })
+          .withFailureHandler((error) => {
+            if (!settings.silent) this.hideLoader();
+            if (settings.busy) this.endBusy();
+            if (bgLabel) this.bgEnd(bgLabel);
+            reject(error);
+          })[functionName](payload);
+      });
+    },
+
+    /* Indikátor aktivity na pozadí (tichá volání) ve stavové liště. */
+    _bgActive: [],
+
+    _bgLabel(functionName) {
+      const labels = {
+        apiGetBootstrap: 'Načítám data aplikace',
+        apiGetHome: 'Aktualizuji přehled',
+        apiListUsers: 'Aktualizuji uživatele',
+        apiListStores: 'Aktualizuji filiálky',
+        apiListLogistics: 'Aktualizuji logistická centra',
+        apiListApps: 'Aktualizuji aplikace',
+        apiGetAudit: 'Aktualizuji audit',
+        apiGetSettings: 'Aktualizuji nastavení',
+        apiGetSyncSettings: 'Aktualizuji konfiguraci',
+        apiUpdateLastVisit: 'Zaznamenávám návštěvu',
+        apiGetChangelog: 'Načítám historii změn',
+      };
+      return labels[functionName] || 'Aktualizuji data';
+    },
+
+    bgStart(label) {
+      this._bgActive.push(label);
+      this._renderBgActivity();
+    },
+
+    bgEnd(label) {
+      const i = this._bgActive.indexOf(label);
+      if (i !== -1) this._bgActive.splice(i, 1);
+      this._renderBgActivity();
+    },
+
+    _renderBgActivity() {
+      const el = document.querySelector('#bgActivity');
+      if (!el) return;
+      const n = this._bgActive.length;
+      el.classList.toggle('is-active', n > 0);
+      if (n > 0) {
+        const text = this._bgActive[0] + (n > 1 ? ' (+' + (n - 1) + ')' : '') + '…';
+        el.querySelector('.bg-activity-text').textContent = text;
+      }
+    },
+
+    showLoader() {
+      if (this.loader) this.loader.classList.add('is-visible');
+    },
+
+    hideLoader() {
+      if (this.loader) this.loader.classList.remove('is-visible');
+    },
+
+    toast(message, type) {
+      const node = document.createElement('div');
+      node.className = 'toast' + (type === 'error' ? ' is-error' : '');
+      node.textContent = message;
+      this.toastRegion.appendChild(node);
+      setTimeout(() => node.remove(), 3600);
+    },
+
+    openModal(dialog) {
+      dialog.showModal();
+    },
+
+    /**
+     * Potvrzovací dialog v designu aplikace (náhrada za nativní confirm()).
+     * Vrací Promise<boolean> — true po potvrzení, false při zrušení/Esc.
+     */
+    confirm(opts) {
+      const o = opts || {};
+      return new Promise((resolve) => {
+        document.querySelector('#confirmDialog')?.remove();
+        const dialog = document.createElement('dialog');
+        dialog.id = 'confirmDialog';
+        dialog.className = 'modal modal-confirm';
+        dialog.innerHTML =
+          '<div class="modal-header">' +
+            '<span class="modal-icon modal-icon--danger"><svg><use href="#i-warning"></use></svg></span>' +
+            '<div class="modal-header-text">' +
+              '<p class="kicker">' + this.escape(o.kicker || 'Potvrzení') + '</p>' +
+              '<h2>' + this.escape(o.title || 'Opravdu?') + '</h2>' +
+            '</div>' +
+          '</div>' +
+          '<div class="modal-body">' +
+            '<p class="confirm-message">' + this.escape(o.message || '') + '</p>' +
+            (o.note ? '<p class="confirm-note">' + this.escape(o.note) + '</p>' : '') +
+          '</div>' +
+          '<footer class="modal-actions">' +
+            '<button class="button button-secondary" type="button" data-confirm="no"><svg><use href="#i-close"></use></svg>Zrušit</button>' +
+            '<button class="button button-danger" type="button" data-confirm="yes"><svg><use href="#i-trash"></use></svg>' + this.escape(o.confirmLabel || 'Smazat') + '</button>' +
+          '</footer>';
+        document.body.appendChild(dialog);
+
+        const finish = (result) => {
+          this.closeModal(dialog);
+          setTimeout(() => dialog.remove(), 400);
+          resolve(result);
+        };
+        dialog.querySelector('[data-confirm="no"]').addEventListener('click', () => finish(false));
+        dialog.querySelector('[data-confirm="yes"]').addEventListener('click', () => finish(true));
+        dialog.addEventListener('cancel', (e) => { e.preventDefault(); finish(false); });
+        dialog.addEventListener('click', (e) => { if (e.target === dialog) finish(false); });
+
+        this.openModal(dialog);
+      });
+    },
+
+    closeModal(dialog) {
+      dialog.classList.add('is-closing');
+      const done = () => {
+        dialog.classList.remove('is-closing');
+        dialog.close();
+      };
+      const fallback = setTimeout(done, 280);
+      dialog.addEventListener('animationend', () => {
+        clearTimeout(fallback);
+        done();
+      }, { once: true });
+    },
+
+    setButtonLoading(button, isLoading) {
+      if (!button) return;
+      if (isLoading) {
+        button.dataset.originalHtml = button.innerHTML;
+        button.textContent = 'Pracuji...';
+        button.disabled = true;
+      } else {
+        button.innerHTML = button.dataset.originalHtml || button.innerHTML;
+        button.disabled = false;
+      }
+    },
+
+    setText(selector, value) {
+      const node = document.querySelector(selector);
+      if (node) node.textContent = value || '';
+    },
+
+    getInitials(value) {
+      const clean = String(value || '').trim();
+      if (!clean) return '?';
+      const source = clean.includes('@') ? clean.split('@')[0] : clean;
+      return source
+        .split(/[.\s_-]+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join('') || '?';
+    },
+
+    formatDateTime(value) {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '-';
+      return date.toLocaleString('cs-CZ', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    },
+
+    escape(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    },
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    Ui.init();
+    const page = document.body.dataset.page;
+    if (page === 'wizard' && typeof Wizard !== 'undefined') Wizard.init();
+    if (page === 'app' && typeof App !== 'undefined') App.init();
+    if (page === 'subapp' && typeof SubApp !== 'undefined') SubApp.init();
+  });
+</script>
