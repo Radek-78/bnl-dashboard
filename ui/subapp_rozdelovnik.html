@@ -22,6 +22,7 @@
     importData: {},
     lcInfo: { abbreviation: '', code: '' },
     folderPreviews: {},
+    artiklyInfoMap: null,
 
     init(container, app, user) {
       this.container = container;
@@ -48,6 +49,8 @@
     },
 
     render() {
+      this.container.style.padding = '0';
+
       const settingsBtnWrap = document.querySelector('.subapp-topbar-right');
       if (settingsBtnWrap && !settingsBtnWrap.querySelector('#rzSettingsBtn')) {
         settingsBtnWrap.insertAdjacentHTML('afterbegin',
@@ -125,6 +128,22 @@
       });
 
       this.renderTabContent();
+      this.fitHeight();
+      if (!this._resizeBound) {
+        this._resizeBound = true;
+        window.addEventListener('resize', () => this.fitHeight());
+      }
+    },
+
+    /** Zajistí, že se scrolluje jen seznam Filiálek — zbytek plochy má napevno vypočtenou výšku bez vlastního scrollu. */
+    fitHeight() {
+      const topbar = document.querySelector('.subapp-topbar');
+      const tabbar = this.container.querySelector('.rz-tabbar');
+      const footer = document.querySelector('.statusbar');
+      const el = this.container.querySelector('#rzTabContent');
+      if (!el) return;
+      const used = (topbar ? topbar.offsetHeight : 0) + (tabbar ? tabbar.offsetHeight : 0) + (footer ? footer.offsetHeight : 0);
+      el.style.height = Math.max(200, window.innerHeight - used) + 'px';
     },
 
     showTab(key) {
@@ -147,22 +166,22 @@
       const dis = this.canWrite ? '' : 'disabled';
 
       el.innerHTML =
-        '<div class="content-grid">' +
-        '<section class="panel rz-compact">' +
+        '<div class="rz-layout">' +
+        '<section class="panel rz-compact rz-artikly-panel">' +
         '  <div class="panel-header panel-header--compact"><div><h2>Artikly</h2></div></div>' +
-        '  <div class="table-wrap"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>K rozdělení</th><th>Počet dnů</th><th>Metropol</th></tr></thead><tbody>' +
+        '  <div class="table-wrap rz-no-scroll"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>Obsah</th><th>K rozdělení</th><th>Počet dnů</th><th>Metropol</th></tr></thead><tbody>' +
         rows.map((r, i) =>
           '<tr>' +
           '<td><input type="text" data-i="' + i + '" data-f="cislo_artiklu" value="' + Ui.escape(r.cislo_artiklu || '') + '" ' + dis + '></td>' +
           '<td><input type="text" data-i="' + i + '" data-f="nazev" value="' + Ui.escape(r.nazev || '') + '" ' + dis + '></td>' +
+          '<td><input type="text" data-i="' + i + '" data-f="obsah" value="' + Ui.escape(r.obsah || '') + '" ' + dis + '></td>' +
           '<td><input type="number" data-i="' + i + '" data-f="k_rozdeleni" value="' + (r.k_rozdeleni != null ? r.k_rozdeleni : '') + '" ' + dis + '></td>' +
           '<td><input type="number" data-i="' + i + '" data-f="pocet_dni" value="' + (r.pocet_dni != null ? r.pocet_dni : '') + '" ' + dis + '></td>' +
           '<td style="text-align:center"><input type="checkbox" data-i="' + i + '" data-f="metropol" ' + (r.metropol ? 'checked' : '') + ' ' + dis + '></td>' +
           '</tr>').join('') +
         '  </tbody></table></div>' +
-        (this.canWrite ? '  <div class="form-actions"><button class="button button-primary button-small" type="button" id="rzSaveArtikly"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit artikly</button></div>' : '') +
         '</section>' +
-        '<section class="panel rz-compact">' +
+        '<section class="panel rz-compact rz-stores-panel">' +
         '  <div class="panel-header panel-header--compact"><div><h2>Filiálky</h2></div></div>' +
         '  <div class="table-wrap"><table class="rz-stores-table"><thead><tr><th>Prodejna</th><th>Název</th><th>Metropol</th></tr></thead><tbody>' +
         (this.stores.length
@@ -170,13 +189,38 @@
               (s.metropolitni ? '<svg width="14" height="14"><use href="#i-check"></use></svg>' : '—') + '</td></tr>').join('')
           : '<tr><td colspan="3">Načítám…</td></tr>') +
         '  </tbody></table></div>' +
-        '  <p class="form-hint">Metropol se nastavuje v hlavním dashboardu v sekci Filiálky — tady je jen pro přehled.</p>' +
         '</section>' +
         '</div>';
 
       if (this.canWrite) {
-        el.querySelector('#rzSaveArtikly').addEventListener('click', () => this.saveArtikly());
+        el.querySelectorAll('.rz-artikly-table input[data-f="cislo_artiklu"]').forEach((input) => {
+          input.addEventListener('blur', () => this.lookupArtikl(Number(input.dataset.i)));
+        });
+        el.querySelectorAll('.rz-artikly-table input:not([data-f="cislo_artiklu"])').forEach((input) => {
+          input.addEventListener(input.type === 'checkbox' ? 'change' : 'blur', () => this.saveArtikly());
+        });
       }
+    },
+
+    /** Podle čísla artiklu (blur na sloupci Artikl) dotáhne Název a Obsah ze souboru Informace o artiklech. */
+    lookupArtikl(rowIndex) {
+      const el = this.container.querySelector('#rzTabContent');
+      const cislo = el.querySelector('[data-i="' + rowIndex + '"][data-f="cislo_artiklu"]').value.trim();
+      if (!cislo) { this.saveArtikly(); return; }
+
+      const applyAndSave = () => {
+        const info = this.artiklyInfoMap ? this.artiklyInfoMap[cislo] : null;
+        if (info) {
+          el.querySelector('[data-i="' + rowIndex + '"][data-f="nazev"]').value = info.nazev || '';
+          el.querySelector('[data-i="' + rowIndex + '"][data-f="obsah"]').value = info.obsah || '';
+        }
+        this.saveArtikly();
+      };
+
+      if (this.artiklyInfoMap) { applyAndSave(); return; }
+      Ui.call('apiRzGetArtiklyInfoMap', null, { silent: true, busy: 'Vyhledávám artikl…' })
+        .then((map) => { this.artiklyInfoMap = map || {}; applyAndSave(); })
+        .catch((e) => { Ui.toast(e.message, 'error'); this.saveArtikly(); });
     },
 
     saveArtikly() {
@@ -187,13 +231,14 @@
         rows.push({
           cislo_artiklu: get('cislo_artiklu').value.trim(),
           nazev: get('nazev').value.trim(),
+          obsah: get('obsah').value.trim(),
           k_rozdeleni: get('k_rozdeleni').value,
           pocet_dni: get('pocet_dni').value,
           metropol: get('metropol').checked,
         });
       }
-      Ui.call('apiRzSaveArtikly', rows, { silent: true, busy: 'Ukládám artikly…' })
-        .then((saved) => { this.artikly = saved; Ui.toast('Artikly uloženy.'); })
+      Ui.call('apiRzSaveArtikly', rows, { silent: true })
+        .then((saved) => { this.artikly = saved; })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 

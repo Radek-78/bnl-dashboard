@@ -13,7 +13,7 @@ const RZ_ARTIKLY_ROWS = 20;
 
 const RZ_SCHEMA = {
   '_settings': ['id', 'key', 'value', 'updated_at', 'updated_by'],
-  'artikly': ['id', 'poradi', 'cislo_artiklu', 'nazev', 'k_rozdeleni', 'pocet_dni', 'metropol', 'created_at', 'created_by', 'updated_at'],
+  'artikly': ['id', 'poradi', 'cislo_artiklu', 'nazev', 'obsah', 'k_rozdeleni', 'pocet_dni', 'metropol', 'created_at', 'created_by', 'updated_at'],
 };
 
 const RZ_IMPORT_TABLES = ['odprodej', 'teo_stavy', 'vyskladnovaci_listy', 'prideleni_po_artiklech'];
@@ -122,13 +122,15 @@ function apiRzPreviewFolder(folderInput) {
 }
 
 /** Číslo a zkratka výchozího LC appky (Informace o artiklech se podle čísla LC dohledává). */
+function rzDefaultLcInfo_() {
+  const abbreviation = String(settingsAll_().defaultLcCode || '').trim().toUpperCase();
+  if (!abbreviation) return { abbreviation: '', code: '' };
+  const lc = dbGetAll_(SHEETS.LOGISTICS).find((l) => String(l.abbreviation).toUpperCase() === abbreviation);
+  return { abbreviation: abbreviation, code: lc ? String(lc.code) : '' };
+}
+
 function apiRzGetLcInfo() {
-  return rzGuard_(() => {
-    const abbreviation = String(settingsAll_().defaultLcCode || '').trim().toUpperCase();
-    if (!abbreviation) return { abbreviation: '', code: '' };
-    const lc = dbGetAll_(SHEETS.LOGISTICS).find((l) => String(l.abbreviation).toUpperCase() === abbreviation);
-    return { abbreviation: abbreviation, code: lc ? lc.code : '' };
-  });
+  return rzGuard_(() => rzDefaultLcInfo_());
 }
 
 /** Podporuje URL i přímo vložené ID složky. */
@@ -167,6 +169,7 @@ function apiRzSaveArtikly(rows) {
         poradi: poradi,
         cislo_artiklu: String((row && row.cislo_artiklu) || '').trim(),
         nazev: String((row && row.nazev) || '').trim(),
+        obsah: String((row && row.obsah) || '').trim(),
         k_rozdeleni: (row && row.k_rozdeleni !== '' && row.k_rozdeleni != null) ? Number(row.k_rozdeleni) || 0 : '',
         pocet_dni: (row && row.pocet_dni !== '' && row.pocet_dni != null) ? Number(row.pocet_dni) || 0 : '',
         metropol: !!(row && row.metropol),
@@ -178,6 +181,56 @@ function apiRzSaveArtikly(rows) {
     audit_('rz_artikly_save', saved.filter((r) => r.cislo_artiklu).length + ' vyplněných řádků z ' + RZ_ARTIKLY_ROWS);
     return saved.sort((a, b) => (Number(a.poradi) || 0) - (Number(b.poradi) || 0));
   });
+}
+
+/**
+ * Načte soubor Informace o artiklech (dohledaný podle výrazu v názvu + čísla LC)
+ * a vrátí mapu cislo_artiklu -> { nazev, obsah } — hledá sloupce podle textu
+ * v hlavičce (ARTIKL/NAZEV/OBSAH), ne podle pevné pozice, protože pořadí
+ * sloupců v souboru není garantované. Krátce cachované (Drive/Sheets čtení je
+ * pomalé a appka bude tuhle mapu používat opakovaně při vyplňování 20 řádků).
+ */
+function rzLoadArtiklyInfoMap_() {
+  const cacheKey = 'rz:artiklyinfo:' + rzApp_().db_spreadsheet_id;
+  try {
+    const hit = CacheService.getScriptCache().get(cacheKey);
+    if (hit) return JSON.parse(hit);
+  } catch (e) { /* cache je jen optimalizace */ }
+
+  const settings = rzSettingsAll_();
+  const folderId = rzExtractFolderId_(settings.folderInformaceOArtiklech);
+  if (!folderId) throw new Error('Není nastavena složka pro Informace o artiklech (Nastavení).');
+  const pattern = settings.patternInformaceOArtiklech || '';
+  if (!pattern) throw new Error('Není nastaven výraz pro soubor Informace o artiklech (Nastavení).');
+  const lcCode = rzDefaultLcInfo_().code;
+  if (!lcCode) throw new Error('V hlavním dashboardu není nastaveno výchozí logistické centrum.');
+
+  const file = rzFindFileInFolderByNameAndLc_(folderId, pattern, lcCode);
+  if (!file) throw new Error('Soubor Informace o artiklech (výraz „' + pattern + '" + LC ' + lcCode + ') nebyl ve složce nalezen.');
+
+  const { headers, rows } = rzReadSourceFile_(file);
+  const norm = (h) => String(h || '').trim().toUpperCase();
+  const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
+  const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
+  const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
+  if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
+
+  const map = {};
+  rows.forEach((row) => {
+    const cislo = String(row[idxArtikl] || '').trim();
+    if (!cislo) return;
+    map[cislo] = {
+      nazev: idxNazev !== -1 ? String(row[idxNazev] || '').trim() : '',
+      obsah: idxObsah !== -1 ? String(row[idxObsah] || '').trim() : '',
+    };
+  });
+
+  try { CacheService.getScriptCache().put(cacheKey, JSON.stringify(map), 300); } catch (e) { /* příliš velká data se prostě necachují */ }
+  return map;
+}
+
+function apiRzGetArtiklyInfoMap() {
+  return rzGuard_(() => rzLoadArtiklyInfoMap_());
 }
 
 /**
@@ -236,6 +289,27 @@ function rzFindFileInFolderByName_(folderId, namePattern) {
     while (files.hasNext()) {
       const file = files.next();
       if (file.getName().toLowerCase().indexOf(needle) === -1) continue;
+      const date = file.getLastUpdated();
+      if (!newestDate || date > newestDate) { newest = file; newestDate = date; }
+    }
+  });
+  return newest;
+}
+
+/** Jako rzFindFileInFolderByName_, ale název musí obsahovat i zadané číslo LC (Informace o artiklech). */
+function rzFindFileInFolderByNameAndLc_(folderId, namePattern, lcCode) {
+  const folder = DriveApp.getFolderById(folderId);
+  const needle = String(namePattern).toLowerCase();
+  const lcNeedle = String(lcCode || '').toLowerCase();
+  let newest = null;
+  let newestDate = null;
+  [MimeType.MICROSOFT_EXCEL, MimeType.GOOGLE_SHEETS, MimeType.CSV].forEach((mimeType) => {
+    const files = folder.getFilesByType(mimeType);
+    while (files.hasNext()) {
+      const file = files.next();
+      const name = file.getName().toLowerCase();
+      if (name.indexOf(needle) === -1) continue;
+      if (lcNeedle && name.indexOf(lcNeedle) === -1) continue;
       const date = file.getLastUpdated();
       if (!newestDate || date > newestDate) { newest = file; newestDate = date; }
     }
