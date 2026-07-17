@@ -335,7 +335,10 @@ function rzReadSourceFile_(file) {
     const scriptFolder = scriptFolder_();
     const copyMeta = { name: '__rz_import_tmp__', mimeType: 'application/vnd.google-apps.spreadsheet' };
     if (scriptFolder) copyMeta.parents = [scriptFolder.getId()];
-    const copy = Drive.Files.copy(copyMeta, file.getId());
+    // supportsAllDrives: soubor může ležet ve sdíleném disku (Shared Drive) - bez
+    // tohoto parametru Drive.Files.copy hlásí "File not found", i když DriveApp
+    // stejný soubor bez problémů najde a přečte.
+    const copy = Drive.Files.copy(copyMeta, file.getId(), { supportsAllDrives: true });
     tempSheetId = copy.id;
     const ss = SpreadsheetApp.openById(tempSheetId);
     const sheet = ss.getSheets()[0];
