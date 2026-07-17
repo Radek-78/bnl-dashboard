@@ -2990,6 +2990,7 @@ _sfState: {},
           this._settings = Object.assign({}, this._settings, { defaultLcCode: res.defaultLcCode });
           Ui.toast('Výchozí logistické centrum bylo nastaveno.');
           this.renderLogistics();
+          this.loadHome(); // přepočítá onboardingComplete a odemkne menu, i když nejsme na Domů
         })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
@@ -3021,6 +3022,7 @@ _sfState: {},
         .then(() => {
           Ui.toast('Logistické centrum bylo uloženo.');
           this.loadLogistics();
+          this.loadHome(); // přepočítá onboardingComplete a odemkne menu, i když nejsme na Domů
         })
         .catch((e) => {
           Ui.toast(e.message, 'error');
@@ -3219,6 +3221,7 @@ _sfState: {},
           this.renderSyncResult(new Date().toISOString(), result, true);
           this._syncHistoryPrepend(result);
           Ui.toast('Synchronizace dokončena.');
+          this.loadHome(); // přepočítá onboardingComplete a odemkne menu, i když nejsme na Domů
         })
         .catch((e) => {
           Ui.setButtonLoading(button, false);
