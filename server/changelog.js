@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.42', date: '17.7.2026', message: 'Log. centra: označení výchozího LC je nyní výraznější - plná žlutá hvězdička (nový symbol i-star-filled) na žlutém podkladu s tmavě modrou ikonou, stejná barevná kombinace jako aktivní položka menu; ostatní řádky mají jen obrysovou hvězdičku pro akci Nastavit jako výchozí' },
   { version: 'v3.1.41', date: '17.7.2026', message: 'Onboarding: nastavení výchozího LC je nyní vyžadovaný krok - apiGetHome.onboardingComplete kontroluje i _settings.defaultLcCode (musí ukazovat na existující aktivní LC), jinak zůstávají sekce Uživatelé/Oprávnění/Aplikace/Audit zamčené; nové upozornění no_default_logistics (Není nastaveno výchozí logistické centrum, akce Nastavit vede do Log. centra)' },
   { version: 'v3.1.40', date: '17.7.2026', message: 'Wizard i Nastavení - Synchronizace: nové tlačítko Použít výchozí složku filiálek, které vyplní URL známé Drive složky (CONFIG.defaultSyncFolderUrl) - není nutné ji ručně dohledávat/kopírovat při prvním spuštění ani při dodatečném nastavení' },
   { version: 'v3.1.39', date: '17.7.2026', message: 'Oprava: apiGetHome hlásil onboardingComplete správně, ale chybělo upozornění na Domů, když sync proběhl a přitom neexistuje žádné aktivní LC - přidáno upozornění no_logistics (Nebylo vytvořeno žádné logistické centrum, akce Vytvořit vede do Log. centra)' },

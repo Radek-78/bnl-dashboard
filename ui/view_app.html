@@ -2959,9 +2959,9 @@ _sfState: {},
             <td>
               ${this.isAdmin && lc.active !== false
                 ? `<button class="icon-action${isDefault ? ' is-active' : ''}" type="button" data-lc-default-id="${Ui.escape(lc.id)}" title="${isDefault ? 'Výchozí logistické centrum' : 'Nastavit jako výchozí'}">
-                    <svg><use href="#i-star"></use></svg>
+                    <svg><use href="#${isDefault ? 'i-star-filled' : 'i-star'}"></use></svg>
                    </button>`
-                : (isDefault ? '<svg width="16" height="16"><use href="#i-star"></use></svg>' : '—')
+                : (isDefault ? '<svg width="16" height="16" class="lc-default-star"><use href="#i-star-filled"></use></svg>' : '—')
               }
             </td>
             <td>
