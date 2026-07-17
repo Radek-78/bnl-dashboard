@@ -88,6 +88,7 @@ function apiRzSaveSettings(payload) {
     if ((ROLE_LEVEL[user.role] || 0) < ROLE_LEVEL[ROLES.ADMIN]) throw new Error('Nemáte oprávnění měnit nastavení.');
     const keys = ['syncFolderUrl'].concat(Object.values(RZ_PATTERN_SETTING_KEY), RZ_EXTRA_SETTING_KEYS);
     keys.forEach((key) => rzSettingsSet_(key, String((payload && payload[key]) || '').trim()));
+    rzEnsureRefreshTrigger_();
     audit_('rz_settings_update', 'Aktualizace nastavení Rozdělovníku 20 artiklů.');
     return rzSettingsAll_();
   });
@@ -184,39 +185,67 @@ function apiRzSaveArtikly(rows) {
 }
 
 /**
- * Načte soubor Informace o artiklech (dohledaný podle výrazu v názvu + čísla LC)
- * a vrátí mapu cislo_artiklu -> { nazev, obsah } — hledá sloupce podle textu
- * v hlavičce (ARTIKL/NAZEV/OBSAH), ne podle pevné pozice, protože pořadí
- * sloupců v souboru není garantované. Krátce cachované (Drive/Sheets čtení je
- * pomalé a appka bude tuhle mapu používat opakovaně při vyplňování 20 řádků).
+ * Informace o artiklech se nečte živě z Drive při každém vyhledání (kopírování
+ * + konverze velkého souboru trvá dlouho) — appka si ho jednou za hodinu
+ * (hodinový trigger) načte do vlastního listu informace_o_artiklech, odkud
+ * je pak vyhledávání okamžité.
  */
-function rzLoadArtiklyInfoMap_() {
-  const cacheKey = 'rz:artiklyinfo:' + rzApp_().db_spreadsheet_id;
-  try {
-    const hit = CacheService.getScriptCache().get(cacheKey);
-    if (hit) return JSON.parse(hit);
-  } catch (e) { /* cache je jen optimalizace */ }
+const RZ_INFO_SHEET = 'informace_o_artiklech';
+const RZ_REFRESH_TRIGGER_FN = 'rzRefreshArtiklyInfo_';
 
+/** Zajistí hodinový trigger pro obnovu Informace o artiklech (volá se jen z admin akce v Nastavení). */
+function rzEnsureRefreshTrigger_() {
+  const exists = ScriptApp.getProjectTriggers().some((t) => t.getHandlerFunction() === RZ_REFRESH_TRIGGER_FN);
+  if (!exists) {
+    ScriptApp.newTrigger(RZ_REFRESH_TRIGGER_FN).timeBased().everyHours(1).create();
+  }
+}
+
+/**
+ * Cíl hodinového triggeru — přenačte soubor Informace o artiklech (dohledaný
+ * podle výrazu v názvu + čísla LC) do listu informace_o_artiklech. Beze změny
+ * nastavení jen tiše skončí (nic k obnovení).
+ */
+function rzRefreshArtiklyInfo_() {
   const settings = rzSettingsAll_();
   const folderId = rzExtractFolderId_(settings.folderInformaceOArtiklech);
-  if (!folderId) throw new Error('Není nastavena složka pro Informace o artiklech (Nastavení).');
+  if (!folderId) return;
   const pattern = settings.patternInformaceOArtiklech || '';
-  if (!pattern) throw new Error('Není nastaven výraz pro soubor Informace o artiklech (Nastavení).');
+  if (!pattern) return;
   const lcCode = rzDefaultLcInfo_().code;
-  if (!lcCode) throw new Error('V hlavním dashboardu není nastaveno výchozí logistické centrum.');
+  if (!lcCode) return;
 
   const file = rzFindFileInFolderByNameAndLc_(folderId, pattern, lcCode);
-  if (!file) throw new Error('Soubor Informace o artiklech (výraz „' + pattern + '" + LC ' + lcCode + ') nebyl ve složce nalezen.');
+  if (!file) return;
 
   const { headers, rows } = rzReadSourceFile_(file);
+  rzWriteGrid_(RZ_INFO_SHEET, headers, rows);
+  rzSettingsSet_('infoArtiklechRefreshedAt', nowIso_());
+}
+
+/**
+ * Sestaví mapu cislo_artiklu -> { nazev, obsah } z lokálně uloženého listu
+ * (rychlé) — hledá sloupce podle textu v hlavičce (ARTIKL/NAZEV/OBSAH), ne
+ * podle pevné pozice. Pokud ještě nikdy neproběhla obnova, provede ji poprvé
+ * synchronně (jednorázově pomalejší, další vyhledávání už jsou okamžitá).
+ */
+function rzLoadArtiklyInfoMap_() {
+  rzEnsureRefreshTrigger_();
+  let grid = rzReadGrid_(RZ_INFO_SHEET);
+  if (!grid.headers.length) {
+    rzRefreshArtiklyInfo_();
+    grid = rzReadGrid_(RZ_INFO_SHEET);
+    if (!grid.headers.length) throw new Error('Soubor Informace o artiklech se nepodařilo načíst — zkontrolujte Nastavení.');
+  }
+
   const norm = (h) => String(h || '').trim().toUpperCase();
-  const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
-  const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
-  const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
+  const idxArtikl = grid.headers.findIndex((h) => norm(h) === 'ARTIKL');
+  const idxNazev = grid.headers.findIndex((h) => norm(h) === 'NAZEV');
+  const idxObsah = grid.headers.findIndex((h) => norm(h) === 'OBSAH');
   if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
 
   const map = {};
-  rows.forEach((row) => {
+  grid.rows.forEach((row) => {
     const cislo = String(row[idxArtikl] || '').trim();
     if (!cislo) return;
     map[cislo] = {
@@ -224,8 +253,6 @@ function rzLoadArtiklyInfoMap_() {
       obsah: idxObsah !== -1 ? String(row[idxObsah] || '').trim() : '',
     };
   });
-
-  try { CacheService.getScriptCache().put(cacheKey, JSON.stringify(map), 300); } catch (e) { /* příliš velká data se prostě necachují */ }
   return map;
 }
 
