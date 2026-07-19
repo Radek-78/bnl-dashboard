@@ -1640,6 +1640,17 @@
     box-shadow: inset 0 0 0 1px var(--lidl-blue);
   }
 
+  .rz-compact input.is-loading {
+    animation: rz-loading-pulse 1s ease-in-out infinite;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  @keyframes rz-loading-pulse {
+    0%, 100% { background: rgba(0, 80, 170, 0.05) !important; }
+    50% { background: rgba(0, 80, 170, 0.18) !important; }
+  }
+
   .rz-compact input[type="checkbox"] {
     background: none !important;
     border-bottom: 0;

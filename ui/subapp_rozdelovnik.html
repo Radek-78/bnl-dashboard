@@ -212,17 +212,25 @@
       this.saveArtikly();
       if (!cislo) return;
 
+      const nazevInput = el.querySelector('[data-i="' + rowIndex + '"][data-f="nazev"]');
+      const obsahInput = el.querySelector('[data-i="' + rowIndex + '"][data-f="obsah"]');
+      [nazevInput, obsahInput].forEach((input) => { input.classList.add('is-loading'); input.placeholder = 'Vyhledávám…'; });
+      const clearLoading = () => {
+        [nazevInput, obsahInput].forEach((input) => { input.classList.remove('is-loading'); input.placeholder = ''; });
+      };
+
       Ui.call('apiRzLookupArtikl', cislo, { silent: true })
         .then((info) => {
+          clearLoading();
           if (!info) return;
           // Mezitím mohl uživatel řádek smazat/přepsat - zapiš jen pokud číslo pořád sedí.
           const cisloInput = el.querySelector('[data-i="' + rowIndex + '"][data-f="cislo_artiklu"]');
           if (!cisloInput || cisloInput.value.trim() !== cislo) return;
-          el.querySelector('[data-i="' + rowIndex + '"][data-f="nazev"]').value = info.nazev || '';
-          el.querySelector('[data-i="' + rowIndex + '"][data-f="obsah"]').value = info.obsah || '';
+          nazevInput.value = info.nazev || '';
+          obsahInput.value = info.obsah || '';
           this.saveArtikly();
         })
-        .catch((e) => Ui.toast(e.message, 'error'));
+        .catch((e) => { clearLoading(); Ui.toast(e.message, 'error'); });
     },
 
     saveArtikly() {
