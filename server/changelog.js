@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.59', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: sloupec Prodejna v tabulce Filiálky zarovnán na střed.' },
   { version: 'v3.1.58', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: hodnoty ve sloupcích Obsah, K rozdělení a Počet dnů v tabulce Artikly zarovnány na střed.' },
   { version: 'v3.1.57', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: tlačítko Resetovat tabulku v pravém rohu hlavičky Artiklů - po potvrzení (Ui.confirm) vymaže všech 20 řádků najednou.' },
   { version: 'v3.1.56', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: po opuštění pole Artikl se buňky Název a Obsah po dobu vyhledávání na pozadí zvýrazní pulzujícím podbarvením a placeholderem "Vyhledávám…", ať je vidět, že se do nich chystají doplnit data.' },
