@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.57', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: tlačítko Resetovat tabulku v pravém rohu hlavičky Artiklů - po potvrzení (Ui.confirm) vymaže všech 20 řádků najednou.' },
   { version: 'v3.1.56', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: po opuštění pole Artikl se buňky Název a Obsah po dobu vyhledávání na pozadí zvýrazní pulzujícím podbarvením a placeholderem "Vyhledávám…", ať je vidět, že se do nich chystají doplnit data.' },
   { version: 'v3.1.55', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: zrušen hodinový trigger a lokální zrcadlení Informace o artiklech (řešilo špatný problém) - nahrazeno cíleným vyhledáním na pozadí ihned po opuštění pole Artikl (apiRzLookupArtikl, TextFinder nad sloupcem ARTIKL, žádné čtení celé 120tisícové tabulky). U .xlsx zdroje se dočasná konvertovaná kopie krátkodobě (~30 min) znovupoužívá, aby se při vyplňování 20 řádků nekonvertovalo opakovaně.' },
   { version: 'v3.1.54', date: '17.7.2026', message: 'Rozdělovník 20 artiklů: Informace o artiklech se už nečtou živě z Drive při každém vyhledání artiklu (pomalé kopírování/konverze velkého souboru) - nový hodinový trigger (rzRefreshArtiklyInfo_) je jednou za hodinu uloží do vlastního listu informace_o_artiklech, odkud je vyhledávání okamžité. První vyhledání po nastavení proběhne synchronně (jednorázově pomalejší), trigger se založí automaticky.' },

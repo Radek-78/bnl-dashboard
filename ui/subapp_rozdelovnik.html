@@ -167,7 +167,9 @@
       el.innerHTML =
         '<div class="rz-layout">' +
         '<section class="panel rz-compact rz-artikly-panel">' +
-        '  <div class="panel-header panel-header--compact"><div><h2>Artikly</h2></div></div>' +
+        '  <div class="panel-header panel-header--compact"><div><h2>Artikly</h2></div>' +
+        (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzResetArtiklyBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg>Resetovat tabulku</button>' : '') +
+        '</div>' +
         '  <div class="table-wrap rz-no-scroll"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>Obsah</th><th>K rozdělení</th><th>Počet dnů</th><th>Metropol</th></tr></thead><tbody>' +
         rows.map((r, i) =>
           '<tr>' +
@@ -198,7 +200,24 @@
         el.querySelectorAll('.rz-artikly-table input:not([data-f="cislo_artiklu"])').forEach((input) => {
           input.addEventListener(input.type === 'checkbox' ? 'change' : 'blur', () => this.saveArtikly());
         });
+        el.querySelector('#rzResetArtiklyBtn').addEventListener('click', () => this.resetArtikly());
       }
+    },
+
+    resetArtikly() {
+      Ui.confirm({
+        kicker: 'Artikly',
+        title: 'Resetovat tabulku artiklů?',
+        message: 'Smaže se všech 20 řádků (čísla artiklů, názvy, obsah, množství i příznak Metropol). Tuto akci nelze vrátit.',
+        confirmLabel: 'Resetovat',
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        const el = this.container.querySelector('#rzTabContent');
+        el.querySelectorAll('.rz-artikly-table input[type="text"], .rz-artikly-table input[type="number"]').forEach((input) => { input.value = ''; });
+        el.querySelectorAll('.rz-artikly-table input[type="checkbox"]').forEach((input) => { input.checked = false; });
+        this.saveArtikly();
+        Ui.toast('Tabulka artiklů byla resetována.');
+      });
     },
 
     /**
