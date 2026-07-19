@@ -22,7 +22,6 @@
     importData: {},
     lcInfo: { abbreviation: '', code: '' },
     folderPreviews: {},
-    artiklyInfoMap: null,
 
     init(container, app, user) {
       this.container = container;
@@ -202,25 +201,28 @@
       }
     },
 
-    /** Podle čísla artiklu (blur na sloupci Artikl) dotáhne Název a Obsah ze souboru Informace o artiklech. */
+    /**
+     * Podle čísla artiklu (blur na sloupci Artikl) dotáhne Název a Obsah ze
+     * souboru Informace o artiklech — na pozadí, beze zablokování plochy.
+     * Uloží se rovnou i bez nalezené shody (uživatel mohl zadat i ručně).
+     */
     lookupArtikl(rowIndex) {
       const el = this.container.querySelector('#rzTabContent');
       const cislo = el.querySelector('[data-i="' + rowIndex + '"][data-f="cislo_artiklu"]').value.trim();
-      if (!cislo) { this.saveArtikly(); return; }
+      this.saveArtikly();
+      if (!cislo) return;
 
-      const applyAndSave = () => {
-        const info = this.artiklyInfoMap ? this.artiklyInfoMap[cislo] : null;
-        if (info) {
+      Ui.call('apiRzLookupArtikl', cislo, { silent: true })
+        .then((info) => {
+          if (!info) return;
+          // Mezitím mohl uživatel řádek smazat/přepsat - zapiš jen pokud číslo pořád sedí.
+          const cisloInput = el.querySelector('[data-i="' + rowIndex + '"][data-f="cislo_artiklu"]');
+          if (!cisloInput || cisloInput.value.trim() !== cislo) return;
           el.querySelector('[data-i="' + rowIndex + '"][data-f="nazev"]').value = info.nazev || '';
           el.querySelector('[data-i="' + rowIndex + '"][data-f="obsah"]').value = info.obsah || '';
-        }
-        this.saveArtikly();
-      };
-
-      if (this.artiklyInfoMap) { applyAndSave(); return; }
-      Ui.call('apiRzGetArtiklyInfoMap', null, { silent: true, busy: 'Vyhledávám artikl…' })
-        .then((map) => { this.artiklyInfoMap = map || {}; applyAndSave(); })
-        .catch((e) => { Ui.toast(e.message, 'error'); this.saveArtikly(); });
+          this.saveArtikly();
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
     },
 
     saveArtikly() {

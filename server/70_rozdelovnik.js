@@ -88,7 +88,6 @@ function apiRzSaveSettings(payload) {
     if ((ROLE_LEVEL[user.role] || 0) < ROLE_LEVEL[ROLES.ADMIN]) throw new Error('Nemáte oprávnění měnit nastavení.');
     const keys = ['syncFolderUrl'].concat(Object.values(RZ_PATTERN_SETTING_KEY), RZ_EXTRA_SETTING_KEYS);
     keys.forEach((key) => rzSettingsSet_(key, String((payload && payload[key]) || '').trim()));
-    rzEnsureRefreshTrigger_();
     audit_('rz_settings_update', 'Aktualizace nastavení Rozdělovníku 20 artiklů.');
     return rzSettingsAll_();
   });
@@ -185,79 +184,107 @@ function apiRzSaveArtikly(rows) {
 }
 
 /**
- * Informace o artiklech se nečte živě z Drive při každém vyhledání (kopírování
- * + konverze velkého souboru trvá dlouho) — appka si ho jednou za hodinu
- * (hodinový trigger) načte do vlastního listu informace_o_artiklech, odkud
- * je pak vyhledávání okamžité.
+ * Informace o artiklech má běžně desítky až stovky tisíc řádků — appka ho
+ * proto nikdy celý nečte ani nikam neukládá, jen v něm cíleně vyhledá
+ * konkrétní číslo artiklu (TextFinder nad sloupcem ARTIKL, ne getValues přes
+ * celou tabulku). U .xlsx je nutná jedna konverze na Google Sheet; ta se
+ * krátkodobě (~30 min) znovupoužívá (ID uložené v _settings), aby se při
+ * postupném vyplňování 20 řádků nekonvertovalo opakovaně.
  */
-const RZ_INFO_SHEET = 'informace_o_artiklech';
-const RZ_REFRESH_TRIGGER_FN = 'rzRefreshArtiklyInfo_';
+const RZ_LOOKUP_TEMP_TTL_MS = 30 * 60 * 1000;
 
-/** Zajistí hodinový trigger pro obnovu Informace o artiklech (volá se jen z admin akce v Nastavení). */
-function rzEnsureRefreshTrigger_() {
-  const exists = ScriptApp.getProjectTriggers().some((t) => t.getHandlerFunction() === RZ_REFRESH_TRIGGER_FN);
-  if (!exists) {
-    ScriptApp.newTrigger(RZ_REFRESH_TRIGGER_FN).timeBased().everyHours(1).create();
+/** Otevře Informace o artiklech jako Sheet — bez kopírování, pokud je zdroj už nativní Google Sheet. */
+function rzOpenInfoArtiklechSheet_(file) {
+  if (file.getMimeType() === MimeType.GOOGLE_SHEETS) {
+    return SpreadsheetApp.openById(file.getId()).getSheets()[0];
   }
-}
 
-/**
- * Cíl hodinového triggeru — přenačte soubor Informace o artiklech (dohledaný
- * podle výrazu v názvu + čísla LC) do listu informace_o_artiklech. Beze změny
- * nastavení jen tiše skončí (nic k obnovení).
- */
-function rzRefreshArtiklyInfo_() {
   const settings = rzSettingsAll_();
-  const folderId = rzExtractFolderId_(settings.folderInformaceOArtiklech);
-  if (!folderId) return;
-  const pattern = settings.patternInformaceOArtiklech || '';
-  if (!pattern) return;
-  const lcCode = rzDefaultLcInfo_().code;
-  if (!lcCode) return;
-
-  const file = rzFindFileInFolderByNameAndLc_(folderId, pattern, lcCode);
-  if (!file) return;
-
-  const { headers, rows } = rzReadSourceFile_(file);
-  rzWriteGrid_(RZ_INFO_SHEET, headers, rows);
-  rzSettingsSet_('infoArtiklechRefreshedAt', nowIso_());
-}
-
-/**
- * Sestaví mapu cislo_artiklu -> { nazev, obsah } z lokálně uloženého listu
- * (rychlé) — hledá sloupce podle textu v hlavičce (ARTIKL/NAZEV/OBSAH), ne
- * podle pevné pozice. Pokud ještě nikdy neproběhla obnova, provede ji poprvé
- * synchronně (jednorázově pomalejší, další vyhledávání už jsou okamžitá).
- */
-function rzLoadArtiklyInfoMap_() {
-  rzEnsureRefreshTrigger_();
-  let grid = rzReadGrid_(RZ_INFO_SHEET);
-  if (!grid.headers.length) {
-    rzRefreshArtiklyInfo_();
-    grid = rzReadGrid_(RZ_INFO_SHEET);
-    if (!grid.headers.length) throw new Error('Soubor Informace o artiklech se nepodařilo načíst — zkontrolujte Nastavení.');
+  const cachedId = settings.lookupTempSheetId || '';
+  const cachedAt = settings.lookupTempSheetAt ? new Date(settings.lookupTempSheetAt).getTime() : 0;
+  const sameSource = settings.lookupTempSourceId === file.getId();
+  const fresh = cachedId && sameSource && (Date.now() - cachedAt) < RZ_LOOKUP_TEMP_TTL_MS;
+  if (fresh) {
+    try {
+      return SpreadsheetApp.openById(cachedId).getSheets()[0];
+    } catch (e) { /* kopie zmizela/je neplatná — vytvoří se nová níže */ }
   }
 
+  // Stará dočasná kopie (pokud existuje) se smaže, ať se nehromadí v Disku.
+  if (cachedId) { try { Drive.Files.remove(cachedId); } catch (e) { /* není kritické */ } }
+
+  const scriptFolder = scriptFolder_();
+  const copyMeta = { name: '__rz_lookup_tmp__', mimeType: 'application/vnd.google-apps.spreadsheet' };
+  if (scriptFolder) copyMeta.parents = [scriptFolder.getId()];
+  const copy = Drive.Files.copy(copyMeta, file.getId(), { supportsAllDrives: true });
+
+  rzSettingsSet_('lookupTempSheetId', copy.id);
+  rzSettingsSet_('lookupTempSheetAt', nowIso_());
+  rzSettingsSet_('lookupTempSourceId', file.getId());
+
+  return SpreadsheetApp.openById(copy.id).getSheets()[0];
+}
+
+/** V listu najde řádek s daným číslem artiklu ve sloupci ARTIKL (TextFinder) a vrátí Název/Obsah. */
+function rzFindArtiklInSheet_(sheet, cisloArtiklu) {
+  const lastCol = sheet.getLastColumn();
+  const lastRow = sheet.getLastRow();
+  if (lastCol < 1 || lastRow < 2) return null;
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
   const norm = (h) => String(h || '').trim().toUpperCase();
-  const idxArtikl = grid.headers.findIndex((h) => norm(h) === 'ARTIKL');
-  const idxNazev = grid.headers.findIndex((h) => norm(h) === 'NAZEV');
-  const idxObsah = grid.headers.findIndex((h) => norm(h) === 'OBSAH');
+  const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
+  const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
+  const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
   if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
 
-  const map = {};
-  grid.rows.forEach((row) => {
-    const cislo = String(row[idxArtikl] || '').trim();
-    if (!cislo) return;
-    map[cislo] = {
-      nazev: idxNazev !== -1 ? String(row[idxNazev] || '').trim() : '',
-      obsah: idxObsah !== -1 ? String(row[idxObsah] || '').trim() : '',
-    };
-  });
-  return map;
+  const artiklCol = sheet.getRange(2, idxArtikl + 1, lastRow - 1, 1);
+  const match = artiklCol.createTextFinder(String(cisloArtiklu)).matchEntireCell(true).findNext();
+  if (!match) return null;
+
+  const rowVals = sheet.getRange(match.getRow(), 1, 1, lastCol).getValues()[0];
+  return {
+    nazev: idxNazev !== -1 ? String(rowVals[idxNazev] || '').trim() : '',
+    obsah: idxObsah !== -1 ? String(rowVals[idxObsah] || '').trim() : '',
+  };
 }
 
-function apiRzGetArtiklyInfoMap() {
-  return rzGuard_(() => rzLoadArtiklyInfoMap_());
+/** Vyhledá Název a Obsah pro jedno číslo artiklu — vrací null, pokud nenalezeno. Volá se na pozadí po opuštění pole Artikl. */
+function apiRzLookupArtikl(cisloArtiklu) {
+  return rzGuard_(() => {
+    const cislo = String(cisloArtiklu || '').trim();
+    if (!cislo) return null;
+
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.folderInformaceOArtiklech);
+    if (!folderId) throw new Error('Není nastavena složka pro Informace o artiklech (Nastavení).');
+    const pattern = settings.patternInformaceOArtiklech || '';
+    if (!pattern) throw new Error('Není nastaven výraz pro soubor Informace o artiklech (Nastavení).');
+    const lcCode = rzDefaultLcInfo_().code;
+    if (!lcCode) throw new Error('V hlavním dashboardu není nastaveno výchozí logistické centrum.');
+
+    const file = rzFindFileInFolderByNameAndLc_(folderId, pattern, lcCode);
+    if (!file) throw new Error('Soubor Informace o artiklech (výraz „' + pattern + '" + LC ' + lcCode + ') nebyl ve složce nalezen.');
+
+    if (file.getMimeType() === MimeType.CSV) {
+      const text = file.getBlob().getDataAsString('UTF-8');
+      const data = Utilities.parseCsv(text);
+      if (!data.length) return null;
+      const headers = data[0];
+      const norm = (h) => String(h || '').trim().toUpperCase();
+      const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
+      const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
+      const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
+      if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
+      const row = data.slice(1).find((r) => String(r[idxArtikl] || '').trim() === cislo);
+      if (!row) return null;
+      return {
+        nazev: idxNazev !== -1 ? String(row[idxNazev] || '').trim() : '',
+        obsah: idxObsah !== -1 ? String(row[idxObsah] || '').trim() : '',
+      };
+    }
+
+    return rzFindArtiklInSheet_(rzOpenInfoArtiklechSheet_(file), cislo);
+  });
 }
 
 /**
