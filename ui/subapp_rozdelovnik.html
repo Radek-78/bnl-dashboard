@@ -893,7 +893,10 @@
      */
     recomputeRw(cislo) {
       const a = this.artikly.find((x) => x.cislo_artiklu === cislo);
-      if (!a) return;
+      if (!a) {
+        Ui.toast('Artikl ' + cislo + ' nenalezen.', 'error');
+        return;
+      }
       const { byArtikl } = this._rozdeleniLookup();
       const minMax = byArtikl[cislo] || {};
       const perStore = this._computeMedianTeo(cislo);
@@ -903,6 +906,15 @@
         stav: ((perStore[s.code] || {}).teo || 0) + ((perStore[s.code] || {}).dodano || 0),
       }));
       const rw = this._solveRw(target, storeData, minMax.min, minMax.max);
+
+      // Nejdřív okamžitě promítnout do DOM (bez čekání na server) - stejné
+      // "online" chování jako ruční úprava RW - a teprve pak uložit na pozadí.
+      const el = this.container.querySelector('#rzTabContent');
+      const rwInput = el && el.querySelector('.rzr-rw[data-cislo="' + CSS.escape(cislo) + '"]');
+      if (rwInput) rwInput.value = rw;
+      this._recomputeBlockLive(cislo);
+      Ui.toast('RW přepočítáno na ' + this._fmtNum(rw) + '.');
+
       this._upsertRozdeleniLocal(cislo, '', { rw: rw });
       this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }))
         .then(() => this.loadRozdeleni())
