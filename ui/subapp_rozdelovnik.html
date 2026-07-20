@@ -23,6 +23,8 @@
     importData: {},
     importOverview: null,
     rozdeleni: null,
+    _artiklyDirty: false,
+    _rozdeleniReqId: 0,
     _sfState: {},
     _sfViewCache: {},
     _colWidths: {},
@@ -46,7 +48,15 @@
         .then((s) => { this.settings = s || {}; })
         .catch((e) => Ui.toast(e.message, 'error'));
       Ui.call('apiRzListArtikly', null, { silent: true })
-        .then((rows) => { this.artikly = rows; if (this.activeTab === 'artikly' || this.activeTab === 'rozdeleni') this.renderTabContent(); })
+        .then((rows) => {
+          // Tento počáteční GET běží souběžně se 7 dalšími voláními při startu appky
+          // a může dorazit až PO tom, co uživatel stihl něco vyplnit a uložit (saveArtikly
+          // je rychlejší, protože nesoutěží tak o frontu). Kdyby se aplikovala, přepsala
+          // by čerstvě uložená data starým stavem - proto se po prvním uložení ignoruje.
+          if (this._artiklyDirty) return;
+          this.artikly = rows;
+          if (this.activeTab === 'artikly' || this.activeTab === 'rozdeleni') this.renderTabContent();
+        })
         .catch((e) => Ui.toast(e.message, 'error'));
       Ui.call('apiRzListStores', null, { silent: true })
         .then((rows) => { this.stores = rows; if (this.activeTab === 'artikly' || this.activeTab === 'rozdeleni') this.renderTabContent(); })
@@ -58,9 +68,20 @@
       RZ_IMPORT_TABS.forEach((key) => this.loadImportTable(key));
     },
 
+    /**
+     * Volá se jak při startu appky, tak po každém uložení Úpravy/min/max -
+     * dvě takové volání mohou dorazit v jiném pořadí, než byla vyslána (např.
+     * počáteční GET dorazí až po pozdějším save-refresh). Číslo požadavku
+     * zaručí, že se aplikuje vždy jen výsledek TOHO NEJNOVĚJI vyslaného volání.
+     */
     loadRozdeleni() {
+      const reqId = ++this._rozdeleniReqId;
       return Ui.call('apiRzGetRozdeleni', null, { silent: true })
-        .then((rows) => { this.rozdeleni = rows; if (this.activeTab === 'rozdeleni') this.renderTabContent(); })
+        .then((rows) => {
+          if (reqId !== this._rozdeleniReqId) return;
+          this.rozdeleni = rows;
+          if (this.activeTab === 'rozdeleni') this.renderTabContent();
+        })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
@@ -368,7 +389,7 @@
         });
       }
       Ui.call('apiRzSaveArtikly', rows, { silent: true })
-        .then((saved) => { this.artikly = saved; })
+        .then((saved) => { this.artikly = saved; this._artiklyDirty = true; })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
@@ -467,6 +488,15 @@
       return { byArtikl, byStore };
     },
 
+    /** Porovná číslo artiklu z importu s číslem z Artiklů - kromě přesné shody textu i číselně, kdyby se lišilo jen formátováním (např. koncová ".0" po převodu čísla na text). */
+    _artiklMatches(cellVal, cislo) {
+      const a = String(cellVal).trim();
+      const b = String(cislo).trim();
+      if (a === b) return true;
+      const na = Number(a), nb = Number(b);
+      return !isNaN(na) && !isNaN(nb) && na === nb;
+    },
+
     /** Najde index sloupce podle kousku názvu (bez diakritiky) - hlavičky Odprodeje/Teo. stavů odpovídají přesně zdrojovému souboru, proto se nedá spoléhat na pevný název. */
     _findColIndex(headers, candidates) {
       const norm = (s) => String(s).trim().toLowerCase().normalize('NFD').replace(/[^\x00-\x7F]/g, '');
@@ -506,7 +536,7 @@
         if (ciP !== -1 && ciA !== -1 && ciKs !== -1) {
           const byStore = {};
           od.rows.forEach((r) => {
-            if (String(r[ciA]).trim() !== cisloArtiklu) return;
+            if (!this._artiklMatches(r[ciA], cisloArtiklu)) return;
             const store = String(r[ciP]).trim();
             const val = this._toNumber(r[ciKs]);
             if (isNaN(val)) return;
@@ -528,7 +558,7 @@
         if (ciP !== -1 && ciA !== -1 && ciS !== -1) {
           const latest = {};
           teo.rows.forEach((r) => {
-            if (String(r[ciA]).trim() !== cisloArtiklu) return;
+            if (!this._artiklMatches(r[ciA], cisloArtiklu)) return;
             const store = String(r[ciP]).trim();
             const val = this._toNumber(r[ciS]);
             if (isNaN(val)) return;
