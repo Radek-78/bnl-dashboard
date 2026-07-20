@@ -575,7 +575,7 @@
           return '<div class="rzr-hrow rzr-data-row">' +
             '<span>' + (vals.median != null ? this._fmtNum(vals.median) : '—') + '</span>' +
             '<span>' + (vals.teo != null ? this._fmtNum(vals.teo) : '—') + '</span>' +
-            '<span class="rzr-prideli">' + prideli + '</span>' +
+            '<span class="rzr-prideli" data-cislo="' + Ui.escape(cislo) + '" data-store="' + Ui.escape(s.code) + '">' + prideli + '</span>' +
             '<input type="text" inputmode="decimal" data-cislo="' + Ui.escape(cislo) + '" data-store="' + Ui.escape(s.code) + '" value="' + (uprava != null && uprava !== '' ? this._fmtNum(uprava) : '') + '"' + dis + '>' +
             '</div>';
         }).join('');
@@ -614,6 +614,8 @@
           input.addEventListener('blur', () => this.saveRozdeleniMinMax(input.dataset.cislo));
         });
         el.querySelectorAll('.rzr-rw').forEach((input) => {
+          // input = při každé změně (psaní i klik na šipky) - okamžitý přepočet Příděl/Rozděleno bez čekání na uložení.
+          input.addEventListener('input', () => this._recomputeBlockLive(input.dataset.cislo));
           input.addEventListener('blur', () => this.saveRozdeleniRw(input.dataset.cislo));
         });
         el.querySelectorAll('.rzr-data-row input').forEach((input) => {
@@ -662,6 +664,17 @@
       const normed = headers.map(norm);
       for (const cand of candidates) {
         const idx = normed.findIndex((h) => h.indexOf(cand) !== -1);
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    },
+
+    /** Stejné jako _findColIndex, ale hledá jen přesnou shodu názvu - potřeba u Vyskladňovacích listů, kde sloupec "Artikl" obsahuje jiný (delší interní) kód a skutečné číslo artiklu je ve sloupci "Art"; hledání podle podřetězce by se vždy trefilo do "Artikl" prvního. */
+    _findColIndexExact(headers, candidates) {
+      const norm = (s) => String(s).trim().toLowerCase().normalize('NFD').replace(/[^\x00-\x7F]/g, '');
+      const normed = headers.map(norm);
+      for (const cand of candidates) {
+        const idx = normed.indexOf(cand);
         if (idx !== -1) return idx;
       }
       return -1;
@@ -742,7 +755,9 @@
       const vysklad = this.importData.vyskladnovaci_listy;
       if (vysklad && vysklad.headers && vysklad.headers.length) {
         const ciP = this._findColIndex(vysklad.headers, ['prodejna']);
-        const ciA = this._findColIndex(vysklad.headers, ['artikl']);
+        // Pozor: sloupec "Artikl" tu obsahuje jiný (delší interní) kód - skutečné
+        // číslo artiklu je ve sloupci "Art", proto přesná shoda, ne podřetězec.
+        const ciA = this._findColIndexExact(vysklad.headers, ['art']);
         const ciDod = this._findColIndex(vysklad.headers, ['dodano']);
         if (ciP !== -1 && ciA !== -1 && ciDod !== -1) {
           const soucet = {};
@@ -800,6 +815,40 @@
       } else {
         this.rozdeleni.push(Object.assign({ cislo_artiklu: cislo, prodejna: prodejna || '' }, patch));
       }
+    },
+
+    /**
+     * "Online" přepočet Příděl/Rozděleno hned při psaní/klikání na šipky RW -
+     * bez čekání na uložení na server. Cílené přepisování konkrétních buněk
+     * (ne celý překreslení tabulky), ať RW input při tom neztratí fokus.
+     */
+    _recomputeBlockLive(cislo) {
+      const el = this.container.querySelector('#rzTabContent');
+      const rwInput = el.querySelector('.rzr-rw[data-cislo="' + CSS.escape(cislo) + '"]');
+      const minInput = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="min"]');
+      const maxInput = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="max"]');
+      const rw = Number(rwInput.value) || 0;
+      const minRaw = minInput.value.trim();
+      const maxRaw = maxInput.value.trim();
+      const min = minRaw === '' ? '' : this._toNumber(minRaw);
+      const max = maxRaw === '' ? '' : this._toNumber(maxRaw);
+      const perStore = this._computeMedianTeo(cislo);
+
+      let rozdeleno = 0;
+      this.stores.forEach((s) => {
+        const vals = perStore[s.code] || {};
+        const median = vals.median || 0;
+        const stav = (vals.teo || 0) + (vals.dodano || 0);
+        const prideli = this._clampPrideli(rw, median, stav, min, max);
+        const prideliEl = el.querySelector('.rzr-prideli[data-cislo="' + CSS.escape(cislo) + '"][data-store="' + CSS.escape(s.code) + '"]');
+        if (prideliEl) prideliEl.textContent = prideli;
+        const upravaInput = el.querySelector('.rzr-data-row input[data-cislo="' + CSS.escape(cislo) + '"][data-store="' + CSS.escape(s.code) + '"]');
+        const upravaRaw = upravaInput ? upravaInput.value.trim() : '';
+        rozdeleno += upravaRaw !== '' ? (this._toNumber(upravaRaw) || 0) : prideli;
+      });
+
+      const sumEl = el.querySelector('.rzr-rozdeleno[data-cislo="' + CSS.escape(cislo) + '"]');
+      if (sumEl) sumEl.textContent = rozdeleno;
     },
 
     saveRozdeleniMinMax(cislo) {

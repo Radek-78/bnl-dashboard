@@ -1869,7 +1869,12 @@
 
   /* ── Rozdělovník: záložka Rozdělení ──────────────── */
 
+  /* align-items:flex-start je klíčové - bez něj (výchozí stretch) by se
+     frozen sloupec i bloky natáhly jen na výšku viditelné oblasti a sticky
+     hlavička by se "pustila" hned po scrollování o tuto výšku, i když
+     zbývalo vidět mnohem víc řádků prodejen. */
   .rzr-scroll {
+    align-items: flex-start;
     display: flex;
     flex: 1;
     overflow: auto;
@@ -1936,9 +1941,14 @@
   }
 
   .rzr-block {
-    border-right: 1px solid var(--line);
+    border-right: 2px solid var(--line);
     flex-shrink: 0;
     width: 280px;
+  }
+
+  /* Jemné odlišení sudých/lichých bloků od sebe, ať je na první pohled jasné, kde jeden artikl končí a další začíná. */
+  .rzr-block:nth-child(even) {
+    background: rgba(0, 80, 170, 0.025);
   }
 
   .rzr-artikl-row {
@@ -1958,8 +1968,11 @@
     text-align: right;
   }
 
+  /* Stejná pevná šířka jako input o pár řádků níž - jinak by se popisky a
+     hodnoty/pole v různých řádcích neshodovaly ve sloupci (b má flex:1 dělil
+     jinak než input s pevnou šířkou). */
   .rzr-kv-row b {
-    flex: 1;
+    flex: 0 0 70px;
     font-weight: 700;
     text-align: center;
   }
@@ -1968,12 +1981,13 @@
      (viz výše) - tady se dolaďuje jen šířka a zarovnání textu, specifické
      pro tenhle layout. */
   .rzr-kv-row input {
+    flex: 0 0 70px;
     text-align: center;
-    width: 70px;
   }
 
   /* RW je number input se šipkami (krok 0,1) - o něco širší, ať se vejdou. */
   .rzr-rw {
+    flex-basis: 80px !important;
     width: 80px !important;
   }
 
