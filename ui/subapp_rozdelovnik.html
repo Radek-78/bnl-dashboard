@@ -681,13 +681,14 @@
     /**
      * MEDIAN = medián "prodáno ks" z Odprodeje pro daný artikl, po prodejnách.
      * Teo. stav (zobrazený sloupec) = poslední (nejnovější podle data) hodnota
-     * teoretického stavu z Teo. stavů. Dodáno = součet sloupce "Dodáno" z
-     * Vyskladňovacích listů (zboží skutečně doručené na prodejnu, které ještě
-     * nemusí být v poslední známé hodnotě Teo. stavu promítnuté) - používá se
-     * jen ve výpočtu přídělu (viz _clampPrideli: stav = teo + dodano), ne v
-     * zobrazeném sloupci Teo. stav, aby název sloupce odpovídal tomu, co
-     * ukazuje. Přidělení po artiklech zatím do stavu nevstupuje - není
-     * naimportováno / neznáme jeho sloupce.
+     * teoretického stavu z Teo. stavů, přepočtená na kartony (Stav v ks ÷
+     * Obsah), aby byla ve stejné jednotce jako MEDIAN a Dodáno. Dodáno =
+     * součet sloupce "Dodáno" z Vyskladňovacích listů (zboží skutečně
+     * doručené na prodejnu, které ještě nemusí být v poslední známé hodnotě
+     * Teo. stavu promítnuté; je už v kartonech, nepřepočítává se) - používá
+     * se jen ve výpočtu přídělu (viz _clampPrideli: stav = teo + dodano).
+     * Přidělení po artiklech zatím do stavu nevstupuje - není naimportováno /
+     * neznáme jeho sloupce.
      */
     _computeMedianTeo(cisloArtiklu) {
       const result = {};
@@ -695,13 +696,13 @@
       if (od && od.headers && od.headers.length) {
         const ciP = this._findColIndex(od.headers, ['prodejna']);
         const ciA = this._findColIndex(od.headers, ['artikl']);
-        const ciKs = this._findColIndex(od.headers, ['prodano ks']);
-        if (ciP !== -1 && ciA !== -1 && ciKs !== -1) {
+        const ciKart = this._findColIndex(od.headers, ['prodano v kartonech']);
+        if (ciP !== -1 && ciA !== -1 && ciKart !== -1) {
           const byStore = {};
           od.rows.forEach((r) => {
             if (!this._artiklMatches(r[ciA], cisloArtiklu)) return;
             const store = String(r[ciP]).trim();
-            const val = this._toNumber(r[ciKs]);
+            const val = this._toNumber(r[ciKart]);
             if (isNaN(val)) return;
             (byStore[store] = byStore[store] || []).push(val);
           });
@@ -718,13 +719,16 @@
         const ciA = this._findColIndex(teo.headers, ['artikl']);
         const ciD = this._findColIndex(teo.headers, ['datum']);
         const ciS = this._findColIndex(teo.headers, ['teoreticky stav', 'teor. stav', 'stav']);
-        if (ciP !== -1 && ciA !== -1 && ciS !== -1) {
+        const ciObsah = this._findColIndex(teo.headers, ['obsah']);
+        if (ciP !== -1 && ciA !== -1 && ciS !== -1 && ciObsah !== -1) {
           const latest = {};
           teo.rows.forEach((r) => {
             if (!this._artiklMatches(r[ciA], cisloArtiklu)) return;
             const store = String(r[ciP]).trim();
-            const val = this._toNumber(r[ciS]);
-            if (isNaN(val)) return;
+            const stavKs = this._toNumber(r[ciS]);
+            const obsah = this._toNumber(r[ciObsah]);
+            if (isNaN(stavKs) || isNaN(obsah) || !obsah) return;
+            const val = stavKs / obsah;
             const dateVal = ciD !== -1 ? (this._parseDate(r[ciD]) || 0) : 0;
             if (!latest[store] || dateVal >= latest[store].dateVal) latest[store] = { val, dateVal };
           });
