@@ -1,8 +1,8 @@
 /**
  * ============================================
  *  POSLEDNI NASAZENI
- *  Verze:    v3.1.66
- *  Nahrano:  20.07.2026 09:26
+ *  Verze:    v3.1.67
+ *  Nahrano:  20.07.2026 10:01
  * ============================================
  * Generovano automaticky skriptem tools/release.ps1 - needituj rucne.
  * Datum odpovida okamziku nahrani kodu (clasp push); nasazeni nove verze

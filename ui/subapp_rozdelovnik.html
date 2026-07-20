@@ -24,6 +24,7 @@
     importOverview: null,
     _sfState: {},
     _sfViewCache: {},
+    _colWidths: {},
     _sfMenu: null,
     _colMenuOutside: null,
 
@@ -269,6 +270,7 @@
           this.importData = {};
           this._sfState = {};
           this._sfViewCache = {};
+          this._colWidths = {};
           return this.loadImportOverview();
         })
         .catch((e) => Ui.toast(e.message, 'error'));
@@ -287,6 +289,7 @@
             this.importData = {};
             this._sfState = {};
             this._sfViewCache = {};
+            this._colWidths = {};
             Ui.toast('Naimportovaná data byla vymazána.');
             return this.loadImportOverview();
           })
@@ -389,12 +392,16 @@
 
       if (!this._sfState[key]) this._sfState[key] = { sorts: [], filters: {} };
 
+      const colWidths = this._getColWidths(key);
+
       el.innerHTML =
         '<section class="panel rz-compact rz-import-table-panel">' +
         '  <div class="panel-header panel-header--compact"><div><h2>' + Ui.escape(label) + ' <small class="rz-row-count"></small></h2></div>' +
         (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzSaveImportBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit úpravy</button>' : '') +
         '  </div>' +
-        '  <div class="table-wrap"><table><thead><tr>' +
+        '  <div class="table-wrap"><table>' +
+        '<colgroup>' + colWidths.map((w) => '<col style="width:' + w + 'px">').join('') + '</colgroup>' +
+        '<thead><tr>' +
         data.headers.map((h, ci) => '<th><button class="th-btn" type="button" data-col="' + ci + '">' + Ui.escape(h) +
           '<span class="sort-ind" data-sort-ind="' + key + '-' + ci + '"></span></button></th>').join('') +
         '</tr></thead><tbody></tbody></table></div>' +
@@ -466,10 +473,32 @@
       if (start > 0) html += '<tr><td colspan="' + colCount + '" style="height:' + (start * RZ_ROW_H) + 'px;padding:0;border:0;"></td></tr>';
       for (let i = start; i < end; i++) {
         const row = view[i];
-        html += '<tr>' + row.map((cell, ci) => '<td><input data-vi="' + i + '" data-ci="' + ci + '" value="' + Ui.escape(cell) + '"' + dis + '></td>').join('') + '</tr>';
+        html += '<tr>' + row.map((cell, ci) => '<td><input data-vi="' + i + '" data-ci="' + ci + '" value="' + Ui.escape(this._fixDecimal(cell)) + '"' + dis + '></td>').join('') + '</tr>';
       }
       if (end < total) html += '<tr><td colspan="' + colCount + '" style="height:' + ((total - end) * RZ_ROW_H) + 'px;padding:0;border:0;"></td></tr>';
       tbody.innerHTML = html;
+    },
+
+    /** Zdrojová data občas obsahují desetinné číslo bez úvodní nuly (",83" místo "0,83") - jen kosmetická oprava zobrazení/uložení, hodnota se tím nemění. */
+    _fixDecimal(v) {
+      const s = String(v);
+      return /^-?,\d/.test(s) ? s.replace(/^(-?),/, '$10,') : s;
+    },
+
+    /** Šířka sloupce podle nejdelší hodnoty DAT (ne názvu sloupce - dlouhé názvy se v hlavičce zalomí na dva řádky) - počítá se jednou při načtení dat, ne při každém překreslení, jinak by se u virtuálního scrollu sloupce "cukaly" podle toho, jaké řádky zrovna projíždí. */
+    _getColWidths(key) {
+      if (this._colWidths[key]) return this._colWidths[key];
+      const data = this.importData[key];
+      const widths = data.headers.map((h, ci) => {
+        let maxLen = 3;
+        for (let i = 0; i < data.rows.length; i++) {
+          const len = this._fixDecimal(data.rows[i][ci]).length;
+          if (len > maxLen) maxLen = len;
+        }
+        return Math.min(240, Math.max(56, maxLen * 7 + 24));
+      });
+      this._colWidths[key] = widths;
+      return widths;
     },
 
     /** Filtrovaná + seřazená data (podle _sfState[key]) — spočtou se jednou a cachují, ne při každém scrollu. Vrací stále stejné řádkové reference jako importData, takže úprava buňky se rovnou promítne i tam. */
@@ -511,13 +540,37 @@
       return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0)).getTime();
     },
 
-    /** Datum → chronologicky, číslo (i s vedoucími nulami) → číselně, jinak abecedně (cs). */
+    /** Číslo i s českou desetinnou čárkou (např. "249,5" nebo ",83"), jinak NaN. */
+    _toNumber(str) {
+      const s = this._fixDecimal(String(str).trim());
+      if (!/^-?\d+(,\d+)?$/.test(s)) return NaN;
+      return Number(s.replace(',', '.'));
+    },
+
+    /** Datum → chronologicky, číslo (i s desetinnou čárkou) → číselně, jinak abecedně (cs). */
     _compareVals(av, bv) {
       const da = this._parseDate(av), db = this._parseDate(bv);
       if (da !== null && db !== null) return da - db;
-      const na = Number(av), nb = Number(bv);
+      const na = this._toNumber(av), nb = this._toNumber(bv);
       if (av.trim() !== '' && bv.trim() !== '' && !isNaN(na) && !isNaN(nb)) return na - nb;
       return av.localeCompare(bv, 'cs');
+    },
+
+    /** Podle vzorku hodnot sloupce určí typ dat, aby menu nabídlo odpovídající řazení (datum/číslo/text). */
+    _detectColType(key, colIndex) {
+      const data = this.importData[key];
+      let dateCount = 0, numCount = 0, total = 0;
+      for (let i = 0; i < data.rows.length && total < 50; i++) {
+        const raw = String(data.rows[i][colIndex] ?? '').trim();
+        if (!raw) continue;
+        total++;
+        if (this._parseDate(raw) !== null) dateCount++;
+        else if (!isNaN(this._toNumber(raw))) numCount++;
+      }
+      if (!total) return 'text';
+      if (dateCount / total > 0.7) return 'date';
+      if (numCount / total > 0.7) return 'number';
+      return 'text';
     },
 
     updateSortIndicators(key) {
@@ -555,6 +608,10 @@
       const curDir = sortIdx >= 0 ? st.sorts[sortIdx].dir : null;
       const uniqueVals = [...new Set(allRows.map((r) => String(r[colIndex] ?? '')))].sort((a, b) => this._compareVals(a, b));
       const LIMIT = 500;
+      const colType = this._detectColType(key, colIndex);
+      const sortLabels = colType === 'date' ? ['Od nejstaršího', 'Od nejnovějšího']
+        : colType === 'number' ? ['Od nejmenšího', 'Od největšího']
+        : ['A → Z', 'Z → A'];
 
       const menu = document.createElement('div');
       menu.className = 'col-menu';
@@ -567,8 +624,8 @@
         '  </span>' +
         '</div>' +
         '<div class="col-menu-sort-row">' +
-        '  <button class="col-menu-sort-btn' + (curDir === 'asc' ? ' is-active' : '') + '" type="button" data-action="sort-primary" data-dir="asc"><span class="csb-arrow">↑</span><span class="csb-label">Od nejmenšího / A → Z</span></button>' +
-        '  <button class="col-menu-sort-btn' + (curDir === 'desc' ? ' is-active' : '') + '" type="button" data-action="sort-primary" data-dir="desc"><span class="csb-arrow">↓</span><span class="csb-label">Od největšího / Z → A</span></button>' +
+        '  <button class="col-menu-sort-btn' + (curDir === 'asc' ? ' is-active' : '') + '" type="button" data-action="sort-primary" data-dir="asc"><span class="csb-arrow">↑</span><span class="csb-label">' + sortLabels[0] + '</span></button>' +
+        '  <button class="col-menu-sort-btn' + (curDir === 'desc' ? ' is-active' : '') + '" type="button" data-action="sort-primary" data-dir="desc"><span class="csb-arrow">↓</span><span class="csb-label">' + sortLabels[1] + '</span></button>' +
         '</div>' +
         '<div class="col-menu-sort-extras">' +
         (sortIdx >= 0 ? '<button class="col-menu-sort-clear" type="button" data-action="sort-clear">✕ Zrušit řazení tohoto sloupce</button>' : '') +
@@ -582,16 +639,31 @@
         '<div class="col-menu-search"><input type="text" class="col-menu-search-input" placeholder="Hledat…" autocomplete="off"></div>' +
         '<div class="col-menu-filters">' +
         uniqueVals.slice(0, LIMIT).map((v) =>
-          '<label class="col-menu-item"><input type="checkbox" value="' + Ui.escape(v) + '"' + (!activeFilters || activeFilters.has(v) ? ' checked' : '') + '>' + Ui.escape(v || '(prázdné)') + '</label>'
+          '<label class="col-menu-item"><input type="checkbox" value="' + Ui.escape(v) + '"' + (!activeFilters || activeFilters.has(v) ? ' checked' : '') + '>' + Ui.escape(this._fixDecimal(v) || '(prázdné)') + '</label>'
         ).join('') +
         '</div>' +
         '<div class="col-menu-actions"><button class="col-menu-apply button button-primary button-small" type="button">Použít</button></div>';
 
-      const rect = thEl.getBoundingClientRect();
-      const menuLeft = Math.min(rect.left, window.innerWidth - 220);
-      menu.style.top = rect.bottom + 4 + 'px';
-      menu.style.left = Math.max(4, menuLeft) + 'px';
+      menu.style.visibility = 'hidden';
       document.body.appendChild(menu);
+
+      // Poloha se počítá až po vložení do DOM (potřebujeme skutečnou šířku/výšku
+      // menu), a je omezená na viditelnou oblast - jinak by u sloupců u pravého
+      // okraje tabulky menu vyjelo mimo okno.
+      const rect = thEl.getBoundingClientRect();
+      const mw = menu.offsetWidth;
+      const mh = menu.offsetHeight;
+      let left = rect.left;
+      if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
+      if (left < 8) left = 8;
+      let top = rect.bottom + 4;
+      if (top + mh > window.innerHeight - 8) {
+        top = rect.top - mh - 4;
+        if (top < 8) top = 8;
+      }
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+      menu.style.visibility = '';
 
       const applyChange = () => {
         this._invalidateView(key);
@@ -670,6 +742,7 @@
         .then((data) => {
           this.importData[key] = data;
           this._invalidateView(key);
+          delete this._colWidths[key];
           if (this.activeTab === key) this.renderTabContent();
         })
         .catch((e) => Ui.toast(e.message, 'error'));

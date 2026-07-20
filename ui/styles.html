@@ -1716,6 +1716,35 @@
     font-weight: 400;
   }
 
+  /* border-collapse sdílí okrajový pixel mezi sousedními buňkami mimo
+     sticky vrstvu hlaviček, takže při scrollu jím na okamžik prosvítala
+     data pod hlavičkou. Řešení: border-collapse:separate + border
+     nahrazen box-shadow uvnitř každé buňky, takže je vždy součástí jejího
+     vlastního (sticky) vykreslení. */
+  .rz-import-table-panel table {
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    width: auto;
+  }
+
+  .rz-import-table-panel th,
+  .rz-import-table-panel td {
+    border: 0;
+    box-shadow: inset -1px -1px 0 var(--line-soft);
+  }
+
+  .rz-import-table-panel th {
+    box-shadow: inset -1px -1px 0 rgba(255, 255, 255, 0.2);
+    height: 32px;
+    vertical-align: middle;
+  }
+
+  .rz-import-table-panel .th-btn {
+    line-height: 1.25;
+    white-space: normal;
+  }
+
   .rz-artikly-panel {
     flex: 0 0 auto;
     width: 610px;
