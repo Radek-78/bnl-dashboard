@@ -14,6 +14,8 @@ const RZ_ARTIKLY_ROWS = 20;
 const RZ_SCHEMA = {
   '_settings': ['id', 'key', 'value', 'updated_at', 'updated_by'],
   'artikly': ['id', 'poradi', 'cislo_artiklu', 'nazev', 'obsah', 'k_rozdeleni', 'pocet_dni', 'metropol', 'created_at', 'created_by', 'updated_at'],
+  // Řádek s prázdnou prodejna = úroveň artiklu (min/max); řádek s vyplněnou prodejna = úroveň konkrétní prodejny (uprava).
+  'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at'],
 };
 
 const RZ_IMPORT_TABLES = ['odprodej', 'teo_stavy', 'vyskladnovaci_listy', 'prideleni_po_artiklech'];
@@ -260,6 +262,49 @@ function apiRzSaveArtikly(rows) {
 
     audit_('rz_artikly_save', saved.filter((r) => r.cislo_artiklu).length + ' vyplněných řádků z ' + RZ_ARTIKLY_ROWS);
     return saved.sort((a, b) => (Number(a.poradi) || 0) - (Number(b.poradi) || 0));
+  });
+}
+
+/* ── Rozdělení ────────────────────────────────────────────────── */
+
+function apiRzGetRozdeleni() {
+  return rzGuard_(() => {
+    const repo = rzRepo_();
+    repo.ensureSchema();
+    return repo.getAll('rozdeleni');
+  });
+}
+
+/** Najde existující řádek (artikl + prodejna, prodejna '' = úroveň artiklu) a přepíše ho, jinak založí nový. */
+function rzUpsertRozdeleni_(cisloArtiklu, prodejna, patch) {
+  const repo = rzRepo_();
+  repo.ensureSchema();
+  const existing = repo.getAll('rozdeleni');
+  const match = existing.find((r) => r.cislo_artiklu === cisloArtiklu && String(r.prodejna || '') === String(prodejna || ''));
+  return match
+    ? repo.update('rozdeleni', match.id, patch)
+    : repo.insert('rozdeleni', Object.assign({ cislo_artiklu: cisloArtiklu, prodejna: prodejna || '' }, patch));
+}
+
+function apiRzSaveRozdeleniMinMax(payload) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k zápisu.');
+    const cislo = String((payload && payload.cislo_artiklu) || '').trim();
+    if (!cislo) throw new Error('Chybí číslo artiklu.');
+    const min = (payload && payload.min !== '' && payload.min != null) ? Number(payload.min) || 0 : '';
+    const max = (payload && payload.max !== '' && payload.max != null) ? Number(payload.max) || 0 : '';
+    return rzUpsertRozdeleni_(cislo, '', { min: min, max: max });
+  });
+}
+
+function apiRzSaveRozdeleniUprava(payload) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k zápisu.');
+    const cislo = String((payload && payload.cislo_artiklu) || '').trim();
+    const prodejna = String((payload && payload.prodejna) || '').trim();
+    if (!cislo || !prodejna) throw new Error('Chybí číslo artiklu nebo prodejna.');
+    const uprava = (payload && payload.uprava !== '' && payload.uprava != null) ? Number(payload.uprava) || 0 : '';
+    return rzUpsertRozdeleni_(cislo, prodejna, { uprava: uprava });
   });
 }
 

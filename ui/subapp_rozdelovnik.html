@@ -22,6 +22,7 @@
     settings: {},
     importData: {},
     importOverview: null,
+    rozdeleni: null,
     _sfState: {},
     _sfViewCache: {},
     _colWidths: {},
@@ -45,15 +46,22 @@
         .then((s) => { this.settings = s || {}; })
         .catch((e) => Ui.toast(e.message, 'error'));
       Ui.call('apiRzListArtikly', null, { silent: true })
-        .then((rows) => { this.artikly = rows; if (this.activeTab === 'artikly') this.renderTabContent(); })
+        .then((rows) => { this.artikly = rows; if (this.activeTab === 'artikly' || this.activeTab === 'rozdeleni') this.renderTabContent(); })
         .catch((e) => Ui.toast(e.message, 'error'));
       Ui.call('apiRzListStores', null, { silent: true })
-        .then((rows) => { this.stores = rows; if (this.activeTab === 'artikly') this.renderTabContent(); })
+        .then((rows) => { this.stores = rows; if (this.activeTab === 'artikly' || this.activeTab === 'rozdeleni') this.renderTabContent(); })
         .catch((e) => Ui.toast(e.message, 'error'));
       this.loadImportOverview();
+      this.loadRozdeleni();
       // Data importovaných souborů se natáhnou rovnou po startu, ne až po
       // kliknutí na záložku - u větších souborů by pak čekání bylo znát.
       RZ_IMPORT_TABS.forEach((key) => this.loadImportTable(key));
+    },
+
+    loadRozdeleni() {
+      return Ui.call('apiRzGetRozdeleni', null, { silent: true })
+        .then((rows) => { this.rozdeleni = rows; if (this.activeTab === 'rozdeleni') this.renderTabContent(); })
+        .catch((e) => Ui.toast(e.message, 'error'));
     },
 
     loadImportOverview() {
@@ -159,7 +167,7 @@
       const el = this.container.querySelector('#rzTabContent');
       if (!el) return;
       if (this.activeTab === 'artikly') return this.renderArtikly(el);
-      if (this.activeTab === 'rozdeleni') return this.renderRozdeleniPlaceholder(el);
+      if (this.activeTab === 'rozdeleni') return this.renderRozdeleni(el);
       if (RZ_IMPORT_TABS.indexOf(this.activeTab) !== -1) {
         this.renderImportTab(el, this.activeTab);
         if (!this.importData[this.activeTab]) this.loadImportTable(this.activeTab);
@@ -364,8 +372,206 @@
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
-    renderRozdeleniPlaceholder(el) {
-      el.innerHTML = '<section class="panel"><div class="panel-body"><p class="form-hint">Záložka Rozdělení bude doplněna — logika výpočtu se domlouvá samostatně.</p></div></section>';
+    /**
+     * Jeden blok na každý vyplněný artikl z Artiklů, vedle sebe ve vodorovně
+     * scrollovatelném pásu. Vlevo je zamrzlý sloupec Prodejna (position:
+     * sticky, sdílený pro všechny bloky) - protože je to všechno JEDNA
+     * scrollovací oblast (frozen sloupec + bloky jsou sourozenci v jednom
+     * flex řádku), svislý scroll je automaticky společný, žádné ruční
+     * synchronizování dvou scrollbarů.
+     *
+     * Zaokrouhlit a přesný výpočet rozdělení zatím nejsou - algoritmus se
+     * domlouvá samostatně, tohle je jen kostra bloků/řádků k vyzkoušení.
+     */
+    renderRozdeleni(el) {
+      const artikly = this.artikly.filter((a) => a && a.cislo_artiklu);
+      if (!this.stores.length || this.rozdeleni === null || !artikly.length) {
+        el.innerHTML = '<section class="panel"><div class="panel-body"><p class="form-hint">' +
+          (!artikly.length ? 'Nejsou vyplněné žádné artikly — doplňte je v záložce Artikly.' : 'Načítám…') +
+          '</p></div></section>';
+        return;
+      }
+
+      const { byArtikl, byStore } = this._rozdeleniLookup();
+      const dis = this.canWrite ? '' : ' disabled';
+
+      const frozenRows = this.stores.map((s) => '<div class="rzr-hrow rzr-store-cell">' + Ui.escape(s.code) + '</div>').join('');
+
+      const blocks = artikly.map((a) => {
+        const cislo = a.cislo_artiklu;
+        const minMax = byArtikl[cislo] || {};
+        const upravy = byStore[cislo] || {};
+        const perStore = this._computeMedianTeo(cislo);
+        const rozdeleno = this.stores.reduce((sum, s) => sum + (this._toNumber(upravy[s.code]) || 0), 0);
+
+        const dataRows = this.stores.map((s) => {
+          const vals = perStore[s.code] || {};
+          const uprava = upravy[s.code];
+          return '<div class="rzr-hrow rzr-data-row">' +
+            '<span>' + (vals.median != null ? this._fmtNum(vals.median) : '—') + '</span>' +
+            '<span>' + (vals.teo != null ? this._fmtNum(vals.teo) : '—') + '</span>' +
+            '<input type="text" inputmode="decimal" data-cislo="' + Ui.escape(cislo) + '" data-store="' + Ui.escape(s.code) + '" value="' + (uprava != null && uprava !== '' ? this._fmtNum(uprava) : '') + '"' + dis + '>' +
+            '</div>';
+        }).join('');
+
+        return (
+          '<div class="rzr-block">' +
+          '  <div class="rzr-block-head">' +
+          '    <div class="rzr-hrow rzr-artikl-row"><strong>' + Ui.escape(cislo) + '</strong> ' + Ui.escape(a.nazev || '') + '</div>' +
+          '    <div class="rzr-hrow rzr-kv-row"><span>k rozdělení</span><b>' + (a.k_rozdeleni !== '' && a.k_rozdeleni != null ? a.k_rozdeleni : '—') + '</b></div>' +
+          '    <div class="rzr-hrow rzr-kv-row"><span>rozděleno</span><b class="rzr-rozdeleno" data-cislo="' + Ui.escape(cislo) + '">' + rozdeleno + '</b></div>' +
+          '    <div class="rzr-hrow rzr-kv-row"><span>zaokrouhlit</span><b>—</b></div>' +
+          '    <div class="rzr-hrow rzr-kv-row"><span>min</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="min" value="' + (minMax.min != null && minMax.min !== '' ? this._fmtNum(minMax.min) : '') + '"' + dis + '></div>' +
+          '    <div class="rzr-hrow rzr-kv-row"><span>max</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="max" value="' + (minMax.max != null && minMax.max !== '' ? this._fmtNum(minMax.max) : '') + '"' + dis + '></div>' +
+          '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Úprava</span></div>' +
+          '  </div>' +
+          '  <div class="rzr-block-body">' + dataRows + '</div>' +
+          '</div>'
+        );
+      }).join('');
+
+      el.innerHTML =
+        '<div class="rzr-scroll">' +
+        '  <div class="rzr-frozen">' +
+        '    <div class="rzr-frozen-head">' +
+        '      <div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div>' +
+        '      <div class="rzr-hrow rzr-cols-row"><span>Prodejna</span></div>' +
+        '    </div>' +
+        '    <div class="rzr-frozen-body">' + frozenRows + '</div>' +
+        '  </div>' +
+        blocks +
+        '</div>';
+
+      if (this.canWrite) {
+        el.querySelectorAll('.rzr-minmax').forEach((input) => {
+          input.addEventListener('blur', () => this.saveRozdeleniMinMax(input.dataset.cislo));
+        });
+        el.querySelectorAll('.rzr-data-row input').forEach((input) => {
+          input.addEventListener('blur', () => this.saveRozdeleniUprava(input.dataset.cislo, input.dataset.store));
+        });
+      }
+    },
+
+    /** { byArtikl: {cislo: {min,max}}, byStore: {cislo: {prodejna: uprava}} } */
+    _rozdeleniLookup() {
+      const byArtikl = {};
+      const byStore = {};
+      (this.rozdeleni || []).forEach((r) => {
+        if (!r.prodejna) {
+          byArtikl[r.cislo_artiklu] = { min: r.min, max: r.max };
+        } else {
+          if (!byStore[r.cislo_artiklu]) byStore[r.cislo_artiklu] = {};
+          byStore[r.cislo_artiklu][r.prodejna] = r.uprava;
+        }
+      });
+      return { byArtikl, byStore };
+    },
+
+    /** Najde index sloupce podle kousku názvu (bez diakritiky) - hlavičky Odprodeje/Teo. stavů odpovídají přesně zdrojovému souboru, proto se nedá spoléhat na pevný název. */
+    _findColIndex(headers, candidates) {
+      const norm = (s) => String(s).trim().toLowerCase().normalize('NFD').replace(/[^\x00-\x7F]/g, '');
+      const normed = headers.map(norm);
+      for (const cand of candidates) {
+        const idx = normed.findIndex((h) => h.indexOf(cand) !== -1);
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    },
+
+    _median(nums) {
+      if (!nums.length) return 0;
+      const sorted = nums.slice().sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    },
+
+    _fmtNum(n) {
+      return Number(n).toLocaleString('cs-CZ', { maximumFractionDigits: 2 });
+    },
+
+    /**
+     * MEDIAN = medián "prodáno ks" z Odprodeje pro daný artikl, po prodejnách.
+     * Teo. stav = poslední (nejnovější podle data) hodnota teoretického stavu
+     * z Teo. stavů pro daný artikl, po prodejnách. Sloupce se hledají podle
+     * názvu (viz _findColIndex) - přesný název u Teo. stavů zatím neznáme
+     * jistě, dokud se nedomluví výpočet, je to jen odhad.
+     */
+    _computeMedianTeo(cisloArtiklu) {
+      const result = {};
+      const od = this.importData.odprodej;
+      if (od && od.headers && od.headers.length) {
+        const ciP = this._findColIndex(od.headers, ['prodejna']);
+        const ciA = this._findColIndex(od.headers, ['artikl']);
+        const ciKs = this._findColIndex(od.headers, ['prodano ks']);
+        if (ciP !== -1 && ciA !== -1 && ciKs !== -1) {
+          const byStore = {};
+          od.rows.forEach((r) => {
+            if (String(r[ciA]).trim() !== cisloArtiklu) return;
+            const store = String(r[ciP]).trim();
+            const val = this._toNumber(r[ciKs]);
+            if (isNaN(val)) return;
+            (byStore[store] = byStore[store] || []).push(val);
+          });
+          Object.keys(byStore).forEach((store) => {
+            result[store] = result[store] || {};
+            result[store].median = this._median(byStore[store]);
+          });
+        }
+      }
+
+      const teo = this.importData.teo_stavy;
+      if (teo && teo.headers && teo.headers.length) {
+        const ciP = this._findColIndex(teo.headers, ['prodejna']);
+        const ciA = this._findColIndex(teo.headers, ['artikl']);
+        const ciD = this._findColIndex(teo.headers, ['datum']);
+        const ciS = this._findColIndex(teo.headers, ['teoreticky stav', 'teor. stav', 'stav']);
+        if (ciP !== -1 && ciA !== -1 && ciS !== -1) {
+          const latest = {};
+          teo.rows.forEach((r) => {
+            if (String(r[ciA]).trim() !== cisloArtiklu) return;
+            const store = String(r[ciP]).trim();
+            const val = this._toNumber(r[ciS]);
+            if (isNaN(val)) return;
+            const dateVal = ciD !== -1 ? (this._parseDate(r[ciD]) || 0) : 0;
+            if (!latest[store] || dateVal >= latest[store].dateVal) latest[store] = { val, dateVal };
+          });
+          Object.keys(latest).forEach((store) => {
+            result[store] = result[store] || {};
+            result[store].teo = latest[store].val;
+          });
+        }
+      }
+
+      return result;
+    },
+
+    saveRozdeleniMinMax(cislo) {
+      const el = this.container.querySelector('#rzTabContent');
+      const minRaw = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="min"]').value.trim();
+      const maxRaw = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="max"]').value.trim();
+      const min = minRaw === '' ? '' : this._toNumber(minRaw);
+      const max = maxRaw === '' ? '' : this._toNumber(maxRaw);
+      Ui.call('apiRzSaveRozdeleniMinMax', { cislo_artiklu: cislo, min: min, max: max }, { silent: true })
+        .then(() => this.loadRozdeleni())
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    saveRozdeleniUprava(cislo, store) {
+      const el = this.container.querySelector('#rzTabContent');
+      const input = el.querySelector('.rzr-data-row input[data-cislo="' + CSS.escape(cislo) + '"][data-store="' + CSS.escape(store) + '"]');
+      const raw = input.value.trim();
+      const uprava = raw === '' ? '' : this._toNumber(raw);
+      Ui.call('apiRzSaveRozdeleniUprava', { cislo_artiklu: cislo, prodejna: store, uprava: uprava }, { silent: true })
+        .then(() => {
+          this.loadRozdeleni();
+          const sumEl = el.querySelector('.rzr-rozdeleno[data-cislo="' + CSS.escape(cislo) + '"]');
+          if (sumEl) {
+            const total = [...el.querySelectorAll('.rzr-data-row input[data-cislo="' + CSS.escape(cislo) + '"]')]
+              .reduce((sum, i) => sum + (this._toNumber(i.value.trim()) || 0), 0);
+            sumEl.textContent = total;
+          }
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
     },
 
     /**
@@ -801,6 +1007,8 @@
           this._invalidateView(key);
           delete this._colWidths[key];
           if (this.activeTab === key) this.renderTabContent();
+          // Rozdělení počítá MEDIAN/Teo. stav z Odprodeje a Teo. stavů - jakmile dotečou, přepočítá se.
+          if (this.activeTab === 'rozdeleni' && (key === 'odprodej' || key === 'teo_stavy')) this.renderTabContent();
         })
         .catch((e) => Ui.toast(e.message, 'error'));
     },

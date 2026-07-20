@@ -1867,6 +1867,119 @@
     font-weight: 700;
   }
 
+  /* ── Rozdělovník: záložka Rozdělení ──────────────── */
+
+  .rzr-scroll {
+    display: flex;
+    flex: 1;
+    overflow: auto;
+  }
+
+  .rzr-hrow {
+    align-items: center;
+    border-bottom: 1px solid var(--line-soft);
+    box-sizing: border-box;
+    display: flex;
+    font-size: 11px;
+    height: 25px;
+    padding: 0 6px;
+  }
+
+  .rzr-frozen {
+    background: var(--white);
+    border-right: 1px solid var(--line);
+    flex-shrink: 0;
+    left: 0;
+    position: sticky;
+    width: 72px;
+    z-index: 3;
+  }
+
+  .rzr-store-cell {
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  .rzr-cols-row {
+    background: var(--lidl-blue);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    gap: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .rzr-cols-row span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rzr-block {
+    border-right: 1px solid var(--line);
+    flex-shrink: 0;
+    width: 220px;
+  }
+
+  .rzr-artikl-row {
+    background: var(--page);
+    font-weight: 700;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .rzr-artikl-row strong {
+    color: var(--lidl-blue);
+  }
+
+  .rzr-kv-row span {
+    color: var(--muted);
+    flex: 1;
+  }
+
+  .rzr-kv-row b {
+    font-weight: 700;
+  }
+
+  .rzr-kv-row input {
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    box-sizing: border-box;
+    font-size: 11px;
+    height: 20px;
+    text-align: right;
+    width: 70px;
+  }
+
+  .rzr-data-row {
+    gap: 6px;
+    padding: 0 6px;
+  }
+
+  .rzr-data-row span {
+    color: var(--text);
+    flex: 1;
+    text-align: right;
+  }
+
+  .rzr-data-row input {
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    box-sizing: border-box;
+    flex: 1;
+    font-size: 11px;
+    height: 20px;
+    text-align: right;
+  }
+
+  .rzr-data-row input:focus,
+  .rzr-kv-row input:focus {
+    background: rgba(0, 80, 170, 0.06);
+    border-bottom-color: var(--lidl-blue);
+  }
+
   /* ── Panel body ──────────────────────────────────── */
 
   .panel-body {
