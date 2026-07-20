@@ -26,8 +26,28 @@ function createDbRepo_(spreadsheetId, schema) {
     try { CacheService.getScriptCache().remove(cacheKey_(table)); } catch (e) { /* cache je jen optimalizace */ }
   };
 
-  /** Doplní chybějící listy a hlavičky podle schema. Nic nemaže. */
-  const ensureSchema = () => {
+  /**
+   * Doplní chybějící listy a hlavičky podle schema. Nic nemaže.
+   *
+   * Volá se na začátku prakticky každého endpointu, ale schéma se v praxi
+   * nemění - proto se úspěšné ověření zapamatuje v cache a další volání
+   * (i v dalších exekucích) ho přeskočí. Bez toho to znamenalo čtení hlaviček
+   * všech tabulek schématu při KAŽDÉM uložení jednoho políčka.
+   */
+  const ensureSchema = (force) => {
+    // Otisk schématu v klíči - jakmile se schéma v kódu změní (nový sloupec),
+    // cache se sama zneplatní a hlavičky se doplní, ne až po expiraci.
+    const fingerprint = Object.keys(schema).map((n) => n + ':' + schema[n].join(',')).join('|');
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i++) {
+      hash = ((hash << 5) - hash + fingerprint.charCodeAt(i)) | 0;
+    }
+    const doneKey = 'subschema:' + spreadsheetId + ':' + hash;
+    if (!force) {
+      try {
+        if (CacheService.getScriptCache().get(doneKey)) return;
+      } catch (e) { /* cache je jen optimalizace */ }
+    }
     const ss = spreadsheet_();
     Object.keys(schema).forEach((name) => {
       let sheet = ss.getSheetByName(name);
@@ -39,6 +59,9 @@ function createDbRepo_(spreadsheetId, schema) {
         sheet.setFrozenRows(1);
       }
     });
+    try {
+      CacheService.getScriptCache().put(doneKey, '1', 21600);
+    } catch (e) { /* cache je jen optimalizace */ }
   };
 
   const readAll = (table) => {

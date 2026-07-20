@@ -299,7 +299,10 @@ function apiRzSaveArtikly(rows) {
     });
 
     repo.invalidateCache('artikly');
-    audit_('rz_artikly_save', saved.filter((r) => r.cislo_artiklu).length + ' vyplněných řádků z ' + RZ_ARTIKLY_ROWS);
+    // Bez audit_ - volá se automaticky při opuštění každého políčka, takže by
+    // to byl zápis do hlavní DB (druhý spreadsheet + vlastní zámek) při každém
+    // stisku Tab, a v auditu jen šum. Audit zůstává u zásadních akcí (import,
+    // reset, mazání dat).
     return saved.sort((a, b) => (Number(a.poradi) || 0) - (Number(b.poradi) || 0));
   });
 }
@@ -564,6 +567,68 @@ function apiRzLookupArtikl(cisloArtiklu) {
     }
 
     return rzFindArtiklInSheet_(rzOpenInfoArtiklechSheet_(file), cislo);
+  });
+}
+
+/**
+ * Dohledá Název/Obsah pro víc čísel artiklů najednou - jedno vyhledání
+ * souboru, jedno otevření (u .xlsx případně jedna konverze) pro celou dávku
+ * místo samostatného volání (a kopie souboru) na každý artikl.
+ * Vrací { '<cislo>': { nazev, obsah }, ... }; nenalezené artikly ve výsledku chybí.
+ */
+function apiRzLookupArtiklBatch(cisla) {
+  return rzGuard_(() => {
+    if (!Array.isArray(cisla) || !cisla.length) return {};
+    const wanted = cisla.map((c) => String(c || '').trim()).filter((c) => c);
+    if (!wanted.length) return {};
+
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.folderInformaceOArtiklech);
+    if (!folderId) throw new Error('Není nastavena složka pro Informace o artiklech (Nastavení).');
+    const pattern = settings.patternInformaceOArtiklech || '';
+    if (!pattern) throw new Error('Není nastaven výraz pro soubor Informace o artiklech (Nastavení).');
+    const lcCode = rzDefaultLcInfo_().code;
+    if (!lcCode) throw new Error('V hlavním dashboardu není nastaveno výchozí logistické centrum.');
+
+    const file = rzFindFileInFolderByNameAndLc_(folderId, pattern, lcCode);
+    if (!file) throw new Error('Soubor Informace o artiklech (výraz „' + pattern + '" + LC ' + lcCode + ') nebyl ve složce nalezen.');
+
+    const norm = (h) => String(h || '').trim().toUpperCase();
+    const result = {};
+    // Číselné porovnání i pro text - zdroj může mít artikl jako číslo (viz rzArtiklMatches_).
+    const remaining = {};
+    wanted.forEach((c) => { remaining[c] = true; });
+
+    if (file.getMimeType() === MimeType.CSV) {
+      const text = rzReadCsvText_(file);
+      const data = Utilities.parseCsv(text, rzDetectCsvDelimiter_(text));
+      if (!data.length) return {};
+      const headers = data[0];
+      const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
+      const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
+      const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
+      if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
+      // Jeden průchod souborem pro všechna hledaná čísla, ne jeden průchod na číslo.
+      for (let i = 1; i < data.length; i++) {
+        const cell = data[i][idxArtikl];
+        const hit = wanted.find((c) => remaining[c] && rzArtiklMatches_(cell, c));
+        if (!hit) continue;
+        result[hit] = {
+          nazev: idxNazev !== -1 ? String(data[i][idxNazev] || '').trim() : '',
+          obsah: idxObsah !== -1 ? String(data[i][idxObsah] || '').trim() : '',
+        };
+        delete remaining[hit];
+        if (!Object.keys(remaining).length) break;
+      }
+      return result;
+    }
+
+    const sheet = rzOpenInfoArtiklechSheet_(file);
+    wanted.forEach((cislo) => {
+      const found = rzFindArtiklInSheet_(sheet, cislo);
+      if (found) result[cislo] = found;
+    });
+    return result;
   });
 }
 

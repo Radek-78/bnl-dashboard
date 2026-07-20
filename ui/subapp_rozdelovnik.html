@@ -38,6 +38,9 @@
       this.container = container;
       this.app = app;
       this.user = user;
+      // Odložené zápisy (viz _enqueueDebounced) odeslat, než se stránka zavře -
+      // jinak by se poslední úprava do ~0,7 s před zavřením ztratila.
+      window.addEventListener('beforeunload', () => this.flushPendingWrites());
       this.render();
       this.loadAll();
     },
@@ -90,19 +93,63 @@
 
     /**
      * Zápisové požadavky (uložení Artiklů, Rozdělení) jdou přes tuhle frontu
-     * místo přímého google.script.run - více souběžných zápisů (rychlé
-     * zadání víc artiklů za sebou, každý spouští vlastní uložení) na serveru
-     * soutěží o stejný zámek tabulky (LockService), a při delší frontě
-     * čekání snadno překročí časový limit ("Vypršel časový limit zámku").
-     * Fronta zaručí, že server v jednu chvíli zpracovává vždy jen jeden
-     * takový požadavek, ostatní čekají na řadu.
+     * místo přímého google.script.run. Dva důvody:
+     *
+     * 1) Souběžné zápisy na serveru soutěží o stejný zámek tabulky
+     *    (LockService) a při delší frontě čekání překročí časový limit.
+     * 2) Každé volání google.script.run má pevnou režii ~1-3 s (nová
+     *    exekuce, auth, odpověď) - u autosave z každého políčka se to
+     *    sečte do desítek sekund. Proto se úlohy se stejným klíčem
+     *    SLUČUJÍ: čeká-li už zápis pro stejný klíč, jen se přepíše
+     *    novějšími daty místo přidání dalšího volání. Payload je vždy
+     *    kompletní stav (ne přírůstek), takže starší čekající zápis je
+     *    beztak zbytečný.
      */
-    _enqueue(label, taskFn) {
+    _enqueue(label, taskFn, key) {
       return new Promise((resolve, reject) => {
-        this._queue.push({ label: label, taskFn: taskFn, resolve: resolve, reject: reject });
+        if (key) {
+          const pending = this._queue.find((j) => j.key === key);
+          if (pending) {
+            // Novější data nahradí ta čekající - staré volání se vůbec neodešle.
+            pending.taskFn = taskFn;
+            pending.label = label;
+            pending.followers.push({ resolve: resolve, reject: reject });
+            this._updateQueueIndicator();
+            return;
+          }
+        }
+        this._queue.push({ key: key || null, label: label, taskFn: taskFn, resolve: resolve, reject: reject, followers: [] });
         this._updateQueueIndicator();
         this._drainQueue();
       });
+    },
+
+    /** Zápis s odkladem - spustí se, až uživatel chvíli nepíše. Víc změn za sebou tak skončí jako jedno volání místo jednoho na každé opuštění políčka. */
+    _enqueueDebounced(label, taskFn, key, delayMs) {
+      if (!this._debounced) this._debounced = {};
+      const existing = this._debounced[key];
+      if (existing) clearTimeout(existing.timer);
+      const entry = { label: label, taskFn: taskFn };
+      entry.timer = setTimeout(() => {
+        delete this._debounced[key];
+        this._updateQueueIndicator();
+        this._enqueue(entry.label, entry.taskFn, key).catch((e) => Ui.toast(e.message, 'error'));
+      }, delayMs || 700);
+      this._debounced[key] = entry;
+      this._updateQueueIndicator();
+    },
+
+    /** Okamžitě odešle vše, co čeká na odklad (odchod ze stránky, přepnutí záložky), ať se poslední úprava neztratí. */
+    flushPendingWrites() {
+      if (!this._debounced) return;
+      const keys = Object.keys(this._debounced);
+      keys.forEach((key) => {
+        const entry = this._debounced[key];
+        clearTimeout(entry.timer);
+        delete this._debounced[key];
+        this._enqueue(entry.label, entry.taskFn, key).catch((e) => Ui.toast(e.message, 'error'));
+      });
+      this._updateQueueIndicator();
     },
 
     _drainQueue() {
@@ -112,8 +159,14 @@
       this._updateQueueIndicator();
       Promise.resolve()
         .then(job.taskFn)
-        .then((result) => job.resolve(result))
-        .catch((err) => job.reject(err))
+        .then((result) => {
+          job.resolve(result);
+          job.followers.forEach((f) => f.resolve(result));
+        })
+        .catch((err) => {
+          job.reject(err);
+          job.followers.forEach((f) => f.reject(err));
+        })
         .then(() => {
           this._queueBusy = false;
           this._updateQueueIndicator();
@@ -124,7 +177,7 @@
     _updateQueueIndicator() {
       const el = document.querySelector('#rzQueueIndicator');
       if (!el) return;
-      const waiting = this._queue.length;
+      const waiting = this._queue.length + Object.keys(this._debounced || {}).length;
       const total = waiting + (this._queueBusy ? 1 : 0);
       if (!total) {
         el.classList.add('is-hidden');
@@ -232,6 +285,8 @@
     },
 
     showTab(key) {
+      // Odložené zápisy odeslat hned - po překreslení už z DOM nepůjdou dočíst.
+      this.flushPendingWrites();
       this.activeTab = key;
       this.container.querySelectorAll('.rz-tabbtn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === key));
       this.renderTabContent();
@@ -353,6 +408,7 @@
           this._sfState = {};
           this._sfViewCache = {};
           this._colWidths = {};
+          this._medianCache = {};
           return this.loadImportOverview();
         })
         .catch((e) => Ui.toast(e.message, 'error'));
@@ -372,6 +428,7 @@
             this._sfState = {};
             this._sfViewCache = {};
             this._colWidths = {};
+            this._medianCache = {};
             Ui.toast('Naimportovaná data byla vymazána.');
             return this.loadImportOverview();
           })
@@ -422,26 +479,51 @@
       if (!cislo) return;
 
       this._setLookupLoading(rowIndex, true);
-      const stillCurrent = () => this.artikly[rowIndex] && this._artiklMatches(this.artikly[rowIndex].cislo_artiklu, cislo);
+      // Zadá-li uživatel víc artiklů rychle za sebou, posbírají se a dohledají
+      // jedním voláním - dřív to bylo volání (a otevření zdrojového souboru)
+      // na každý artikl zvlášť, což je zdaleka nejdražší operace v appce.
+      if (!this._lookupBatch) this._lookupBatch = [];
+      this._lookupBatch.push({ rowIndex: rowIndex, cislo: cislo });
+      if (this._lookupTimer) clearTimeout(this._lookupTimer);
+      this._lookupTimer = setTimeout(() => {
+        this._lookupTimer = null;
+        const batch = this._lookupBatch;
+        this._lookupBatch = [];
+        this._runLookupBatch(batch, [1500, 2500, 4000]);
+      }, 500);
+    },
 
-      const attempt = (retryDelaysMs) => {
-        Ui.call('apiRzLookupArtikl', cislo, { silent: true })
-          .then((info) => {
-            if (!stillCurrent()) { this._setLookupLoading(rowIndex, false); return; }
+    /** Odešle dávku dohledání; nenalezené artikly zkusí ještě jednou po prodlevě (viz komentář u lookupArtikl). */
+    _runLookupBatch(batch, retryDelaysMs) {
+      const pending = batch.filter((b) => this.artikly[b.rowIndex] && this._artiklMatches(this.artikly[b.rowIndex].cislo_artiklu, b.cislo));
+      if (!pending.length) {
+        batch.forEach((b) => this._setLookupLoading(b.rowIndex, false));
+        return;
+      }
+
+      this._enqueue('Dohledávám artikly', () => Ui.call('apiRzLookupArtiklBatch', pending.map((b) => b.cislo), { silent: true }))
+        .then((map) => {
+          const found = map || {};
+          const missing = [];
+          pending.forEach((b) => {
+            const info = found[b.cislo];
             if (info && (info.nazev || info.obsah)) {
-              this._applyLookupResult(rowIndex, info.nazev || '', info.obsah || '');
-              return;
+              this._applyLookupResult(b.rowIndex, info.nazev || '', info.obsah || '');
+            } else {
+              missing.push(b);
             }
-            if (retryDelaysMs.length) {
-              setTimeout(() => { if (stillCurrent()) attempt(retryDelaysMs.slice(1)); }, retryDelaysMs[0]);
-              return;
-            }
-            this._applyLookupResult(rowIndex, 'Nenalezeno — zadejte ručně', (this.artikly[rowIndex] || {}).obsah || '');
-          })
-          .catch((e) => { this._setLookupLoading(rowIndex, false); Ui.toast(e.message, 'error'); });
-      };
-
-      attempt([1500, 2500, 4000]);
+          });
+          if (!missing.length) return;
+          if (retryDelaysMs.length) {
+            setTimeout(() => this._runLookupBatch(missing, retryDelaysMs.slice(1)), retryDelaysMs[0]);
+            return;
+          }
+          missing.forEach((b) => this._applyLookupResult(b.rowIndex, 'Nenalezeno — zadejte ručně', (this.artikly[b.rowIndex] || {}).obsah || ''));
+        })
+        .catch((e) => {
+          pending.forEach((b) => this._setLookupLoading(b.rowIndex, false));
+          Ui.toast(e.message, 'error');
+        });
     },
 
     /** Zapne/vypne vizuální indikaci vyhledávání na polích Název/Obsah - jen pokud je uživatel právě na záložce Artikly a řádek je vykreslený, jinak na DOM nesahá. */
@@ -483,12 +565,15 @@
       this.artikly = rows;
       this._artiklyDirty = true;
       const reqId = ++this._artiklySaveReqId;
-      return this._enqueue('Ukládám artikly', () => Ui.call('apiRzSaveArtikly', rows, { silent: true }))
-        .then((saved) => {
-          if (reqId !== this._artiklySaveReqId) return;
-          this.artikly = saved;
-        })
-        .catch((e) => Ui.toast(e.message, 'error'));
+      // Odloženo a slučováno pod jedním klíčem: payload je vždy kompletní stav
+      // všech 20 řádků, takže víc změn za sebou = jedno volání s tou poslední verzí.
+      this._enqueueDebounced('Ukládám artikly', () =>
+        Ui.call('apiRzSaveArtikly', rows, { silent: true })
+          .then((saved) => {
+            if (reqId !== this._artiklySaveReqId) return;
+            this.artikly = saved;
+          }),
+        'artikly');
     },
 
     /**
@@ -714,7 +799,17 @@
      * (viz stavProVypocet v renderRozdeleni). Přidělení po artiklech zatím do
      * stavu nevstupuje - není naimportováno / neznáme jeho sloupce.
      */
+    /** Obal s cache - samotný výpočet (_computeMedianTeoRaw) prochází ~13 tisíc řádků importů, ale volá se i z _recomputeBlockLive při KAŽDÉM stisku klávesy v RW/min/max. Výsledek závisí jen na naimportovaných datech, takže se cachuje a maže až při novém importu/vymazání. */
     _computeMedianTeo(cisloArtiklu) {
+      if (!this._medianCache) this._medianCache = {};
+      const key = String(cisloArtiklu);
+      if (this._medianCache[key]) return this._medianCache[key];
+      const res = this._computeMedianTeoRaw(cisloArtiklu);
+      this._medianCache[key] = res;
+      return res;
+    },
+
+    _computeMedianTeoRaw(cisloArtiklu) {
       const result = {};
       const od = this.importData.odprodej;
       if (od && od.headers && od.headers.length) {
@@ -868,10 +963,13 @@
       const maxRaw = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="max"]').value.trim();
       const min = minRaw === '' ? '' : this._toNumber(minRaw);
       const max = maxRaw === '' ? '' : this._toNumber(maxRaw);
+      // Bez loadRozdeleni() po uložení - lokální stav už je aktualizovaný přes
+      // _upsertRozdeleniLocal, znovunačtení by byl jen další round-trip (~1-3 s)
+      // a zbytečné překreslení celé záložky.
       this._upsertRozdeleniLocal(cislo, '', { min: min, max: max });
-      this._enqueue('Ukládám min/max', () => Ui.call('apiRzSaveRozdeleniMinMax', { cislo_artiklu: cislo, min: min, max: max }, { silent: true }))
-        .then(() => this.loadRozdeleni())
-        .catch((e) => Ui.toast(e.message, 'error'));
+      this._enqueueDebounced('Ukládám min/max',
+        () => Ui.call('apiRzSaveRozdeleniMinMax', { cislo_artiklu: cislo, min: min, max: max }, { silent: true }),
+        'minmax:' + cislo);
     },
 
     /** Ruční úprava RW - přepíše doposud uloženou/dopočítanou hodnotu, přepočítá se z ní příděl na všech prodejnách i celkem rozděleno. */
@@ -881,9 +979,9 @@
       const raw = el.querySelector('.rzr-rw[data-cislo="' + CSS.escape(cislo) + '"]').value.trim();
       const rw = raw === '' ? '' : Number(raw);
       this._upsertRozdeleniLocal(cislo, '', { rw: rw });
-      this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }))
-        .then(() => this.loadRozdeleni())
-        .catch((e) => Ui.toast(e.message, 'error'));
+      this._enqueueDebounced('Ukládám RW',
+        () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }),
+        'rw:' + cislo);
     },
 
     /**
@@ -917,9 +1015,9 @@
       Ui.toast('RW přepočítáno na ' + this._fmtNum(rw) + '.');
 
       this._upsertRozdeleniLocal(cislo, '', { rw: rw });
-      this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }))
-        .then(() => this.loadRozdeleni())
-        .catch((e) => Ui.toast(e.message, 'error'));
+      this._enqueueDebounced('Ukládám RW',
+        () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }),
+        'rw:' + cislo);
     },
 
     saveRozdeleniUprava(cislo, store) {
@@ -928,17 +1026,13 @@
       const raw = input.value.trim();
       const uprava = raw === '' ? '' : this._toNumber(raw);
       this._upsertRozdeleniLocal(cislo, store, { uprava: uprava });
-      this._enqueue('Ukládám úpravu', () => Ui.call('apiRzSaveRozdeleniUprava', { cislo_artiklu: cislo, prodejna: store, uprava: uprava }, { silent: true }))
-        .then(() => {
-          this.loadRozdeleni();
-          const sumEl = el.querySelector('.rzr-rozdeleno[data-cislo="' + CSS.escape(cislo) + '"]');
-          if (sumEl) {
-            const total = [...el.querySelectorAll('.rzr-data-row input[data-cislo="' + CSS.escape(cislo) + '"]')]
-              .reduce((sum, i) => sum + (this._toNumber(i.value.trim()) || 0), 0);
-            sumEl.textContent = total;
-          }
-        })
-        .catch((e) => Ui.toast(e.message, 'error'));
+
+      // Součet Rozděleno se přepočítá hned lokálně (bez čekání na server).
+      this._recomputeBlockLive(cislo);
+
+      this._enqueueDebounced('Ukládám úpravu',
+        () => Ui.call('apiRzSaveRozdeleniUprava', { cislo_artiklu: cislo, prodejna: store, uprava: uprava }, { silent: true }),
+        'uprava:' + cislo + ':' + store);
     },
 
     /**
@@ -1373,9 +1467,10 @@
           this.importData[key] = data;
           this._invalidateView(key);
           delete this._colWidths[key];
+          this._medianCache = {};
           if (this.activeTab === key) this.renderTabContent();
-          // Rozdělení počítá MEDIAN/Teo. stav z Odprodeje a Teo. stavů - jakmile dotečou, přepočítá se.
-          if (this.activeTab === 'rozdeleni' && (key === 'odprodej' || key === 'teo_stavy')) this.renderTabContent();
+          // Rozdělení počítá MEDIAN/stav z importů - jakmile dotečou, přepočítá se.
+          if (this.activeTab === 'rozdeleni') this.renderTabContent();
         })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
