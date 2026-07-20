@@ -20,8 +20,7 @@
     stores: [],
     settings: {},
     importData: {},
-    lcInfo: { abbreviation: '', code: '' },
-    folderPreviews: {},
+    importOverview: null,
 
     init(container, app, user) {
       this.container = container;
@@ -44,6 +43,13 @@
         .catch((e) => Ui.toast(e.message, 'error'));
       Ui.call('apiRzListStores', null, { silent: true })
         .then((rows) => { this.stores = rows; if (this.activeTab === 'artikly') this.renderTabContent(); })
+        .catch((e) => Ui.toast(e.message, 'error'));
+      this.loadImportOverview();
+    },
+
+    loadImportOverview() {
+      return Ui.call('apiRzGetImportOverview', null, { silent: true })
+        .then((overview) => { this.importOverview = overview; if (this.activeTab === 'artikly') this.renderTabContent(); })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
@@ -77,26 +83,21 @@
         '        <button class="rz-modal-tabbtn" type="button" data-settings-tab="informace">Informace o artiklech</button>' +
         '      </div>' +
         '      <div class="rz-settings-panel" data-settings-panel="soubory">' +
-        '        <div class="form form-plain">' +
-        '          <label><span>Složka se zdrojovými soubory (URL nebo ID)</span><input name="syncFolderUrl" type="text" placeholder="https://drive.google.com/drive/folders/..." data-folder-for="soubory"></label>' +
-        '        </div>' +
-        '        <div class="rz-folder-preview" data-preview-for="soubory"></div>' +
-        '        <div class="form form-plain">' +
-        '          <label><span>Soubor Odprodej — výraz v názvu</span><input name="patternOdprodej" type="text" placeholder="např. odprodej" data-match-tab="soubory" data-match-key="patternOdprodej"><small class="rz-match-status" data-match-status="patternOdprodej"></small></label>' +
-        '          <label><span>Soubor Teoretické stavy — výraz v názvu</span><input name="patternTeoStavy" type="text" placeholder="např. teo_stavy" data-match-tab="soubory" data-match-key="patternTeoStavy"><small class="rz-match-status" data-match-status="patternTeoStavy"></small></label>' +
-        '          <label><span>Soubor Vyskladňovací listy — výraz v názvu</span><input name="patternVyskladnovaciListy" type="text" placeholder="např. vyskladnovaci" data-match-tab="soubory" data-match-key="patternVyskladnovaciListy"><small class="rz-match-status" data-match-status="patternVyskladnovaciListy"></small></label>' +
-        '          <label><span>Soubor Přidělení po artiklech — výraz v názvu</span><input name="patternPrideleniPoArtiklech" type="text" placeholder="např. prideleni" data-match-tab="soubory" data-match-key="patternPrideleniPoArtiklech"><small class="rz-match-status" data-match-status="patternPrideleniPoArtiklech"></small></label>' +
+        '        <div class="form form-plain rz-settings-form">' +
+        '          <label><span>Složka se zdrojovými soubory (URL nebo ID)</span><input name="syncFolderUrl" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
+        '          <label><span>Soubor Odprodej — výraz v názvu</span><input name="patternOdprodej" type="text" placeholder="např. odprodej"></label>' +
+        '          <label><span>Soubor Teoretické stavy — výraz v názvu</span><input name="patternTeoStavy" type="text" placeholder="např. teo_stavy"></label>' +
+        '          <label><span>Soubor Vyskladňovací listy — výraz v názvu</span><input name="patternVyskladnovaciListy" type="text" placeholder="např. vyskladnovaci"></label>' +
+        '          <label><span>Soubor Přidělení po artiklech — výraz v názvu</span><input name="patternPrideleniPoArtiklech" type="text" placeholder="např. prideleni"></label>' +
+        '          <p class="form-hint">Přehled nalezených souborů je na záložce Artikly.</p>' +
         '        </div>' +
         '      </div>' +
         '      <div class="rz-settings-panel is-hidden" data-settings-panel="informace">' +
-        '        <div class="form form-plain">' +
-        '          <label><span>Složka s informacemi o artiklech (URL nebo ID)</span><input name="folderInformaceOArtiklech" type="text" placeholder="https://drive.google.com/drive/folders/..." data-folder-for="informace"></label>' +
+        '        <div class="form form-plain rz-settings-form">' +
+        '          <label><span>Složka s informacemi o artiklech (URL nebo ID)</span><input name="folderInformaceOArtiklech" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
+        '          <label><span>Výraz v názvu souboru</span><input name="patternInformaceOArtiklech" type="text" placeholder="např. informace_o_artiklech"></label>' +
+        '          <p class="form-hint">Hledá se soubor, jehož název obsahuje zadaný výraz a zároveň číslo výchozího LC.</p>' +
         '        </div>' +
-        '        <div class="rz-folder-preview" data-preview-for="informace"></div>' +
-        '        <div class="form form-plain">' +
-        '          <label><span>Výraz v názvu souboru</span><input name="patternInformaceOArtiklech" type="text" placeholder="např. informace_o_artiklech" data-match-tab="informace" data-match-key="patternInformaceOArtiklech"><small class="rz-match-status" data-match-status="patternInformaceOArtiklech"></small></label>' +
-        '        </div>' +
-        '        <p class="form-hint">Hledá se soubor, jehož název obsahuje zadaný výraz a zároveň číslo LC (<strong id="rzLcCodeInfo">—</strong>).</p>' +
         '      </div>' +
         '    </div>' +
         '    <footer class="modal-actions">' +
@@ -118,12 +119,6 @@
           this.container.querySelectorAll('.rz-modal-tabbtn').forEach((b) => b.classList.toggle('is-active', b === btn));
           this.container.querySelectorAll('.rz-settings-panel').forEach((p) => p.classList.toggle('is-hidden', p.dataset.settingsPanel !== key));
         });
-      });
-      this.container.querySelectorAll('[data-folder-for]').forEach((input) => {
-        input.addEventListener('blur', () => this.refreshFolderPreview(input.dataset.folderFor, input.value.trim()));
-      });
-      this.container.querySelectorAll('[data-match-key]').forEach((input) => {
-        input.addEventListener('input', () => this.renderMatchStatus(input.dataset.matchTab));
       });
 
       this.renderTabContent();
@@ -156,7 +151,10 @@
       if (!el) return;
       if (this.activeTab === 'artikly') return this.renderArtikly(el);
       if (this.activeTab === 'rozdeleni') return this.renderRozdeleniPlaceholder(el);
-      if (RZ_IMPORT_TABS.indexOf(this.activeTab) !== -1) return this.renderImportTab(el, this.activeTab);
+      if (RZ_IMPORT_TABS.indexOf(this.activeTab) !== -1) {
+        this.renderImportTab(el, this.activeTab);
+        if (!this.importData[this.activeTab]) this.loadImportTable(this.activeTab);
+      }
     },
 
     renderArtikly(el) {
@@ -182,6 +180,7 @@
           '</tr>').join('') +
         '  </tbody></table></div>' +
         '</section>' +
+        this.renderImportOverviewPanel() +
         '<section class="panel rz-compact rz-stores-panel">' +
         '  <div class="panel-header panel-header--compact"><div><h2>Filiálky</h2></div></div>' +
         '  <div class="table-wrap"><table class="rz-stores-table"><thead><tr><th>Prodejna</th><th>Název</th><th>Metropol</th></tr></thead><tbody>' +
@@ -201,7 +200,53 @@
           input.addEventListener(input.type === 'checkbox' ? 'change' : 'blur', () => this.saveArtikly());
         });
         el.querySelector('#rzResetArtiklyBtn').addEventListener('click', () => this.resetArtikly());
+        const importBtn = el.querySelector('#rzImportAllBtn');
+        if (importBtn) importBtn.addEventListener('click', () => this.importAll());
       }
+    },
+
+    /** Přehled importu — mezi tabulkami Artikly a Filiálky: co je ve složce a co se z toho podle nastavení najde, plus jedno tlačítko pro import všeho najednou. */
+    renderImportOverviewPanel() {
+      const overview = this.importOverview;
+      return (
+        '<section class="panel rz-compact rz-import-panel">' +
+        '  <div class="panel-header panel-header--compact"><div><h2>Import dat</h2></div>' +
+        (this.canWrite ? '<button class="button button-primary button-small" type="button" id="rzImportAllBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-refresh"></use></svg>Importovat</button>' : '') +
+        '  </div>' +
+        '  <div class="panel-body">' +
+        (!overview
+          ? '<p class="form-hint">Načítám…</p>'
+          : (
+            '<p class="form-hint">Složka: ' + (overview.folderName ? Ui.escape(overview.folderName) : 'nenastavena — viz Nastavení') + '</p>' +
+            '<ul class="rz-import-overview-list">' +
+            overview.items.map((item) => (
+              '<li class="' + (item.found ? 'is-found' : 'is-missing') + '">' +
+              '<strong>' + Ui.escape(item.label) + '</strong>' +
+              '<span>' + (item.found
+                ? '✓ ' + Ui.escape(item.fileName) + ' <small>(' + Ui.formatDateTime(item.updatedAt) + ')</small>'
+                : '✗ Nenalezeno') +
+              '</span>' +
+              '</li>'
+            )).join('') +
+            '</ul>'
+          )) +
+        '  </div>' +
+        '</section>'
+      );
+    },
+
+    importAll() {
+      Ui.call('apiRzImportAll', null, { silent: true, busy: 'Importuji soubory…' })
+        .then((results) => {
+          const okCount = results.filter((r) => r.ok).length;
+          const failed = results.filter((r) => !r.ok);
+          Ui.toast('Naimportováno ' + okCount + '/' + results.length + ' souborů.' +
+            (failed.length ? ' Nenaimportováno: ' + failed.map((r) => r.label + ' (' + r.message + ')').join(', ') : ''),
+            failed.length ? 'error' : undefined);
+          this.importData = {};
+          return this.loadImportOverview();
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
     },
 
     resetArtikly() {
@@ -278,20 +323,17 @@
     renderImportTab(el, key) {
       const data = this.importData[key];
       const hasData = data && data.headers && data.headers.length;
+      const label = (RZ_TABS.find((t) => t.key === key) || {}).label || '';
       el.innerHTML =
         '<section class="panel">' +
-        '  <div class="panel-header"><div>' +
-        (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzImportBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-refresh"></use></svg>Import ze zdrojového souboru</button>' : '<h2>Data</h2>') +
-        '  </div></div>' +
+        '  <div class="panel-header panel-header--compact"><div><h2>' + Ui.escape(label) + '</h2></div></div>' +
         '  <div class="table-wrap"><table>' +
-        (hasData ? this.renderImportGrid(data) : '<tbody><tr><td>Zatím nic nenaimportováno.</td></tr></tbody>') +
+        (hasData ? this.renderImportGrid(data) : '<tbody><tr><td>' + (data ? 'Zatím nic nenaimportováno — použij Importovat na záložce Artikly.' : 'Načítám…') + '</td></tr></tbody>') +
         '  </table></div>' +
         (hasData && this.canWrite ? '  <div class="form-actions"><button class="button button-secondary button-small" type="button" id="rzSaveImportBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit úpravy</button></div>' : '') +
         '</section>';
 
       if (this.canWrite) {
-        const importBtn = el.querySelector('#rzImportBtn');
-        if (importBtn) importBtn.addEventListener('click', () => this.runImport(key));
         const saveBtn = el.querySelector('#rzSaveImportBtn');
         if (saveBtn) saveBtn.addEventListener('click', () => this.saveImportTable(key));
       }
@@ -302,15 +344,6 @@
         '<tbody>' + data.rows.map((row, ri) =>
           '<tr>' + row.map((cell, ci) => '<td><input data-r="' + ri + '" data-c="' + ci + '" value="' + Ui.escape(cell) + '"></td>').join('') + '</tr>'
         ).join('') + '</tbody>';
-    },
-
-    runImport(key) {
-      Ui.call('apiRzImport', key, { silent: true, busy: 'Importuji soubor…' })
-        .then((res) => {
-          Ui.toast('Naimportováno ' + res.rowCount + ' řádků ze souboru „' + res.fileName + '".');
-          return this.loadImportTable(key);
-        })
-        .catch((e) => Ui.toast(e.message, 'error'));
     },
 
     loadImportTable(key) {
@@ -341,55 +374,8 @@
           f.elements.folderInformaceOArtiklech.value = this.settings.folderInformaceOArtiklech || '';
           f.elements.patternInformaceOArtiklech.value = this.settings.patternInformaceOArtiklech || '';
           Ui.openModal(this.container.querySelector('#rzSettingsModal'));
-          if (this.settings.syncFolderUrl) this.refreshFolderPreview('soubory', this.settings.syncFolderUrl);
-          if (this.settings.folderInformaceOArtiklech) this.refreshFolderPreview('informace', this.settings.folderInformaceOArtiklech);
-          Ui.call('apiRzGetLcInfo', null, { silent: true })
-            .then((info) => {
-              this.lcInfo = info || { abbreviation: '', code: '' };
-              Ui.setText('#rzLcCodeInfo', this.lcInfo.code ? (this.lcInfo.code + ' / ' + this.lcInfo.abbreviation) : 'není nastaveno');
-              this.renderMatchStatus('informace');
-            })
-            .catch(() => {});
         })
         .catch((e) => Ui.toast(e.message, 'error'));
-    },
-
-    /** Načte seznam souborů ve složce (živý náhled) a přepočítá, který soubor odpovídá zadaným výrazům. */
-    refreshFolderPreview(tabKey, folderValue) {
-      const previewEl = this.container.querySelector('[data-preview-for="' + tabKey + '"]');
-      if (!folderValue) { if (previewEl) previewEl.innerHTML = ''; this.folderPreviews[tabKey] = []; this.renderMatchStatus(tabKey); return; }
-      if (previewEl) previewEl.innerHTML = '<p class="form-hint">Načítám obsah složky…</p>';
-      Ui.call('apiRzPreviewFolder', folderValue, { silent: true })
-        .then((res) => {
-          this.folderPreviews[tabKey] = res.files || [];
-          if (previewEl) {
-            previewEl.innerHTML = res.files.length
-              ? '<p class="form-hint">Soubory ve složce „' + Ui.escape(res.folderName) + '": ' + res.files.map((f) => Ui.escape(f.name)).join(', ') + '</p>'
-              : '<p class="form-hint">Ve složce „' + Ui.escape(res.folderName) + '" nejsou žádné podporované soubory (.xlsx/.csv/Google Sheets).</p>';
-          }
-          this.renderMatchStatus(tabKey);
-        })
-        .catch((e) => {
-          this.folderPreviews[tabKey] = [];
-          if (previewEl) previewEl.innerHTML = '<p class="form-hint" style="color:var(--lidl-red)">' + Ui.escape(e.message) + '</p>';
-        });
-    },
-
-    /** Podle živě zadávaného výrazu (a pro Informace o artiklech i čísla LC) ukáže, který soubor by se právě našel. */
-    renderMatchStatus(tabKey) {
-      const files = this.folderPreviews[tabKey] || [];
-      this.container.querySelectorAll('[data-match-tab="' + tabKey + '"]').forEach((input) => {
-        const statusEl = this.container.querySelector('[data-match-status="' + input.dataset.matchKey + '"]');
-        if (!statusEl) return;
-        const needle = input.value.trim().toLowerCase();
-        if (!needle) { statusEl.textContent = ''; return; }
-        const extraNeedle = tabKey === 'informace' ? String(this.lcInfo.code || '').toLowerCase() : '';
-        const found = files
-          .filter((f) => f.name.toLowerCase().indexOf(needle) !== -1 && (!extraNeedle || f.name.toLowerCase().indexOf(extraNeedle) !== -1))
-          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-        statusEl.textContent = found ? ('✓ Nalezeno: ' + found.name) : '✗ Nenalezeno';
-        statusEl.style.color = found ? '#007a45' : 'var(--lidl-red)';
-      });
     },
 
     saveSettings(form) {
@@ -404,7 +390,7 @@
       };
       Ui.closeModal(this.container.querySelector('#rzSettingsModal'));
       Ui.call('apiRzSaveSettings', payload, { silent: true, busy: 'Ukládám nastavení…' })
-        .then((s) => { this.settings = s; Ui.toast('Nastavení uloženo.'); })
+        .then((s) => { this.settings = s; Ui.toast('Nastavení uloženo.'); return this.loadImportOverview(); })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
   };

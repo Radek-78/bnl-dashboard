@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.60', date: '20.7.2026', message: 'Rozdělovník 20 artiklů: jednotné tlačítko Importovat v novém přehledovém panelu mezi tabulkami Artikly a Filiálky (apiRzImportAll/apiRzGetImportOverview) - zobrazí, jaké soubory jsou ve složce nalezeny pro každý ze 4 očekávaných souborů, žádné tlačítko na jednotlivých záložkách. Oprava CSV parsování: automatická detekce oddělovače (středník u českých exportů, dřív se počítalo jen s čárkou a soubor se rozparsoval špatně). Nastavení zjednodušeno (bez živého náhledu, menší pole) a zmenšeno, aby se vešlo na obrazovku bez scrollování.' },
   { version: 'v3.1.59', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: sloupec Prodejna v tabulce Filiálky zarovnán na střed.' },
   { version: 'v3.1.58', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: hodnoty ve sloupcích Obsah, K rozdělení a Počet dnů v tabulce Artikly zarovnány na střed.' },
   { version: 'v3.1.57', date: '19.7.2026', message: 'Rozdělovník 20 artiklů: tlačítko Resetovat tabulku v pravém rohu hlavičky Artiklů - po potvrzení (Ui.confirm) vymaže všech 20 řádků najednou.' },

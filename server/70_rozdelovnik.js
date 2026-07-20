@@ -25,6 +25,13 @@ const RZ_PATTERN_SETTING_KEY = {
   prideleni_po_artiklech: 'patternPrideleniPoArtiklech',
 };
 
+const RZ_IMPORT_LABELS = {
+  odprodej: 'Odprodej',
+  teo_stavy: 'Teoretické stavy',
+  vyskladnovaci_listy: 'Vyskladňovací listy',
+  prideleni_po_artiklech: 'Přidělení po artiklech',
+};
+
 // Informace o artiklech nemá (zatím) vlastní záložku/import - jen uložená
 // složka a název souboru, dokud nebude domluveno, jak přesně appka data z něj
 // využije. Má vlastní složku (jinou než ostatní 4 soubory) a hledá se v ní
@@ -93,31 +100,87 @@ function apiRzSaveSettings(payload) {
   });
 }
 
+/** Vrátí seznam souborů (.xlsx/.csv/Google Sheets) v zadané složce. */
+function rzListFolderFiles_(folderId) {
+  const folder = DriveApp.getFolderById(folderId);
+  const files = [];
+  [MimeType.MICROSOFT_EXCEL, MimeType.GOOGLE_SHEETS, MimeType.CSV].forEach((mimeType) => {
+    const it = folder.getFilesByType(mimeType);
+    while (it.hasNext()) {
+      const f = it.next();
+      files.push({ name: f.getName(), updatedAt: f.getLastUpdated().toISOString() });
+    }
+  });
+  files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return { folderName: folder.getName(), files: files };
+}
+
 /**
- * Vrátí seznam souborů (.xlsx/.csv/Google Sheets) v zadané složce — pro živý
- * náhled v Nastavení, ať uživatel hned vidí, co se v jaké složce reálně
- * nachází a jestli zadaný výraz něco najde.
+ * Přehled pro záložku Artikly: co je ve složce se zdrojovými soubory a který
+ * ze 4 očekávaných souborů se podle nastaveného výrazu právě najde. Nahrazuje
+ * dřívější živý náhled v Nastavení — appka teď tenhle stav ukazuje rovnou tam,
+ * kde se s daty pracuje.
  */
-function apiRzPreviewFolder(folderInput) {
+function apiRzGetImportOverview() {
   return rzGuard_(() => {
-    const folderId = rzExtractFolderId_(folderInput);
-    if (!folderId) throw new Error('Neplatná URL nebo ID složky.');
-    let folder;
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.syncFolderUrl);
+    if (!folderId) {
+      return {
+        folderName: '',
+        items: RZ_IMPORT_TABLES.map((key) => ({ key: key, label: RZ_IMPORT_LABELS[key], found: false, fileName: '', updatedAt: '' })),
+      };
+    }
+
+    let listing;
     try {
-      folder = DriveApp.getFolderById(folderId);
+      listing = rzListFolderFiles_(folderId);
     } catch (e) {
       throw new Error('Složku se nepodařilo otevřít: ' + e.message);
     }
-    const files = [];
-    [MimeType.MICROSOFT_EXCEL, MimeType.GOOGLE_SHEETS, MimeType.CSV].forEach((mimeType) => {
-      const it = folder.getFilesByType(mimeType);
-      while (it.hasNext()) {
-        const f = it.next();
-        files.push({ name: f.getName(), updatedAt: f.getLastUpdated().toISOString() });
+
+    const items = RZ_IMPORT_TABLES.map((key) => {
+      const pattern = settings[RZ_PATTERN_SETTING_KEY[key]] || '';
+      const needle = pattern.toLowerCase();
+      const match = needle ? listing.files.find((f) => f.name.toLowerCase().indexOf(needle) !== -1) : null;
+      return {
+        key: key,
+        label: RZ_IMPORT_LABELS[key],
+        found: !!match,
+        fileName: match ? match.name : '',
+        updatedAt: match ? match.updatedAt : '',
+      };
+    });
+
+    return { folderName: listing.folderName, items: items };
+  });
+}
+
+/** Naimportuje najednou všechny nalezené soubory (jedno tlačítko na záložce Artikly). */
+function apiRzImportAll() {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k importu.');
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.syncFolderUrl);
+    if (!folderId) throw new Error('Není nastavena složka se zdrojovými soubory (Nastavení).');
+
+    const results = RZ_IMPORT_TABLES.map((key) => {
+      const pattern = settings[RZ_PATTERN_SETTING_KEY[key]] || '';
+      if (!pattern) return { key: key, label: RZ_IMPORT_LABELS[key], ok: false, message: 'Není nastaven výraz v názvu.' };
+      try {
+        const file = rzFindFileInFolderByName_(folderId, pattern);
+        if (!file) return { key: key, label: RZ_IMPORT_LABELS[key], ok: false, message: 'Soubor nenalezen.' };
+        const { headers, rows } = rzReadSourceFile_(file);
+        rzWriteGrid_(key, headers, rows);
+        return { key: key, label: RZ_IMPORT_LABELS[key], ok: true, fileName: file.getName(), rowCount: rows.length };
+      } catch (e) {
+        return { key: key, label: RZ_IMPORT_LABELS[key], ok: false, message: e.message };
       }
     });
-    files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return { folderName: folder.getName(), files: files };
+
+    const okCount = results.filter((r) => r.ok).length;
+    audit_('rz_import_all', okCount + '/' + RZ_IMPORT_TABLES.length + ' souborů naimportováno');
+    return results;
   });
 }
 
@@ -127,10 +190,6 @@ function rzDefaultLcInfo_() {
   if (!abbreviation) return { abbreviation: '', code: '' };
   const lc = dbGetAll_(SHEETS.LOGISTICS).find((l) => String(l.abbreviation).toUpperCase() === abbreviation);
   return { abbreviation: abbreviation, code: lc ? String(lc.code) : '' };
-}
-
-function apiRzGetLcInfo() {
-  return rzGuard_(() => rzDefaultLcInfo_());
 }
 
 /** Podporuje URL i přímo vložené ID složky. */
@@ -267,7 +326,7 @@ function apiRzLookupArtikl(cisloArtiklu) {
 
     if (file.getMimeType() === MimeType.CSV) {
       const text = file.getBlob().getDataAsString('UTF-8');
-      const data = Utilities.parseCsv(text);
+      const data = Utilities.parseCsv(text, rzDetectCsvDelimiter_(text));
       if (!data.length) return null;
       const headers = data[0];
       const norm = (h) => String(h || '').trim().toUpperCase();
@@ -350,6 +409,19 @@ function rzFindFileInFolderByName_(folderId, namePattern) {
   return newest;
 }
 
+/**
+ * Odhadne oddělovač CSV podle prvního řádku — české exporty (Excel v CZ
+ * lokalizaci) běžně používají středník, protože čárka je desetinný oddělovač.
+ * Utilities.parseCsv bez druhého parametru počítá vždy jen s čárkou, což by
+ * takový soubor rozparsovalo jako jeden sloupec místo mnoha.
+ */
+function rzDetectCsvDelimiter_(text) {
+  const firstLine = String(text).split(/\r?\n/, 1)[0] || '';
+  const semicolons = (firstLine.match(/;/g) || []).length;
+  const commas = (firstLine.match(/,/g) || []).length;
+  return semicolons > commas ? ';' : ',';
+}
+
 /** Jako rzFindFileInFolderByName_, ale název musí obsahovat i zadané číslo LC (Informace o artiklech). */
 function rzFindFileInFolderByNameAndLc_(folderId, namePattern, lcCode) {
   const folder = DriveApp.getFolderById(folderId);
@@ -379,7 +451,7 @@ function rzFindFileInFolderByNameAndLc_(folderId, namePattern, lcCode) {
 function rzReadSourceFile_(file) {
   if (file.getMimeType() === MimeType.CSV) {
     const text = file.getBlob().getDataAsString('UTF-8');
-    const data = Utilities.parseCsv(text);
+    const data = Utilities.parseCsv(text, rzDetectCsvDelimiter_(text));
     if (!data.length) return { headers: [], rows: [] };
     return { headers: data[0].map(String), rows: data.slice(1) };
   }
@@ -406,29 +478,6 @@ function rzReadSourceFile_(file) {
   } finally {
     if (tempSheetId) { try { Drive.Files.remove(tempSheetId); } catch (_) { /* dočasný soubor, chyba mazání není kritická */ } }
   }
-}
-
-function apiRzImport(fileKey) {
-  return rzGuard_((user) => {
-    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k importu.');
-    if (RZ_IMPORT_TABLES.indexOf(fileKey) === -1) throw new Error('Neplatný typ importu.');
-
-    const settings = rzSettingsAll_();
-    const folderId = rzExtractFolderId_(settings.syncFolderUrl);
-    if (!folderId) throw new Error('Není nastavena složka se zdrojovými soubory (Nastavení).');
-
-    const patternKey = RZ_PATTERN_SETTING_KEY[fileKey];
-    const pattern = settings[patternKey] || '';
-    if (!pattern) throw new Error('Není nastaven výraz pro vyhledání tohoto souboru (Nastavení).');
-
-    const file = rzFindFileInFolderByName_(folderId, pattern);
-    if (!file) throw new Error('Ve složce nebyl nalezen žádný soubor obsahující v názvu „' + pattern + '".');
-
-    const { headers, rows } = rzReadSourceFile_(file);
-    rzWriteGrid_(fileKey, headers, rows);
-    audit_('rz_import_' + fileKey, file.getName() + ' (' + rows.length + ' řádků)');
-    return { fileName: file.getName(), headers: headers, rowCount: rows.length };
-  });
 }
 
 function apiRzGetImportTable(fileKey) {
