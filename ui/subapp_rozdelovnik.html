@@ -45,6 +45,9 @@
         .then((rows) => { this.stores = rows; if (this.activeTab === 'artikly') this.renderTabContent(); })
         .catch((e) => Ui.toast(e.message, 'error'));
       this.loadImportOverview();
+      // Data importovaných souborů se natáhnou rovnou po startu, ne až po
+      // kliknutí na záložku - u větších souborů by pak čekání bylo znát.
+      RZ_IMPORT_TABS.forEach((key) => this.loadImportTable(key));
     },
 
     loadImportOverview() {
@@ -358,7 +361,7 @@
       const hasData = data && data.headers && data.headers.length;
       const label = (RZ_TABS.find((t) => t.key === key) || {}).label || '';
       el.innerHTML =
-        '<section class="panel">' +
+        '<section class="panel rz-compact rz-import-table-panel">' +
         '  <div class="panel-header panel-header--compact"><div><h2>' + Ui.escape(label) + '</h2></div></div>' +
         '  <div class="table-wrap"><table>' +
         (hasData ? this.renderImportGrid(data) : '<tbody><tr><td>' + (data ? 'Zatím nic nenaimportováno — použij Importovat na záložce Artikly.' : 'Načítám…') + '</td></tr></tbody>') +

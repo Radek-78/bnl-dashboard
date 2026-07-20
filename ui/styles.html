@@ -1682,6 +1682,13 @@
     padding: 6px 8px 8px;
   }
 
+  /* Flex položky mají default min-width:auto, takže by se u širokých tabulek
+     roztáhly přes okraj místo toho, aby scrolloval jejich vlastní .table-wrap. */
+  #rzTabContent > * {
+    min-height: 0;
+    min-width: 0;
+  }
+
   .rz-layout {
     align-items: flex-start;
     display: flex;
@@ -1689,6 +1696,19 @@
     gap: 10px;
     justify-content: space-between;
     min-height: 0;
+  }
+
+  .rz-import-table-panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .rz-import-table-panel .table-wrap {
+    flex: 1;
+    max-height: none;
+    min-height: 0;
+    overflow: auto;
   }
 
   .rz-artikly-panel {
@@ -1776,7 +1796,7 @@
   }
 
   #rzSettingsModal .modal-body {
-    height: 500px;
+    height: min(640px, calc(100vh - 200px));
   }
 
   .rz-modal-tabs {
