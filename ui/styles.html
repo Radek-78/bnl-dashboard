@@ -1730,15 +1730,33 @@
 
   .rz-import-overview-list li {
     border-bottom: 1px solid var(--line-soft);
-    display: flex;
-    flex-direction: column;
     font-size: 12px;
-    gap: 2px;
-    padding: 6px 0;
+    padding: 8px 0;
   }
 
   .rz-import-overview-list li:last-child {
     border-bottom: 0;
+  }
+
+  .rz-import-overview-list strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .rz-import-row {
+    align-items: baseline;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+  }
+
+  .rz-import-row > span:first-child {
+    text-align: left;
+  }
+
+  .rz-import-row > span:last-child {
+    flex-shrink: 0;
+    text-align: right;
   }
 
   .rz-import-overview-list .is-found {
@@ -1754,7 +1772,11 @@
   }
 
   #rzSettingsModal {
-    width: min(760px, calc(100vw - 32px));
+    width: min(860px, calc(100vw - 32px));
+  }
+
+  #rzSettingsModal .modal-body {
+    height: 500px;
   }
 
   .rz-modal-tabs {

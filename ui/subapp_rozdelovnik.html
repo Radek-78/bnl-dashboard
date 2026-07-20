@@ -234,11 +234,13 @@
             overview.items.map((item) => (
               '<li>' +
               '<strong>' + Ui.escape(item.label) + '</strong>' +
+              '<div class="rz-import-row">' +
               '<span class="' + (item.found ? 'is-found' : 'is-missing') + '">' + (item.found
                 ? '✓ ' + Ui.escape(item.fileName) + ' <small>(' + Ui.formatDateTime(item.updatedAt) + ')</small>'
                 : '✗ soubor ve složce nenalezen') +
               '</span>' +
-              '<small class="' + (item.importedRowCount > 0 ? 'is-found' : 'is-missing') + '">' + (item.importedRowCount > 0 ? 'naimportováno: ' + item.importedRowCount + ' řádků' : 'zatím nenaimportováno') + '</small>' +
+              '<span class="' + (item.importedRowCount > 0 ? 'is-found' : 'is-missing') + '">' + (item.importedRowCount > 0 ? 'naimportováno: ' + item.importedRowCount + ' řádků' : 'zatím nenaimportováno') + '</span>' +
+              '</div>' +
               '</li>'
             )).join('') +
             '</ul>'
