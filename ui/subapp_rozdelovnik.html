@@ -550,9 +550,14 @@
         const perStore = this._computeMedianTeo(cislo);
         const target = (a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
 
-        // Stav pro výpočet = Teo. stav + Dodáno (Vyskladňovací listy) - zobrazený
-        // sloupec Teo. stav ale ukazuje jen samotnou hodnotu z Teo. stavů.
-        const stavProVypocet = (s) => ((perStore[s.code] || {}).teo || 0) + ((perStore[s.code] || {}).dodano || 0);
+        // Stav = Teo. stav + Dodáno (Vyskladňovací listy) - zobrazuje se rovnou
+        // tahle kombinovaná hodnota, ať tabulka ukazuje totéž, co se počítá.
+        // "—" jen když nemáme vůbec žádný z obou zdrojů.
+        const stavProVypocet = (s) => {
+          const v = perStore[s.code] || {};
+          if (v.teo == null && v.dodano == null) return null;
+          return (v.teo || 0) + (v.dodano || 0);
+        };
 
         // Chybí-li RW, dopočítá se vodorovným doplňováním (viz _solveRw) a rovnou
         // se uloží, ať je od teď vidět a upravitelné jako běžná hodnota.
@@ -574,7 +579,7 @@
           rozdeleno += efektivni;
           return '<div class="rzr-hrow rzr-data-row">' +
             '<span>' + (vals.median != null ? this._fmtNum(vals.median) : '—') + '</span>' +
-            '<span>' + (vals.teo != null ? this._fmtNum(vals.teo) : '—') + '</span>' +
+            '<span>' + (stav != null ? this._fmtNum(stav) : '—') + '</span>' +
             '<span class="rzr-prideli" data-cislo="' + Ui.escape(cislo) + '" data-store="' + Ui.escape(s.code) + '">' + prideli + '</span>' +
             '<input type="text" inputmode="decimal" data-cislo="' + Ui.escape(cislo) + '" data-store="' + Ui.escape(s.code) + '" value="' + (uprava != null && uprava !== '' ? this._fmtNum(uprava) : '') + '"' + dis + '>' +
             '</div>';
@@ -698,16 +703,15 @@
     },
 
     /**
-     * MEDIAN = medián "prodáno ks" z Odprodeje pro daný artikl, po prodejnách.
-     * Teo. stav (zobrazený sloupec) = poslední (nejnovější podle data) hodnota
-     * teoretického stavu z Teo. stavů, přepočtená na kartony (Stav v ks ÷
-     * Obsah), aby byla ve stejné jednotce jako MEDIAN a Dodáno. Dodáno =
+     * MEDIAN = medián "Prodáno v kartonech" z Odprodeje pro daný artikl, po
+     * prodejnách. teo = poslední (nejnovější podle data) hodnota teoretického
+     * stavu z Teo. stavů, přepočtená na kartony (Stav v ks ÷ Obsah). dodano =
      * součet sloupce "Dodáno" z Vyskladňovacích listů (zboží skutečně
-     * doručené na prodejnu, které ještě nemusí být v poslední známé hodnotě
-     * Teo. stavu promítnuté; je už v kartonech, nepřepočítává se) - používá
-     * se jen ve výpočtu přídělu (viz _clampPrideli: stav = teo + dodano).
-     * Přidělení po artiklech zatím do stavu nevstupuje - není naimportováno /
-     * neznáme jeho sloupce.
+     * doručené na prodejnu, které ještě nemusí být v Teo. stavu promítnuté; je
+     * už v kartonech, nepřepočítává se). Zobrazený sloupec "Teo. stav" i
+     * výpočet přídělu (_clampPrideli) používají stejnou hodnotu: teo + dodano
+     * (viz stavProVypocet v renderRozdeleni). Přidělení po artiklech zatím do
+     * stavu nevstupuje - není naimportováno / neznáme jeho sloupce.
      */
     _computeMedianTeo(cisloArtiklu) {
       const result = {};
