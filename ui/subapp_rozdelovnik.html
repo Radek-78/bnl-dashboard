@@ -550,11 +550,15 @@
         const perStore = this._computeMedianTeo(cislo);
         const target = (a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
 
+        // Stav pro výpočet = Teo. stav + Dodáno (Vyskladňovací listy) - zobrazený
+        // sloupec Teo. stav ale ukazuje jen samotnou hodnotu z Teo. stavů.
+        const stavProVypocet = (s) => ((perStore[s.code] || {}).teo || 0) + ((perStore[s.code] || {}).dodano || 0);
+
         // Chybí-li RW, dopočítá se vodorovným doplňováním (viz _solveRw) a rovnou
         // se uloží, ať je od teď vidět a upravitelné jako běžná hodnota.
         let rw = (minMax.rw !== '' && minMax.rw != null) ? Number(minMax.rw) : null;
         if (rw === null) {
-          const storeData = this.stores.map((s) => ({ median: (perStore[s.code] || {}).median || 0, stav: (perStore[s.code] || {}).teo || 0 }));
+          const storeData = this.stores.map((s) => ({ median: (perStore[s.code] || {}).median || 0, stav: stavProVypocet(s) }));
           rw = this._solveRw(target, storeData, minMax.min, minMax.max);
           rwToPersist.push({ cislo: cislo, rw: rw });
         }
@@ -563,7 +567,7 @@
         const dataRows = this.stores.map((s) => {
           const vals = perStore[s.code] || {};
           const median = vals.median || 0;
-          const stav = vals.teo || 0;
+          const stav = stavProVypocet(s);
           const prideli = this._clampPrideli(rw, median, stav, minMax.min, minMax.max);
           const uprava = upravy[s.code];
           const efektivni = (uprava != null && uprava !== '') ? (this._toNumber(uprava) || 0) : prideli;
@@ -676,10 +680,14 @@
 
     /**
      * MEDIAN = medián "prodáno ks" z Odprodeje pro daný artikl, po prodejnách.
-     * Teo. stav = poslední (nejnovější podle data) hodnota teoretického stavu
-     * z Teo. stavů pro daný artikl, po prodejnách. Sloupce se hledají podle
-     * názvu (viz _findColIndex) - přesný název u Teo. stavů zatím neznáme
-     * jistě, dokud se nedomluví výpočet, je to jen odhad.
+     * Teo. stav (zobrazený sloupec) = poslední (nejnovější podle data) hodnota
+     * teoretického stavu z Teo. stavů. Dodáno = součet sloupce "Dodáno" z
+     * Vyskladňovacích listů (zboží skutečně doručené na prodejnu, které ještě
+     * nemusí být v poslední známé hodnotě Teo. stavu promítnuté) - používá se
+     * jen ve výpočtu přídělu (viz _clampPrideli: stav = teo + dodano), ne v
+     * zobrazeném sloupci Teo. stav, aby název sloupce odpovídal tomu, co
+     * ukazuje. Přidělení po artiklech zatím do stavu nevstupuje - není
+     * naimportováno / neznáme jeho sloupce.
      */
     _computeMedianTeo(cisloArtiklu) {
       const result = {};
@@ -723,6 +731,27 @@
           Object.keys(latest).forEach((store) => {
             result[store] = result[store] || {};
             result[store].teo = latest[store].val;
+          });
+        }
+      }
+
+      const vysklad = this.importData.vyskladnovaci_listy;
+      if (vysklad && vysklad.headers && vysklad.headers.length) {
+        const ciP = this._findColIndex(vysklad.headers, ['prodejna']);
+        const ciA = this._findColIndex(vysklad.headers, ['artikl']);
+        const ciDod = this._findColIndex(vysklad.headers, ['dodano']);
+        if (ciP !== -1 && ciA !== -1 && ciDod !== -1) {
+          const soucet = {};
+          vysklad.rows.forEach((r) => {
+            if (!this._artiklMatches(r[ciA], cisloArtiklu)) return;
+            const store = String(r[ciP]).trim();
+            const val = this._toNumber(r[ciDod]);
+            if (isNaN(val)) return;
+            soucet[store] = (soucet[store] || 0) + val;
+          });
+          Object.keys(soucet).forEach((store) => {
+            result[store] = result[store] || {};
+            result[store].dodano = soucet[store];
           });
         }
       }
