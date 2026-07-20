@@ -404,6 +404,16 @@ function rzImportSheet_(fileKey) {
  */
 function rzCellToText_(val) {
   if (val instanceof Date) {
+    // GAS vrací čistě časové buňky (bez data) jako Date s pevným datem
+    // 30.12.1899 — stejná kuriozita, kterou už appka řeší u synchronizace
+    // filiálek (formatCellValue_ v 60_sync.js). Bez téhle výjimky by se
+    // takové buňky (např. "čas posledního prodeje") zobrazovaly jako
+    // nesmyslné "30.12.1899 19:02:00" místo prostého času.
+    if (val.getFullYear() === 1899 && val.getMonth() === 11 && val.getDate() === 30) {
+      const h = val.getHours();
+      const m = val.getMinutes();
+      return h + ':' + (m < 10 ? '0' + m : m);
+    }
     return Utilities.formatDate(val, Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm:ss').replace(/ 00:00:00$/, '');
   }
   return (val === undefined || val === null) ? '' : String(val);

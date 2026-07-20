@@ -10,6 +10,7 @@
   ];
   const RZ_IMPORT_TABS = ['odprodej', 'teo_stavy', 'vyskladnovaci_listy', 'prideleni_po_artiklech'];
   const RZ_ARTIKLY_ROWS = 20;
+  const RZ_ROW_H = 25; // odpovídá výšce řádku v rz-compact (input 22px + padding + sdílený border)
 
   const RZ = {
     container: null,
@@ -21,6 +22,10 @@
     settings: {},
     importData: {},
     importOverview: null,
+    _sfState: {},
+    _sfViewCache: {},
+    _sfMenu: null,
+    _colMenuOutside: null,
 
     init(container, app, user) {
       this.container = container;
@@ -262,6 +267,8 @@
             (failed.length ? ' Nenaimportováno: ' + failed.map((r) => r.label + ' (' + r.message + ')').join(', ') : ''),
             failed.length ? 'error' : undefined);
           this.importData = {};
+          this._sfState = {};
+          this._sfViewCache = {};
           return this.loadImportOverview();
         })
         .catch((e) => Ui.toast(e.message, 'error'));
@@ -278,6 +285,8 @@
         Ui.call('apiRzClearImports', null, { silent: true, busy: 'Mažu naimportovaná data…' })
           .then(() => {
             this.importData = {};
+            this._sfState = {};
+            this._sfViewCache = {};
             Ui.toast('Naimportovaná data byla vymazána.');
             return this.loadImportOverview();
           })
@@ -356,44 +365,322 @@
       el.innerHTML = '<section class="panel"><div class="panel-body"><p class="form-hint">Záložka Rozdělení bude doplněna — logika výpočtu se domlouvá samostatně.</p></div></section>';
     },
 
+    /**
+     * Řádky tabulky se nevykreslují všechny najednou (u desetitisíců řádků by
+     * to prohlížeč nezvládl) — jen viditelné okno + malý přesah, zbytek řeší
+     * dvě "spacer" buňky nahoře/dole, které dají scrollbaru správnou celkovou
+     * výšku. Hlavička má stejné klikací sloupcové menu (řazení/filtr) jako
+     * hlavní appka (Filiálky, Log. centra), jen podle indexu sloupce místo
+     * pevného názvu, protože sloupce se u každého souboru liší.
+     */
     renderImportTab(el, key) {
       const data = this.importData[key];
       const hasData = data && data.headers && data.headers.length;
       const label = (RZ_TABS.find((t) => t.key === key) || {}).label || '';
+
+      if (!hasData) {
+        el.innerHTML =
+          '<section class="panel rz-compact rz-import-table-panel">' +
+          '  <div class="panel-header panel-header--compact"><div><h2>' + Ui.escape(label) + '</h2></div></div>' +
+          '  <div class="panel-body"><p class="form-hint">' + (data ? 'Zatím nic nenaimportováno — použij Importovat na záložce Artikly.' : 'Načítám…') + '</p></div>' +
+          '</section>';
+        return;
+      }
+
+      if (!this._sfState[key]) this._sfState[key] = { sorts: [], filters: {} };
+
       el.innerHTML =
         '<section class="panel rz-compact rz-import-table-panel">' +
-        '  <div class="panel-header panel-header--compact"><div><h2>' + Ui.escape(label) + '</h2></div></div>' +
-        '  <div class="table-wrap"><table>' +
-        (hasData ? this.renderImportGrid(data) : '<tbody><tr><td>' + (data ? 'Zatím nic nenaimportováno — použij Importovat na záložce Artikly.' : 'Načítám…') + '</td></tr></tbody>') +
-        '  </table></div>' +
-        (hasData && this.canWrite ? '  <div class="form-actions"><button class="button button-secondary button-small" type="button" id="rzSaveImportBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit úpravy</button></div>' : '') +
+        '  <div class="panel-header panel-header--compact"><div><h2>' + Ui.escape(label) + ' <small class="rz-row-count"></small></h2></div>' +
+        (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzSaveImportBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit úpravy</button>' : '') +
+        '  </div>' +
+        '  <div class="table-wrap"><table><thead><tr>' +
+        data.headers.map((h, ci) => '<th><button class="th-btn" type="button" data-col="' + ci + '">' + Ui.escape(h) +
+          '<span class="sort-ind" data-sort-ind="' + key + '-' + ci + '"></span></button></th>').join('') +
+        '</tr></thead><tbody></tbody></table></div>' +
         '</section>';
 
+      const wrap = el.querySelector('.table-wrap');
+      const tbody = el.querySelector('tbody');
+
+      this._renderVirtualRows(key);
+      this.updateSortIndicators(key);
+
+      let scheduled = false;
+      wrap.addEventListener('scroll', () => {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(() => { scheduled = false; this._renderVirtualRows(key); });
+      });
+
+      el.querySelectorAll('.th-btn').forEach((btn) => {
+        btn.addEventListener('click', () => this.openColMenu(btn, key, Number(btn.dataset.col)));
+      });
+
       if (this.canWrite) {
+        // Delegovaný listener na tbody — inputy se při scrollu neustále mažou
+        // a znovu vytvářejí, jednotlivé posluchače by se musely pořád
+        // odpojovat/připojovat. blur nebublá, proto capture fáze.
+        tbody.addEventListener('blur', (e) => {
+          const input = e.target;
+          if (!input || input.tagName !== 'INPUT') return;
+          const vi = Number(input.dataset.vi);
+          const ci = Number(input.dataset.ci);
+          const view = this._getView(key);
+          if (view[vi]) view[vi][ci] = input.value;
+        }, true);
+
         const saveBtn = el.querySelector('#rzSaveImportBtn');
         if (saveBtn) saveBtn.addEventListener('click', () => this.saveImportTable(key));
       }
     },
 
-    renderImportGrid(data) {
-      return '<thead><tr>' + data.headers.map((h) => '<th>' + Ui.escape(h) + '</th>').join('') + '</tr></thead>' +
-        '<tbody>' + data.rows.map((row, ri) =>
-          '<tr>' + row.map((cell, ci) => '<td><input data-r="' + ri + '" data-c="' + ci + '" value="' + Ui.escape(cell) + '"></td>').join('') + '</tr>'
-        ).join('') + '</tbody>';
+    /** Vykreslí jen řádky viditelné v aktuálním výřezu .table-wrap (+ přesah), zbytek nahradí prázdnými "spacer" buňkami. */
+    _renderVirtualRows(key) {
+      const data = this.importData[key];
+      const el = this.container.querySelector('#rzTabContent');
+      const wrap = el && el.querySelector('.table-wrap');
+      const tbody = el && el.querySelector('tbody');
+      if (!data || !wrap || !tbody) return;
+
+      const view = this._getView(key);
+      const total = view.length;
+      const colCount = data.headers.length;
+      const dis = this.canWrite ? '' : ' disabled';
+
+      const countEl = el.querySelector('.rz-row-count');
+      if (countEl) countEl.textContent = '(' + total + (total !== data.rows.length ? ' z ' + data.rows.length : '') + ' řádků)';
+
+      if (!total) {
+        tbody.innerHTML = '<tr><td colspan="' + colCount + '">Žádné řádky neodpovídají filtru.</td></tr>';
+        return;
+      }
+
+      const viewportH = wrap.clientHeight || 400;
+      const overscan = 10;
+      const start = Math.max(0, Math.floor(wrap.scrollTop / RZ_ROW_H) - overscan);
+      const visibleCount = Math.ceil(viewportH / RZ_ROW_H) + overscan * 2;
+      const end = Math.min(total, start + visibleCount);
+
+      let html = '';
+      if (start > 0) html += '<tr><td colspan="' + colCount + '" style="height:' + (start * RZ_ROW_H) + 'px;padding:0;border:0;"></td></tr>';
+      for (let i = start; i < end; i++) {
+        const row = view[i];
+        html += '<tr>' + row.map((cell, ci) => '<td><input data-vi="' + i + '" data-ci="' + ci + '" value="' + Ui.escape(cell) + '"' + dis + '></td>').join('') + '</tr>';
+      }
+      if (end < total) html += '<tr><td colspan="' + colCount + '" style="height:' + ((total - end) * RZ_ROW_H) + 'px;padding:0;border:0;"></td></tr>';
+      tbody.innerHTML = html;
+    },
+
+    /** Filtrovaná + seřazená data (podle _sfState[key]) — spočtou se jednou a cachují, ne při každém scrollu. Vrací stále stejné řádkové reference jako importData, takže úprava buňky se rovnou promítne i tam. */
+    _getView(key) {
+      if (this._sfViewCache[key]) return this._sfViewCache[key];
+      const data = this.importData[key];
+      const st = this._sfState[key] || { sorts: [], filters: {} };
+      let rows = data.rows;
+      if (st.filters) {
+        Object.keys(st.filters).forEach((ciStr) => {
+          const vals = st.filters[ciStr];
+          if (vals && vals.size > 0) {
+            const ci = Number(ciStr);
+            rows = rows.filter((r) => vals.has(String(r[ci] ?? '')));
+          }
+        });
+      }
+      if (st.sorts && st.sorts.length) {
+        rows = rows.slice().sort((a, b) => {
+          for (const s of st.sorts) {
+            const cmp = this._compareVals(String(a[s.col] ?? ''), String(b[s.col] ?? ''));
+            if (cmp !== 0) return s.dir === 'desc' ? -cmp : cmp;
+          }
+          return 0;
+        });
+      }
+      this._sfViewCache[key] = rows;
+      return rows;
+    },
+
+    _invalidateView(key) {
+      delete this._sfViewCache[key];
+    },
+
+    /** Rozpozná dd.mm.rrrr [hh:mm[:ss]] a vrátí timestamp, jinak null — bez tohoto by se data řadila jako text (např. 01.2027 před 12.2026). */
+    _parseDate(str) {
+      const m = String(str).trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (!m) return null;
+      return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0)).getTime();
+    },
+
+    /** Datum → chronologicky, číslo (i s vedoucími nulami) → číselně, jinak abecedně (cs). */
+    _compareVals(av, bv) {
+      const da = this._parseDate(av), db = this._parseDate(bv);
+      if (da !== null && db !== null) return da - db;
+      const na = Number(av), nb = Number(bv);
+      if (av.trim() !== '' && bv.trim() !== '' && !isNaN(na) && !isNaN(nb)) return na - nb;
+      return av.localeCompare(bv, 'cs');
+    },
+
+    updateSortIndicators(key) {
+      const st = this._sfState[key] || {};
+      const sorts = st.sorts || [];
+      const filters = st.filters || {};
+      this.container.querySelectorAll('[data-sort-ind^="' + key + '-"]').forEach((indEl) => {
+        const ci = Number(indEl.dataset.sortInd.slice(key.length + 1));
+        const sortIdx = sorts.findIndex((s) => s.col === ci);
+        const hasFilter = filters[ci] && filters[ci].size > 0;
+        const btn = indEl.closest('.th-btn');
+        if (btn) {
+          btn.classList.toggle('is-sorted', sortIdx >= 0);
+          btn.classList.toggle('is-filtered', hasFilter);
+        }
+        if (sortIdx >= 0) {
+          const arrow = sorts[sortIdx].dir === 'desc' ? '▼' : '▲';
+          indEl.textContent = sorts.length > 1 ? ' ' + (sortIdx + 1) + arrow : ' ' + arrow;
+        } else {
+          indEl.textContent = hasFilter ? ' ⬤' : '';
+        }
+      });
+    },
+
+    /** Stejné sloupcové menu (řazení + filtr hodnot) jako v hlavní appce, jen podle indexu sloupce místo pevného klíče. */
+    openColMenu(thEl, key, colIndex) {
+      this.closeColMenu();
+      if (!this._sfState[key]) this._sfState[key] = { sorts: [], filters: {} };
+      const st = this._sfState[key];
+      const data = this.importData[key];
+      const colLabel = data.headers[colIndex];
+      const allRows = data.rows;
+      const activeFilters = st.filters[colIndex] || null;
+      const sortIdx = st.sorts.findIndex((s) => s.col === colIndex);
+      const curDir = sortIdx >= 0 ? st.sorts[sortIdx].dir : null;
+      const uniqueVals = [...new Set(allRows.map((r) => String(r[colIndex] ?? '')))].sort((a, b) => this._compareVals(a, b));
+      const LIMIT = 500;
+
+      const menu = document.createElement('div');
+      menu.className = 'col-menu';
+      menu.innerHTML =
+        '<div class="col-menu-head">' +
+        '  <span>Sloupec: <strong>' + Ui.escape(colLabel) + '</strong></span>' +
+        '  <span style="display:flex;align-items:center;gap:8px">' +
+        (st.filters[colIndex] ? '<button class="col-menu-clear-filter" type="button" title="Vymazat filtr tohoto sloupce">⊟ filtr ×</button>' : '') +
+        '    <button class="col-menu-close" type="button" title="Zavřít"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+        '  </span>' +
+        '</div>' +
+        '<div class="col-menu-sort-row">' +
+        '  <button class="col-menu-sort-btn' + (curDir === 'asc' ? ' is-active' : '') + '" type="button" data-action="sort-primary" data-dir="asc"><span class="csb-arrow">↑</span><span class="csb-label">Od nejmenšího / A → Z</span></button>' +
+        '  <button class="col-menu-sort-btn' + (curDir === 'desc' ? ' is-active' : '') + '" type="button" data-action="sort-primary" data-dir="desc"><span class="csb-arrow">↓</span><span class="csb-label">Od největšího / Z → A</span></button>' +
+        '</div>' +
+        '<div class="col-menu-sort-extras">' +
+        (sortIdx >= 0 ? '<button class="col-menu-sort-clear" type="button" data-action="sort-clear">✕ Zrušit řazení tohoto sloupce</button>' : '') +
+        (st.sorts.length > 1 ? '<button class="col-menu-sort-clear" type="button" data-action="sort-clear-all">✕ Zrušit veškeré řazení</button>' : '') +
+        '</div>' +
+        '<div class="col-menu-divider"></div>' +
+        '<div class="col-menu-filter-head">' +
+        '  <span class="col-menu-filter-label">Filtr hodnot' + (uniqueVals.length > LIMIT ? ' (prvních ' + LIMIT + ' z ' + uniqueVals.length + ')' : '') + '</span>' +
+        '  <span><button type="button" class="col-menu-sel-all">Vše</button><button type="button" class="col-menu-sel-none">Nic</button></span>' +
+        '</div>' +
+        '<div class="col-menu-search"><input type="text" class="col-menu-search-input" placeholder="Hledat…" autocomplete="off"></div>' +
+        '<div class="col-menu-filters">' +
+        uniqueVals.slice(0, LIMIT).map((v) =>
+          '<label class="col-menu-item"><input type="checkbox" value="' + Ui.escape(v) + '"' + (!activeFilters || activeFilters.has(v) ? ' checked' : '') + '>' + Ui.escape(v || '(prázdné)') + '</label>'
+        ).join('') +
+        '</div>' +
+        '<div class="col-menu-actions"><button class="col-menu-apply button button-primary button-small" type="button">Použít</button></div>';
+
+      const rect = thEl.getBoundingClientRect();
+      const menuLeft = Math.min(rect.left, window.innerWidth - 220);
+      menu.style.top = rect.bottom + 4 + 'px';
+      menu.style.left = Math.max(4, menuLeft) + 'px';
+      document.body.appendChild(menu);
+
+      const applyChange = () => {
+        this._invalidateView(key);
+        this._renderVirtualRows(key);
+        this.updateSortIndicators(key);
+      };
+
+      menu.querySelectorAll('[data-action^="sort"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          const dir = btn.dataset.dir;
+          if (action === 'sort-primary') {
+            st.sorts = st.sorts.filter((s) => s.col !== colIndex);
+            st.sorts.unshift({ col: colIndex, dir });
+          } else if (action === 'sort-clear') {
+            st.sorts = st.sorts.filter((s) => s.col !== colIndex);
+          } else if (action === 'sort-clear-all') {
+            st.sorts = [];
+          }
+          this.closeColMenu();
+          applyChange();
+        });
+      });
+
+      menu.querySelector('.col-menu-search-input').addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase();
+        menu.querySelectorAll('.col-menu-item').forEach((item) => {
+          item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none';
+        });
+      });
+      menu.querySelector('.col-menu-sel-all').addEventListener('click', () => {
+        menu.querySelectorAll('.col-menu-item:not([style*="none"]) input').forEach((i) => { i.checked = true; });
+      });
+      menu.querySelector('.col-menu-sel-none').addEventListener('click', () => {
+        menu.querySelectorAll('.col-menu-item:not([style*="none"]) input').forEach((i) => { i.checked = false; });
+      });
+
+      menu.querySelector('.col-menu-apply').addEventListener('click', () => {
+        const checked = [...menu.querySelectorAll('.col-menu-filters input:checked')].map((i) => i.value);
+        st.filters[colIndex] = checked.length === uniqueVals.length ? null : new Set(checked);
+        this.closeColMenu();
+        applyChange();
+      });
+
+      menu.querySelector('.col-menu-close').addEventListener('click', () => this.closeColMenu());
+      const clearFilterBtn = menu.querySelector('.col-menu-clear-filter');
+      if (clearFilterBtn) {
+        clearFilterBtn.addEventListener('click', () => {
+          st.filters[colIndex] = null;
+          this.closeColMenu();
+          applyChange();
+        });
+      }
+
+      this._sfMenu = { el: menu };
+      setTimeout(() => {
+        document.addEventListener('click', this._colMenuOutside = (e) => {
+          if (!menu.contains(e.target)) this.closeColMenu();
+        });
+      }, 0);
+    },
+
+    closeColMenu() {
+      if (this._sfMenu) {
+        this._sfMenu.el.remove();
+        this._sfMenu = null;
+        if (this._colMenuOutside) {
+          document.removeEventListener('click', this._colMenuOutside);
+          this._colMenuOutside = null;
+        }
+      }
     },
 
     loadImportTable(key) {
       return Ui.call('apiRzGetImportTable', key, { silent: true })
-        .then((data) => { this.importData[key] = data; if (this.activeTab === key) this.renderTabContent(); })
+        .then((data) => {
+          this.importData[key] = data;
+          this._invalidateView(key);
+          if (this.activeTab === key) this.renderTabContent();
+        })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
+    /** Ukládá přímo z paměti (data.rows se průběžně aktualizuje při editaci buněk) — žádné procházení DOM, takže je to rychlé i u desetitisíců řádků. */
     saveImportTable(key) {
-      const table = this.container.querySelector('#rzTabContent table');
       const data = this.importData[key];
-      const rows = data.rows.map((row, ri) => row.map((_, ci) => table.querySelector('[data-r="' + ri + '"][data-c="' + ci + '"]').value));
-      Ui.call('apiRzSaveImportTable', { fileKey: key, headers: data.headers, rows: rows }, { silent: true, busy: 'Ukládám…' })
-        .then(() => { this.importData[key] = { headers: data.headers, rows: rows }; Ui.toast('Uloženo.'); })
+      if (!data) return;
+      Ui.call('apiRzSaveImportTable', { fileKey: key, headers: data.headers, rows: data.rows }, { silent: true, busy: 'Ukládám…' })
+        .then(() => Ui.toast('Uloženo.'))
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
