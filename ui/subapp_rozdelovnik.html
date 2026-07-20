@@ -202,16 +202,28 @@
         el.querySelector('#rzResetArtiklyBtn').addEventListener('click', () => this.resetArtikly());
         const importBtn = el.querySelector('#rzImportAllBtn');
         if (importBtn) importBtn.addEventListener('click', () => this.importAll());
+        const clearImportsBtn = el.querySelector('#rzClearImportsBtn');
+        if (clearImportsBtn) clearImportsBtn.addEventListener('click', () => this.clearImports());
       }
     },
 
-    /** Přehled importu — mezi tabulkami Artikly a Filiálky: co je ve složce a co se z toho podle nastavení najde, plus jedno tlačítko pro import všeho najednou. */
+    /**
+     * Přehled importu — mezi tabulkami Artikly a Filiálky: co je ve složce a co
+     * se z toho podle nastavení najde (nezávisle na tom, jestli to už máme
+     * naimportované), plus tlačítka pro import všeho najednou a pro vymazání
+     * naimportovaných dat.
+     */
     renderImportOverviewPanel() {
       const overview = this.importOverview;
       return (
         '<section class="panel rz-compact rz-import-panel">' +
         '  <div class="panel-header panel-header--compact"><div><h2>Import dat</h2></div>' +
-        (this.canWrite ? '<button class="button button-primary button-small" type="button" id="rzImportAllBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-refresh"></use></svg>Importovat</button>' : '') +
+        (this.canWrite
+          ? '<div style="display:flex;gap:6px;">' +
+            '<button class="button button-secondary button-small" type="button" id="rzClearImportsBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg>Vymazat</button>' +
+            '<button class="button button-primary button-small" type="button" id="rzImportAllBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-refresh"></use></svg>Importovat</button>' +
+            '</div>'
+          : '') +
         '  </div>' +
         '  <div class="panel-body">' +
         (!overview
@@ -220,12 +232,13 @@
             '<p class="form-hint">Složka: ' + (overview.folderName ? Ui.escape(overview.folderName) : 'nenastavena — viz Nastavení') + '</p>' +
             '<ul class="rz-import-overview-list">' +
             overview.items.map((item) => (
-              '<li class="' + (item.found ? 'is-found' : 'is-missing') + '">' +
+              '<li>' +
               '<strong>' + Ui.escape(item.label) + '</strong>' +
-              '<span>' + (item.found
+              '<span class="' + (item.found ? 'is-found' : 'is-missing') + '">' + (item.found
                 ? '✓ ' + Ui.escape(item.fileName) + ' <small>(' + Ui.formatDateTime(item.updatedAt) + ')</small>'
-                : '✗ Nenalezeno') +
+                : '✗ soubor ve složce nenalezen') +
               '</span>' +
+              '<small class="' + (item.importedRowCount > 0 ? 'is-found' : 'is-missing') + '">' + (item.importedRowCount > 0 ? 'naimportováno: ' + item.importedRowCount + ' řádků' : 'zatím nenaimportováno') + '</small>' +
               '</li>'
             )).join('') +
             '</ul>'
@@ -247,6 +260,24 @@
           return this.loadImportOverview();
         })
         .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    clearImports() {
+      Ui.confirm({
+        kicker: 'Import dat',
+        title: 'Vymazat naimportovaná data?',
+        message: 'Smaže se obsah všech 4 naimportovaných tabulek (Odprodej, Teoretické stavy, Vyskladňovací listy, Přidělení po artiklech). Zdrojové soubory ve složce ani Artikly se nezmění. Tuto akci nelze vrátit.',
+        confirmLabel: 'Vymazat',
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        Ui.call('apiRzClearImports', null, { silent: true, busy: 'Mažu naimportovaná data…' })
+          .then(() => {
+            this.importData = {};
+            Ui.toast('Naimportovaná data byla vymazána.');
+            return this.loadImportOverview();
+          })
+          .catch((e) => Ui.toast(e.message, 'error'));
+      });
     },
 
     resetArtikly() {

@@ -115,11 +115,18 @@ function rzListFolderFiles_(folderId) {
   return { folderName: folder.getName(), files: files };
 }
 
+/** Počet naimportovaných datových řádků (bez hlavičky) pro daný list — 0, pokud je prázdný. */
+function rzImportedRowCount_(fileKey) {
+  const lastRow = rzImportSheet_(fileKey).getLastRow();
+  return lastRow > 1 ? lastRow - 1 : 0;
+}
+
 /**
- * Přehled pro záložku Artikly: co je ve složce se zdrojovými soubory a který
- * ze 4 očekávaných souborů se podle nastaveného výrazu právě najde. Nahrazuje
- * dřívější živý náhled v Nastavení — appka teď tenhle stav ukazuje rovnou tam,
- * kde se s daty pracuje.
+ * Přehled pro záložku Artikly: co je ve složce se zdrojovými soubory, který
+ * ze 4 očekávaných souborů se podle nastaveného výrazu právě najde, a jestli
+ * ho už máme naimportovaný (dva nezávislé stavy — soubor ve složce může být
+ * novější než poslední import, nebo naopak zmizet a import přitom zůstává).
+ * Nahrazuje dřívější živý náhled v Nastavení.
  */
 function apiRzGetImportOverview() {
   return rzGuard_(() => {
@@ -128,7 +135,10 @@ function apiRzGetImportOverview() {
     if (!folderId) {
       return {
         folderName: '',
-        items: RZ_IMPORT_TABLES.map((key) => ({ key: key, label: RZ_IMPORT_LABELS[key], found: false, fileName: '', updatedAt: '' })),
+        items: RZ_IMPORT_TABLES.map((key) => ({
+          key: key, label: RZ_IMPORT_LABELS[key], found: false, fileName: '', updatedAt: '',
+          importedRowCount: rzImportedRowCount_(key),
+        })),
       };
     }
 
@@ -149,10 +159,21 @@ function apiRzGetImportOverview() {
         found: !!match,
         fileName: match ? match.name : '',
         updatedAt: match ? match.updatedAt : '',
+        importedRowCount: rzImportedRowCount_(key),
       };
     });
 
     return { folderName: listing.folderName, items: items };
+  });
+}
+
+/** Vymaže obsah všech 4 listů s naimportovanými daty (hlavička i řádky) — nesahá na zdrojové soubory ani Artikly. */
+function apiRzClearImports() {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání.');
+    RZ_IMPORT_TABLES.forEach((key) => rzWriteGrid_(key, [], []));
+    audit_('rz_import_clear', 'Vymazán obsah naimportovaných dat (' + RZ_IMPORT_TABLES.length + ' listů).');
+    return { ok: true };
   });
 }
 
