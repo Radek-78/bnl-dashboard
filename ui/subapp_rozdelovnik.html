@@ -589,7 +589,9 @@
           '    <div class="rzr-hrow rzr-kv-row"><span>zaokrouhlit</span><b>—</b></div>' +
           '    <div class="rzr-hrow rzr-kv-row"><span>min</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="min" value="' + (minMax.min != null && minMax.min !== '' ? this._fmtNum(minMax.min) : '') + '"' + dis + '></div>' +
           '    <div class="rzr-hrow rzr-kv-row"><span>max</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="max" value="' + (minMax.max != null && minMax.max !== '' ? this._fmtNum(minMax.max) : '') + '"' + dis + '></div>' +
-          '    <div class="rzr-hrow rzr-kv-row"><span>RW</span><input type="number" step="0.1" class="rzr-rw" data-cislo="' + Ui.escape(cislo) + '" value="' + rw + '"' + dis + '></div>' +
+          '    <div class="rzr-hrow rzr-kv-row"><span>RW</span><input type="number" step="0.1" class="rzr-rw" data-cislo="' + Ui.escape(cislo) + '" value="' + rw + '"' + dis + '>' +
+          (this.canWrite ? '<button class="rzr-rw-recalc" type="button" data-cislo="' + Ui.escape(cislo) + '" title="Přepočítat RW podle aktuálního vzorce">⟲</button>' : '') +
+          '</div>' +
           '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Příděl</span><span>Úprava</span></div>' +
           '  </div>' +
           '  <div class="rzr-block-body">' + dataRows + '</div>' +
@@ -618,6 +620,9 @@
           // input = při každé změně (psaní i klik na šipky) - okamžitý přepočet Příděl/Rozděleno bez čekání na uložení.
           input.addEventListener('input', () => this._recomputeBlockLive(input.dataset.cislo));
           input.addEventListener('blur', () => this.saveRozdeleniRw(input.dataset.cislo));
+        });
+        el.querySelectorAll('.rzr-rw-recalc').forEach((btn) => {
+          btn.addEventListener('click', () => this.recomputeRw(btn.dataset.cislo));
         });
         el.querySelectorAll('.rzr-data-row input').forEach((input) => {
           input.addEventListener('blur', () => this.saveRozdeleniUprava(input.dataset.cislo, input.dataset.store));
@@ -870,6 +875,30 @@
       // type="number" vrací vždy tečkový formát, na rozdíl od ostatních (českých, čárkových) polí - proto tu není _toNumber.
       const raw = el.querySelector('.rzr-rw[data-cislo="' + CSS.escape(cislo) + '"]').value.trim();
       const rw = raw === '' ? '' : Number(raw);
+      this._upsertRozdeleniLocal(cislo, '', { rw: rw });
+      this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }))
+        .then(() => this.loadRozdeleni())
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /**
+     * Ruční přepočet RW podle aktuálního vzorce, bez ohledu na to, jestli už
+     * nějaká hodnota je uložená - jinak by RW zůstalo napořád "zamrzlé" na
+     * staré hodnotě dopočítané ještě podle dřívější (třeba později opravené)
+     * verze vzorce, i po opravě samotného výpočtu.
+     */
+    recomputeRw(cislo) {
+      const a = this.artikly.find((x) => x.cislo_artiklu === cislo);
+      if (!a) return;
+      const { byArtikl } = this._rozdeleniLookup();
+      const minMax = byArtikl[cislo] || {};
+      const perStore = this._computeMedianTeo(cislo);
+      const target = (a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
+      const storeData = this.stores.map((s) => ({
+        median: (perStore[s.code] || {}).median || 0,
+        stav: ((perStore[s.code] || {}).teo || 0) + ((perStore[s.code] || {}).dodano || 0),
+      }));
+      const rw = this._solveRw(target, storeData, minMax.min, minMax.max);
       this._upsertRozdeleniLocal(cislo, '', { rw: rw });
       this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }))
         .then(() => this.loadRozdeleni())
