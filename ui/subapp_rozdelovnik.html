@@ -24,6 +24,7 @@
     importOverview: null,
     rozdeleni: null,
     _artiklyDirty: false,
+    _artiklySaveReqId: 0,
     _rozdeleniReqId: 0,
     _sfState: {},
     _sfViewCache: {},
@@ -377,6 +378,14 @@
         .catch((e) => { clearLoading(); Ui.toast(e.message, 'error'); });
     },
 
+    /**
+     * Volá se na blur z každého pole tabulky Artiklů - při rychlejším psaní
+     * nebo hned po sobě jdoucích akcích (např. reset hned po předchozí
+     * úpravě) tak může být rozeslaných více volání najednou, jejichž odpovědi
+     * se mohou vrátit v jiném pořadí, než byly vyslány. Číslo požadavku
+     * zaručí, že se do this.artikly zapíše vždy jen výsledek TOHO NEJNOVĚJI
+     * vyslaného volání, ne to, co náhodou dorazí poslední.
+     */
     saveArtikly() {
       const el = this.container.querySelector('#rzTabContent');
       const rows = [];
@@ -391,8 +400,13 @@
           metropol: get('metropol').checked,
         });
       }
+      this._artiklyDirty = true;
+      const reqId = ++this._artiklySaveReqId;
       Ui.call('apiRzSaveArtikly', rows, { silent: true })
-        .then((saved) => { this.artikly = saved; this._artiklyDirty = true; })
+        .then((saved) => {
+          if (reqId !== this._artiklySaveReqId) return;
+          this.artikly = saved;
+        })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
