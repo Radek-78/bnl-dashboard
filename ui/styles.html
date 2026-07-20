@@ -1943,12 +1943,10 @@
     font-weight: 700;
   }
 
+  /* Vzhled inputů (výška/padding/pozadí/zaoblení) řeší .rz-compact input
+     (viz výše) - tady se dolaďuje jen šířka a zarovnání textu, specifické
+     pro tenhle layout. */
   .rzr-kv-row input {
-    border: 0;
-    border-bottom: 1px solid var(--line);
-    box-sizing: border-box;
-    font-size: 11px;
-    height: 20px;
     text-align: right;
     width: 70px;
   }
@@ -1965,19 +1963,8 @@
   }
 
   .rzr-data-row input {
-    border: 0;
-    border-bottom: 1px solid var(--line);
-    box-sizing: border-box;
     flex: 1;
-    font-size: 11px;
-    height: 20px;
     text-align: right;
-  }
-
-  .rzr-data-row input:focus,
-  .rzr-kv-row input:focus {
-    background: rgba(0, 80, 170, 0.06);
-    border-bottom-color: var(--lidl-blue);
   }
 
   /* ── Panel body ──────────────────────────────────── */
