@@ -288,12 +288,21 @@ function apiRzResetRozdeleni() {
   });
 }
 
+/** Porovná číslo artiklu i mezi Number/String - Sheets si číslo artiklu (vypadá jako číslo) tiše převádí na skutečné číslo, takže striktní === mezi "6717079" a 6717079 by nikdy neplatilo. */
+function rzArtiklMatches_(cellVal, cislo) {
+  const a = String(cellVal == null ? '' : cellVal).trim();
+  const b = String(cislo == null ? '' : cislo).trim();
+  if (a === b) return true;
+  const na = Number(a), nb = Number(b);
+  return !isNaN(na) && !isNaN(nb) && na === nb;
+}
+
 /** Najde existující řádek (artikl + prodejna, prodejna '' = úroveň artiklu) a přepíše ho, jinak založí nový. */
 function rzUpsertRozdeleni_(cisloArtiklu, prodejna, patch) {
   const repo = rzRepo_();
   repo.ensureSchema();
   const existing = repo.getAll('rozdeleni');
-  const match = existing.find((r) => r.cislo_artiklu === cisloArtiklu && String(r.prodejna || '') === String(prodejna || ''));
+  const match = existing.find((r) => rzArtiklMatches_(r.cislo_artiklu, cisloArtiklu) && String(r.prodejna || '') === String(prodejna || ''));
   return match
     ? repo.update('rozdeleni', match.id, patch)
     : repo.insert('rozdeleni', Object.assign({ cislo_artiklu: cisloArtiklu, prodejna: prodejna || '' }, patch));
