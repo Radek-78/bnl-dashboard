@@ -351,6 +351,13 @@
      * souboru Informace o artiklech — na pozadí, beze zablokování plochy.
      * Uloží se rovnou i bez nalezené shody (uživatel mohl zadat i ručně).
      */
+    /**
+     * Hledání může krátce po sobě selhat (např. dočasná konvertovaná kopie
+     * zdrojového souboru se teprve zakládá) - proto se "nenalezeno" nebere
+     * hned jako konečný stav, ale zkusí se ještě 3x s rostoucí prodlevou. Až
+     * po vyčerpání pokusů se do pole Název vloží zřetelný text, že se artikl
+     * nepodařilo najít, ať to uživatel vidí a může zadat ručně.
+     */
     lookupArtikl(rowIndex) {
       const el = this.container.querySelector('#rzTabContent');
       const cislo = el.querySelector('[data-i="' + rowIndex + '"][data-f="cislo_artiklu"]').value.trim();
@@ -363,19 +370,35 @@
       const clearLoading = () => {
         [nazevInput, obsahInput].forEach((input) => { input.classList.remove('is-loading'); input.placeholder = ''; });
       };
+      // Mezitím mohl uživatel řádek smazat/přepsat - pokračuj jen pokud číslo pořád sedí.
+      const stillCurrent = () => {
+        const cisloInput = el.querySelector('[data-i="' + rowIndex + '"][data-f="cislo_artiklu"]');
+        return !!cisloInput && cisloInput.value.trim() === cislo;
+      };
 
-      Ui.call('apiRzLookupArtikl', cislo, { silent: true })
-        .then((info) => {
-          clearLoading();
-          if (!info) return;
-          // Mezitím mohl uživatel řádek smazat/přepsat - zapiš jen pokud číslo pořád sedí.
-          const cisloInput = el.querySelector('[data-i="' + rowIndex + '"][data-f="cislo_artiklu"]');
-          if (!cisloInput || cisloInput.value.trim() !== cislo) return;
-          nazevInput.value = info.nazev || '';
-          obsahInput.value = info.obsah || '';
-          this.saveArtikly();
-        })
-        .catch((e) => { clearLoading(); Ui.toast(e.message, 'error'); });
+      const attempt = (retryDelaysMs) => {
+        Ui.call('apiRzLookupArtikl', cislo, { silent: true })
+          .then((info) => {
+            if (!stillCurrent()) { clearLoading(); return; }
+            if (info && (info.nazev || info.obsah)) {
+              clearLoading();
+              nazevInput.value = info.nazev || '';
+              obsahInput.value = info.obsah || '';
+              this.saveArtikly();
+              return;
+            }
+            if (retryDelaysMs.length) {
+              setTimeout(() => { if (stillCurrent()) attempt(retryDelaysMs.slice(1)); }, retryDelaysMs[0]);
+              return;
+            }
+            clearLoading();
+            nazevInput.value = 'Nenalezeno — zadejte ručně';
+            this.saveArtikly();
+          })
+          .catch((e) => { clearLoading(); Ui.toast(e.message, 'error'); });
+      };
+
+      attempt([1500, 2500, 4000]);
     },
 
     /**
