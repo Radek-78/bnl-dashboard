@@ -677,18 +677,24 @@
             '</div>';
         }).join('');
 
+        const esc = Ui.escape(cislo);
         return (
           '<div class="rzr-block">' +
           '  <div class="rzr-block-head">' +
-          '    <div class="rzr-hrow rzr-artikl-row"><strong>' + Ui.escape(cislo) + '</strong> ' + Ui.escape(a.nazev || '') + '</div>' +
-          '    <div class="rzr-hrow rzr-kv-row"><span>k rozdělení</span><b>' + (target || '—') + '</b></div>' +
-          '    <div class="rzr-hrow rzr-kv-row"><span>rozděleno</span><b class="rzr-rozdeleno" data-cislo="' + Ui.escape(cislo) + '">' + rozdeleno + '</b></div>' +
-          '    <div class="rzr-hrow rzr-kv-row"><span>zaokrouhlit</span><b>—</b></div>' +
-          '    <div class="rzr-hrow rzr-kv-row"><span>min</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="min" value="' + (minMax.min != null && minMax.min !== '' ? this._fmtNum(minMax.min) : '') + '"' + dis + '></div>' +
-          '    <div class="rzr-hrow rzr-kv-row"><span>max</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="max" value="' + (minMax.max != null && minMax.max !== '' ? this._fmtNum(minMax.max) : '') + '"' + dis + '></div>' +
-          '    <div class="rzr-hrow rzr-kv-row"><span>RW</span><input type="number" step="0.1" class="rzr-rw" data-cislo="' + Ui.escape(cislo) + '" value="' + rw + '"' + dis + '>' +
-          (this.canWrite ? '<button class="rzr-rw-recalc" type="button" data-cislo="' + Ui.escape(cislo) + '" title="Přepočítat RW podle aktuálního vzorce">⟲</button>' : '') +
-          '</div>' +
+          '    <div class="rzr-artikl-row"><strong>' + esc + '</strong><span>' + Ui.escape(a.nazev || '') + '</span></div>' +
+          '    <div class="rzr-progress" data-cislo="' + esc + '">' + this._progressHtml(rozdeleno, target) + '</div>' +
+          '    <div class="rzr-limits">' +
+          '      <label><span>MIN</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + esc + '" data-field="min" value="' + (minMax.min != null && minMax.min !== '' ? this._fmtNum(minMax.min) : '') + '"' + dis + '></label>' +
+          '      <label><span>MAX</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + esc + '" data-field="max" value="' + (minMax.max != null && minMax.max !== '' ? this._fmtNum(minMax.max) : '') + '"' + dis + '></label>' +
+          '      <label><span>ZAOKR.</span><b>—</b></label>' +
+          '    </div>' +
+          '    <div class="rzr-rw-bar">' +
+          '      <span class="rzr-rw-label">RW</span>' +
+          (this.canWrite ? '<button class="rzr-step" type="button" data-cislo="' + esc + '" data-step="-0.1" aria-label="Snížit RW">−</button>' : '') +
+          '      <input type="number" step="0.1" class="rzr-rw" data-cislo="' + esc + '" value="' + rw + '"' + dis + '>' +
+          (this.canWrite ? '<button class="rzr-step" type="button" data-cislo="' + esc + '" data-step="0.1" aria-label="Zvýšit RW">+</button>' : '') +
+          (this.canWrite ? '<button class="rzr-rw-recalc" type="button" data-cislo="' + esc + '" title="Přepočítat RW podle aktuálního vzorce" aria-label="Přepočítat RW">⟲</button>' : '') +
+          '    </div>' +
           '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Příděl</span><span>Úprava</span></div>' +
           '  </div>' +
           '  <div class="rzr-block-body">' + dataRows + '</div>' +
@@ -718,12 +724,26 @@
           input.addEventListener('input', () => this._recomputeBlockLive(input.dataset.cislo));
           input.addEventListener('blur', () => this.saveRozdeleniRw(input.dataset.cislo));
         });
+        el.querySelectorAll('.rzr-step').forEach((btn) => {
+          btn.addEventListener('click', () => this.stepRw(btn.dataset.cislo, Number(btn.dataset.step)));
+        });
         el.querySelectorAll('.rzr-rw-recalc').forEach((btn) => {
           btn.addEventListener('click', () => this.recomputeRw(btn.dataset.cislo));
         });
         el.querySelectorAll('.rzr-data-row input').forEach((input) => {
           input.addEventListener('blur', () => this.saveRozdeleniUprava(input.dataset.cislo, input.dataset.store));
         });
+      }
+
+      // Zamrzlý sloupec Prodejna musí mít stejně vysoký "prázdný" úsek jako
+      // hlavička bloků, aby řádky prodejen seděly na řádky dat. Měří se z
+      // reálné výšky, ne pevným číslem v CSS - jinak by se to rozjelo při
+      // každé úpravě hlavičky.
+      const headEl = el.querySelector('.rzr-block-head');
+      const spacerEl = el.querySelector('.rzr-frozen-spacer');
+      const colsEl = el.querySelector('.rzr-block-head .rzr-cols-row');
+      if (headEl && spacerEl && colsEl) {
+        spacerEl.style.height = (headEl.offsetHeight - colsEl.offsetHeight) + 'px';
       }
 
       // Nově dopočítaná RW (viz výše) se rovnou uloží, ať je od dalšího
@@ -736,6 +756,40 @@
         this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRwBatch', rwToPersist, { silent: true }))
           .catch((e) => Ui.toast(e.message, 'error'));
       }
+    },
+
+    /**
+     * Ukazatel "kolik už je rozděleno z cílového množství" - zlomek, odznak se
+     * zbytkem a proužek naplnění. Stav nese barva: zelená jen při přesné
+     * shodě, modrá dokud zbývá rozdělit, jantarová při překročení. Odznak
+     * říká rovnou KOLIK zbývá/přebývá, ať to uživatel nemusí odečítat z hlavy
+     * při ladění RW. Sdílené prvním renderem i živým přepočtem.
+     */
+    _progressHtml(rozdeleno, target) {
+      const done = Number(rozdeleno) || 0;
+      const goal = Number(target) || 0;
+      const diff = done - goal;
+      let stav = 'is-under';
+      let badge = 'zbývá ' + this._fmtNum(-diff);
+      if (!goal) {
+        stav = 'is-none';
+        badge = 'bez cíle';
+      } else if (diff === 0) {
+        stav = 'is-exact';
+        badge = '✓ přesně';
+      } else if (diff > 0) {
+        stav = 'is-over';
+        badge = '+' + this._fmtNum(diff) + ' navíc';
+      }
+      const pct = goal ? Math.min(100, (done / goal) * 100) : 0;
+      return (
+        '<div class="rzr-progress-top ' + stav + '">' +
+        '<span class="rzr-progress-num">' + this._fmtNum(done) + '</span>' +
+        '<span class="rzr-progress-goal">/ ' + (goal ? this._fmtNum(goal) : '—') + '</span>' +
+        '<span class="rzr-progress-badge">' + badge + '</span>' +
+        '</div>' +
+        '<div class="rzr-progress-track"><div class="rzr-progress-fill ' + stav + '" style="width:' + pct + '%"></div></div>'
+      );
     },
 
     /** { byArtikl: {cislo: {min,max,rw}}, byStore: {cislo: {prodejna: uprava}} } */
@@ -960,8 +1014,12 @@
         rozdeleno += upravaRaw !== '' ? (this._toNumber(upravaRaw) || 0) : prideli;
       });
 
-      const sumEl = el.querySelector('.rzr-rozdeleno[data-cislo="' + CSS.escape(cislo) + '"]');
-      if (sumEl) sumEl.textContent = rozdeleno;
+      const progressEl = el.querySelector('.rzr-progress[data-cislo="' + CSS.escape(cislo) + '"]');
+      if (progressEl) {
+        const a = this.artikly.find((x) => this._artiklMatches(x.cislo_artiklu, cislo));
+        const target = (a && a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
+        progressEl.innerHTML = this._progressHtml(rozdeleno, target);
+      }
     },
 
     saveRozdeleniMinMax(cislo) {
@@ -977,6 +1035,17 @@
       this._enqueueDebounced('Ukládám min/max',
         () => Ui.call('apiRzSaveRozdeleniMinMax', { cislo_artiklu: cislo, min: min, max: max }, { silent: true }),
         'minmax:' + cislo);
+    },
+
+    /** Tlačítka −/+ u RW - vlastní, protože nativní šipky number inputu mají ~8 px a špatně se trefují. */
+    stepRw(cislo, step) {
+      const el = this.container.querySelector('#rzTabContent');
+      const input = el.querySelector('.rzr-rw[data-cislo="' + CSS.escape(cislo) + '"]');
+      if (!input) return;
+      const next = Math.max(0, Math.round(((Number(input.value) || 0) + step) * 100) / 100);
+      input.value = next;
+      this._recomputeBlockLive(cislo);
+      this.saveRozdeleniRw(cislo);
     },
 
     /** Ruční úprava RW - přepíše doposud uloženou/dopočítanou hodnotu, přepočítá se z ní příděl na všech prodejnách i celkem rozděleno. */

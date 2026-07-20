@@ -1911,8 +1911,10 @@
     z-index: 2;
   }
 
+  /* Výchozí odhad - skutečnou výšku dopočítá JS z reálné hlavičky bloku
+     (viz renderRozdeleni), ať se to nerozjede při úpravě hlavičky. */
   .rzr-frozen-spacer {
-    height: 175px;
+    height: 120px;
   }
 
   .rzr-store-cell {
@@ -1951,63 +1953,178 @@
     background: rgba(0, 80, 170, 0.025);
   }
 
+  /* Hlavička artiklu jako plný modrý pruh - zřetelně odděluje jednotlivé bloky. */
   .rzr-artikl-row {
-    background: var(--page);
-    font-weight: 700;
+    align-items: baseline;
+    background: var(--lidl-blue);
+    color: var(--white);
+    display: flex;
+    font-size: 11px;
     gap: 6px;
+    padding: 5px 8px;
     white-space: nowrap;
   }
 
   .rzr-artikl-row strong {
-    color: var(--lidl-blue);
-  }
-
-  .rzr-kv-row span {
-    color: var(--muted);
-    flex: 1;
-    text-align: right;
-  }
-
-  /* Stejná pevná šířka jako input o pár řádků níž - jinak by se popisky a
-     hodnoty/pole v různých řádcích neshodovaly ve sloupci (b má flex:1 dělil
-     jinak než input s pevnou šířkou). */
-  .rzr-kv-row b {
-    flex: 0 0 70px;
     font-weight: 700;
+  }
+
+  .rzr-artikl-row span {
+    color: rgba(255, 255, 255, 0.75);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Rozděleno / K rozdělení jako jeden ukazatel naplnění - viz _progressHtml. */
+  .rzr-progress {
+    border-bottom: 1px solid var(--line-soft);
+    padding: 7px 8px 6px;
+  }
+
+  .rzr-progress-top {
+    align-items: baseline;
+    display: flex;
+    gap: 3px;
+    margin-bottom: 5px;
+  }
+
+  .rzr-progress-num {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .rzr-progress-goal {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .rzr-progress-badge {
+    border-radius: 3px;
+    font-size: 10px;
+    margin-left: auto;
+    padding: 2px 6px;
+    white-space: nowrap;
+  }
+
+  .rzr-progress-track {
+    background: var(--line-soft);
+    border-radius: 3px;
+    height: 5px;
+    overflow: hidden;
+  }
+
+  .rzr-progress-fill {
+    height: 100%;
+    transition: width 0.15s;
+  }
+
+  /* Stav: zelená jen při přesné shodě, modrá dokud zbývá, jantarová při přetažení. */
+  .is-exact .rzr-progress-num, .rzr-progress-top.is-exact .rzr-progress-num { color: #3B6D11; }
+  .rzr-progress-top.is-exact .rzr-progress-badge { background: #EAF3DE; color: #3B6D11; }
+  .rzr-progress-fill.is-exact { background: #639922; }
+
+  .rzr-progress-top.is-under .rzr-progress-num { color: var(--lidl-blue); }
+  .rzr-progress-top.is-under .rzr-progress-badge { background: #E6F1FB; color: #185FA5; }
+  .rzr-progress-fill.is-under { background: #378ADD; }
+
+  .rzr-progress-top.is-over .rzr-progress-num { color: #854F0B; }
+  .rzr-progress-top.is-over .rzr-progress-badge { background: #FAEEDA; color: #854F0B; }
+  .rzr-progress-fill.is-over { background: #EF9F27; }
+
+  .rzr-progress-top.is-none .rzr-progress-num { color: var(--muted); }
+  .rzr-progress-top.is-none .rzr-progress-badge { background: var(--page); color: var(--muted); }
+
+  /* Min / Max / Zaokrouhlit vedle sebe - tři řádky se scvrknou na jeden. */
+  .rzr-limits {
+    border-bottom: 1px solid var(--line-soft);
+    display: flex;
+  }
+
+  .rzr-limits label {
+    border-right: 1px solid var(--line-soft);
+    flex: 1;
+    padding: 4px 6px;
     text-align: center;
   }
 
-  /* Vzhled inputů (výška/padding/pozadí/zaoblení) řeší .rz-compact input
-     (viz výše) - tady se dolaďuje jen šířka a zarovnání textu, specifické
-     pro tenhle layout. */
-  .rzr-kv-row input {
-    flex: 0 0 70px;
-    text-align: center;
+  .rzr-limits label:last-child {
+    border-right: 0;
   }
 
-  /* RW je number input se šipkami (krok 0,1) - o něco širší, ať se vejdou. */
+  .rzr-limits span {
+    color: var(--muted);
+    display: block;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    margin-bottom: 2px;
+  }
+
+  .rzr-limits b {
+    color: var(--muted);
+    display: block;
+    font-size: 11px;
+    line-height: 20px;
+  }
+
+  .rzr-limits input {
+    text-align: center;
+    width: 100%;
+  }
+
+  /* RW dostane vlastní pruh - jediná hodnota, se kterou se pracuje průběžně. */
+  .rzr-rw-bar {
+    align-items: center;
+    background: var(--page);
+    border-bottom: 1px solid var(--line-soft);
+    display: flex;
+    gap: 5px;
+    padding: 5px 8px;
+  }
+
+  .rzr-rw-label {
+    color: var(--lidl-blue);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
   .rzr-rw {
-    flex-basis: 70px !important;
-    width: 70px !important;
+    flex: 1;
+    text-align: center;
+  }
+
+  /* Nativní šipky number inputu jsou ~8 px - nahrazené vlastními tlačítky. */
+  .rzr-rw::-webkit-outer-spin-button,
+  .rzr-rw::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .rzr-step,
+  .rzr-rw-recalc {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--lidl-blue);
+    cursor: pointer;
+    flex: 0 0 21px;
+    font-size: 14px;
+    height: 21px;
+    line-height: 1;
+    padding: 0;
+    width: 21px;
   }
 
   .rzr-rw-recalc {
-    background: none;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    color: var(--lidl-blue);
-    cursor: pointer;
-    flex: 0 0 20px;
-    font-size: 13px;
-    height: 20px;
-    line-height: 1;
-    margin-left: 4px;
-    padding: 0;
-    width: 20px;
+    font-size: 12px;
   }
 
+  .rzr-step:hover,
   .rzr-rw-recalc:hover {
     background: rgba(0, 80, 170, 0.08);
+    border-color: var(--lidl-blue);
   }
 
   .rzr-data-row {
