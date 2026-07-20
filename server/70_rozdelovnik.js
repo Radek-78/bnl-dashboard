@@ -395,19 +395,44 @@ function rzImportSheet_(fileKey) {
   return sheet;
 }
 
+/**
+ * Buňku vždy vrátí jako čitelný text. Sheets občas přetypuje zapsaný text na
+ * Date (i když jsme níže při zápisu vynutili textový formát — u dat zapsaných
+ * před touto opravou to tak zůstalo) — takový Date objekt se přes
+ * google.script.run přenáší nespolehlivě, což se projevovalo jako obecná
+ * chyba serveru na klientovi.
+ */
+function rzCellToText_(val) {
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm:ss').replace(/ 00:00:00$/, '');
+  }
+  return (val === undefined || val === null) ? '' : String(val);
+}
+
 function rzReadGrid_(fileKey) {
   const sheet = rzImportSheet_(fileKey);
   const lastRow = sheet.getLastRow();
   const lastCol = sheet.getLastColumn();
   if (lastRow < 1 || lastCol < 1) return { headers: [], rows: [] };
   const values = sheet.getRange(1, 1, lastRow, lastCol).getValues();
-  return { headers: values[0].map((h) => String(h)), rows: values.slice(1) };
+  return {
+    headers: values[0].map(rzCellToText_),
+    rows: values.slice(1).map((row) => row.map(rzCellToText_)),
+  };
 }
 
+/**
+ * Zapíše mřížku do listu jako čistý text — bez tohoto by Sheets textové
+ * hodnoty vypadající jako datum nebo číslo (např. "06.07.2026" nebo kód
+ * s vedoucí nulou) samo přetypoval, a import by tak nevratně změnil obsah
+ * zdrojových dat.
+ */
 function rzWriteGrid_(fileKey, headers, rows) {
   const sheet = rzImportSheet_(fileKey);
   sheet.clearContents();
   if (!headers || !headers.length) return;
+  const totalRows = 1 + (rows ? rows.length : 0);
+  sheet.getRange(1, 1, totalRows, headers.length).setNumberFormat('@');
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   if (rows && rows.length) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
 }
