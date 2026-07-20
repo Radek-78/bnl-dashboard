@@ -354,9 +354,14 @@
     /**
      * Hledání může krátce po sobě selhat (např. dočasná konvertovaná kopie
      * zdrojového souboru se teprve zakládá) - proto se "nenalezeno" nebere
-     * hned jako konečný stav, ale zkusí se ještě 3x s rostoucí prodlevou. Až
-     * po vyčerpání pokusů se do pole Název vloží zřetelný text, že se artikl
-     * nepodařilo najít, ať to uživatel vidí a může zadat ručně.
+     * hned jako konečný stav, ale zkusí se ještě 3x s rostoucí prodlevou.
+     *
+     * Průběžný stav ("je pořád aktuální", "kam zapsat výsledek") se řeší přes
+     * this.artikly (datový model), NE přes uložené reference na DOM inputy -
+     * uživatel může mezi jednotlivými pokusy klidně přepnout na jinou záložku
+     * a zase se vrátit; DOM inputy z Artiklů v tu chvíli vůbec neexistují,
+     * takže odkaz na ně by hledání tiše zastavil. this.artikly ale existuje
+     * pořád, takže výsledek dojde a uloží se, ať je uživatel kdekoliv.
      */
     lookupArtikl(rowIndex) {
       const el = this.container.querySelector('#rzTabContent');
@@ -364,51 +369,83 @@
       this.saveArtikly();
       if (!cislo) return;
 
-      const nazevInput = el.querySelector('[data-i="' + rowIndex + '"][data-f="nazev"]');
-      const obsahInput = el.querySelector('[data-i="' + rowIndex + '"][data-f="obsah"]');
-      [nazevInput, obsahInput].forEach((input) => { input.classList.add('is-loading'); input.placeholder = 'Vyhledávám…'; });
-      const clearLoading = () => {
-        [nazevInput, obsahInput].forEach((input) => { input.classList.remove('is-loading'); input.placeholder = ''; });
-      };
-      // Mezitím mohl uživatel řádek smazat/přepsat - pokračuj jen pokud číslo pořád sedí.
-      const stillCurrent = () => {
-        const cisloInput = el.querySelector('[data-i="' + rowIndex + '"][data-f="cislo_artiklu"]');
-        return !!cisloInput && cisloInput.value.trim() === cislo;
-      };
+      this._setLookupLoading(rowIndex, true);
+      const stillCurrent = () => this.artikly[rowIndex] && this.artikly[rowIndex].cislo_artiklu === cislo;
 
       const attempt = (retryDelaysMs) => {
         Ui.call('apiRzLookupArtikl', cislo, { silent: true })
           .then((info) => {
-            if (!stillCurrent()) { clearLoading(); return; }
+            if (!stillCurrent()) { this._setLookupLoading(rowIndex, false); return; }
             if (info && (info.nazev || info.obsah)) {
-              clearLoading();
-              nazevInput.value = info.nazev || '';
-              obsahInput.value = info.obsah || '';
-              this.saveArtikly();
+              this._applyLookupResult(rowIndex, info.nazev || '', info.obsah || '');
               return;
             }
             if (retryDelaysMs.length) {
               setTimeout(() => { if (stillCurrent()) attempt(retryDelaysMs.slice(1)); }, retryDelaysMs[0]);
               return;
             }
-            clearLoading();
-            nazevInput.value = 'Nenalezeno — zadejte ručně';
-            this.saveArtikly();
+            this._applyLookupResult(rowIndex, 'Nenalezeno — zadejte ručně', (this.artikly[rowIndex] || {}).obsah || '');
           })
-          .catch((e) => { clearLoading(); Ui.toast(e.message, 'error'); });
+          .catch((e) => { this._setLookupLoading(rowIndex, false); Ui.toast(e.message, 'error'); });
       };
 
       attempt([1500, 2500, 4000]);
     },
 
+    /** Zapne/vypne vizuální indikaci vyhledávání na polích Název/Obsah - jen pokud je uživatel právě na záložce Artikly a řádek je vykreslený, jinak na DOM nesahá. */
+    _setLookupLoading(rowIndex, isLoading) {
+      if (this.activeTab !== 'artikly') return;
+      const el = this.container.querySelector('#rzTabContent');
+      if (!el) return;
+      ['nazev', 'obsah'].forEach((f) => {
+        const input = el.querySelector('[data-i="' + rowIndex + '"][data-f="' + f + '"]');
+        if (!input) return;
+        input.classList.toggle('is-loading', isLoading);
+        input.placeholder = isLoading ? 'Vyhledávám…' : '';
+      });
+    },
+
+    /** Zapíše výsledek vyhledání do this.artikly a uloží na server - funguje i když uživatel mezitím přepnul na jinou záložku. Je-li Artikly zrovna vykreslené, promítne se rovnou i do živých polí. */
+    _applyLookupResult(rowIndex, nazev, obsah) {
+      if (!this.artikly[rowIndex]) return;
+      this.artikly[rowIndex] = Object.assign({}, this.artikly[rowIndex], { nazev: nazev, obsah: obsah });
+      this._persistArtikly(this.artikly.slice());
+      this._setLookupLoading(rowIndex, false);
+      if (this.activeTab === 'artikly') {
+        const el = this.container.querySelector('#rzTabContent');
+        const nazevInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="nazev"]');
+        const obsahInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="obsah"]');
+        if (nazevInput) nazevInput.value = nazev;
+        if (obsahInput) obsahInput.value = obsah;
+      }
+    },
+
     /**
-     * Volá se na blur z každého pole tabulky Artiklů. this.artikly se
-     * aktualizuje HNED, z aktuálního obsahu polí - ne až z odpovědi serveru.
-     * Bez toho by přepnutí na jinou záložku a rychlý návrat (dřív, než dorazí
-     * odpověď na uložení) zobrazilo ještě staré/prázdné this.artikly, i když
-     * v DB už byla čerstvá data uložená. Číslo požadavku navíc zaručí, že se
-     * po dokončení uložení do this.artikly nezapíše odpověď na starší
-     * (opožděné) volání, kdyby mezitím proběhlo uložení novější.
+     * Uloží pole na server a promítne do this.artikly - odděleno od čtení
+     * DOM (viz saveArtikly), aby šlo uložit i výsledek vyhledání, které
+     * doběhne na pozadí, když už Artikly nejsou vykreslené. Číslo požadavku
+     * zaručí, že se do this.artikly nakonec zapíše výsledek jen TOHO
+     * NEJNOVĚJI vyslaného uložení, ne to, co náhodou dorazí poslední.
+     */
+    _persistArtikly(rows) {
+      this.artikly = rows;
+      this._artiklyDirty = true;
+      const reqId = ++this._artiklySaveReqId;
+      return Ui.call('apiRzSaveArtikly', rows, { silent: true })
+        .then((saved) => {
+          if (reqId !== this._artiklySaveReqId) return;
+          this.artikly = saved;
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /**
+     * Volá se na blur z každého pole tabulky Artiklů - čte aktuální obsah
+     * polí (proto vyžaduje, aby Artikly byly zrovna vykreslené) a uloží přes
+     * _persistArtikly, které this.artikly aktualizuje HNED, ne až z odpovědi
+     * serveru. Bez toho by přepnutí na jinou záložku a rychlý návrat (dřív,
+     * než dorazí odpověď na uložení) zobrazilo ještě staré/prázdné
+     * this.artikly, i když v DB už byla čerstvá data uložená.
      */
     saveArtikly() {
       const el = this.container.querySelector('#rzTabContent');
@@ -425,15 +462,7 @@
           metropol: get('metropol').checked,
         });
       }
-      this.artikly = rows;
-      this._artiklyDirty = true;
-      const reqId = ++this._artiklySaveReqId;
-      Ui.call('apiRzSaveArtikly', rows, { silent: true })
-        .then((saved) => {
-          if (reqId !== this._artiklySaveReqId) return;
-          this.artikly = saved;
-        })
-        .catch((e) => Ui.toast(e.message, 'error'));
+      return this._persistArtikly(rows);
     },
 
     /**
