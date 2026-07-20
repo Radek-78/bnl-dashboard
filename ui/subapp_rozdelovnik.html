@@ -379,12 +379,13 @@
     },
 
     /**
-     * Volá se na blur z každého pole tabulky Artiklů - při rychlejším psaní
-     * nebo hned po sobě jdoucích akcích (např. reset hned po předchozí
-     * úpravě) tak může být rozeslaných více volání najednou, jejichž odpovědi
-     * se mohou vrátit v jiném pořadí, než byly vyslány. Číslo požadavku
-     * zaručí, že se do this.artikly zapíše vždy jen výsledek TOHO NEJNOVĚJI
-     * vyslaného volání, ne to, co náhodou dorazí poslední.
+     * Volá se na blur z každého pole tabulky Artiklů. this.artikly se
+     * aktualizuje HNED, z aktuálního obsahu polí - ne až z odpovědi serveru.
+     * Bez toho by přepnutí na jinou záložku a rychlý návrat (dřív, než dorazí
+     * odpověď na uložení) zobrazilo ještě staré/prázdné this.artikly, i když
+     * v DB už byla čerstvá data uložená. Číslo požadavku navíc zaručí, že se
+     * po dokončení uložení do this.artikly nezapíše odpověď na starší
+     * (opožděné) volání, kdyby mezitím proběhlo uložení novější.
      */
     saveArtikly() {
       const el = this.container.querySelector('#rzTabContent');
@@ -392,6 +393,7 @@
       for (let i = 0; i < RZ_ARTIKLY_ROWS; i++) {
         const get = (f) => el.querySelector('[data-i="' + i + '"][data-f="' + f + '"]');
         rows.push({
+          poradi: i + 1,
           cislo_artiklu: get('cislo_artiklu').value.trim(),
           nazev: get('nazev').value.trim(),
           obsah: get('obsah').value.trim(),
@@ -400,6 +402,7 @@
           metropol: get('metropol').checked,
         });
       }
+      this.artikly = rows;
       this._artiklyDirty = true;
       const reqId = ++this._artiklySaveReqId;
       Ui.call('apiRzSaveArtikly', rows, { silent: true })
@@ -592,12 +595,24 @@
       return result;
     },
 
+    /** Promítne uloženou hodnotu do this.rozdeleni HNED, ne až po odpovědi serveru - stejný důvod jako u saveArtikly (rychlé přepnutí pryč a zpět by jinak mohlo ukázat ještě needitovaná data). */
+    _upsertRozdeleniLocal(cislo, prodejna, patch) {
+      if (!this.rozdeleni) this.rozdeleni = [];
+      const idx = this.rozdeleni.findIndex((r) => r.cislo_artiklu === cislo && String(r.prodejna || '') === String(prodejna || ''));
+      if (idx !== -1) {
+        this.rozdeleni[idx] = Object.assign({}, this.rozdeleni[idx], patch);
+      } else {
+        this.rozdeleni.push(Object.assign({ cislo_artiklu: cislo, prodejna: prodejna || '' }, patch));
+      }
+    },
+
     saveRozdeleniMinMax(cislo) {
       const el = this.container.querySelector('#rzTabContent');
       const minRaw = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="min"]').value.trim();
       const maxRaw = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="max"]').value.trim();
       const min = minRaw === '' ? '' : this._toNumber(minRaw);
       const max = maxRaw === '' ? '' : this._toNumber(maxRaw);
+      this._upsertRozdeleniLocal(cislo, '', { min: min, max: max });
       Ui.call('apiRzSaveRozdeleniMinMax', { cislo_artiklu: cislo, min: min, max: max }, { silent: true })
         .then(() => this.loadRozdeleni())
         .catch((e) => Ui.toast(e.message, 'error'));
@@ -608,6 +623,7 @@
       const input = el.querySelector('.rzr-data-row input[data-cislo="' + CSS.escape(cislo) + '"][data-store="' + CSS.escape(store) + '"]');
       const raw = input.value.trim();
       const uprava = raw === '' ? '' : this._toNumber(raw);
+      this._upsertRozdeleniLocal(cislo, store, { uprava: uprava });
       Ui.call('apiRzSaveRozdeleniUprava', { cislo_artiklu: cislo, prodejna: store, uprava: uprava }, { silent: true })
         .then(() => {
           this.loadRozdeleni();
