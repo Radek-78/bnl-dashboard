@@ -325,7 +325,7 @@ function apiRzLookupArtikl(cisloArtiklu) {
     if (!file) throw new Error('Soubor Informace o artiklech (výraz „' + pattern + '" + LC ' + lcCode + ') nebyl ve složce nalezen.');
 
     if (file.getMimeType() === MimeType.CSV) {
-      const text = file.getBlob().getDataAsString('UTF-8');
+      const text = rzReadCsvText_(file);
       const data = Utilities.parseCsv(text, rzDetectCsvDelimiter_(text));
       if (!data.length) return null;
       const headers = data[0];
@@ -422,6 +422,20 @@ function rzDetectCsvDelimiter_(text) {
   return semicolons > commas ? ';' : ',';
 }
 
+/**
+ * Přečte CSV soubor jako text a ošetří kódování — starší/české exporty z Excelu
+ * často nejsou v UTF-8, ale ve Windows-1250 (čeština bez UTF-8 BOM). Chybné
+ * dekódování se pozná podle náhradního znaku U+FFFD (ten se objeví jen tehdy,
+ * když bajty nejsou platné UTF-8), a v tom případě se soubor přečte znovu
+ * s kódováním Windows-1250.
+ */
+function rzReadCsvText_(file) {
+  const blob = file.getBlob();
+  const utf8 = blob.getDataAsString('UTF-8');
+  if (utf8.indexOf('�') === -1) return utf8;
+  return blob.getDataAsString('Windows-1250');
+}
+
 /** Jako rzFindFileInFolderByName_, ale název musí obsahovat i zadané číslo LC (Informace o artiklech). */
 function rzFindFileInFolderByNameAndLc_(folderId, namePattern, lcCode) {
   const folder = DriveApp.getFolderById(folderId);
@@ -450,7 +464,7 @@ function rzFindFileInFolderByNameAndLc_(folderId, namePattern, lcCode) {
  */
 function rzReadSourceFile_(file) {
   if (file.getMimeType() === MimeType.CSV) {
-    const text = file.getBlob().getDataAsString('UTF-8');
+    const text = rzReadCsvText_(file);
     const data = Utilities.parseCsv(text, rzDetectCsvDelimiter_(text));
     if (!data.length) return { headers: [], rows: [] };
     return { headers: data[0].map(String), rows: data.slice(1) };

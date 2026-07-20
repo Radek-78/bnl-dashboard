@@ -1717,8 +1717,9 @@
   }
 
   .rz-import-panel {
-    flex: 0 0 auto;
-    width: 260px;
+    align-self: stretch;
+    flex: 1 1 auto;
+    min-width: 240px;
   }
 
   .rz-import-overview-list {
@@ -1752,25 +1753,8 @@
     color: var(--muted);
   }
 
-  .rz-settings-form {
-    gap: 8px;
-  }
-
-  .rz-settings-form label {
-    gap: 3px;
-  }
-
-  .rz-settings-form input {
-    min-height: 32px;
-    padding: 6px 10px;
-  }
-
   #rzSettingsModal {
-    width: min(600px, calc(100vw - 32px));
-  }
-
-  #rzSettingsModal .modal-body {
-    height: 340px;
+    width: min(760px, calc(100vw - 32px));
   }
 
   .rz-modal-tabs {
