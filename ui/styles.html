@@ -1720,8 +1720,11 @@
      sticky vrstvu hlaviček, takže při scrollu jím na okamžik prosvítala
      data pod hlavičkou. Řešení: border-collapse:separate + border
      nahrazen box-shadow uvnitř každé buňky, takže je vždy součástí jejího
-     vlastního (sticky) vykreslení. */
+     vlastního (sticky) vykreslení. Rámeček tabulky (.rz-compact table) je
+     taky zrušen (border:0) - byl to statický 1px pruh NAD sticky hlavičkou,
+     který při prvním scrollu zmizel a hlavička "poskočila" na jeho místo. */
   .rz-import-table-panel table {
+    border: 0;
     border-collapse: separate;
     border-spacing: 0;
     table-layout: fixed;
@@ -1743,6 +1746,14 @@
   .rz-import-table-panel .th-btn {
     line-height: 1.25;
     white-space: normal;
+  }
+
+  .rz-import-table-panel th.is-center .th-btn {
+    justify-content: center;
+  }
+
+  .rz-import-table-panel td.is-center input {
+    text-align: center;
   }
 
   .rz-artikly-panel {
