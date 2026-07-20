@@ -583,11 +583,18 @@
       delete this._sfViewCache[key];
     },
 
-    /** Rozpozná dd.mm.rrrr [hh:mm[:ss]] a vrátí timestamp, jinak null — bez tohoto by se data řadila jako text (např. 01.2027 před 12.2026). */
+    /** Rozpozná dd.mm.rrrr [hh:mm[:ss]] i samotný čas H:mm[:ss] (např. "19:02" ve sloupci Poslední prodej) a vrátí porovnatelnou hodnotu, jinak null — bez tohoto by se data řadila jako text (např. 01.2027 před 12.2026, nebo "19:02" před "9:02"). */
     _parseDate(str) {
-      const m = String(str).trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
-      if (!m) return null;
-      return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0)).getTime();
+      const s = String(str).trim();
+      const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (m) {
+        return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0)).getTime();
+      }
+      const t = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (t) {
+        return (Number(t[1]) * 3600 + Number(t[2]) * 60 + Number(t[3] || 0)) * 1000;
+      }
+      return null;
     },
 
     /** Číslo i s českou desetinnou čárkou (např. "249,5" nebo ",83"), jinak NaN. */
