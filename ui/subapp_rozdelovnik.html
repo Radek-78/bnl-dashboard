@@ -487,10 +487,10 @@
       return /^-?,\d/.test(s) ? s.replace(/^(-?),/, '$10,') : s;
     },
 
-    /** Sloupce, jejichž obsah zůstává zarovnaný vlevo (delší text) - všechny ostatní se centrují. */
+    /** Sloupce, jejichž obsah zůstává zarovnaný vlevo (delší text) - všechny ostatní se centrují. Zdrojové soubory občas mají hlavičky bez diakritiky (NAZEV místo NÁZEV), proto se porovnává bez ní. */
     _isCenterCol(header) {
-      const norm = String(header).trim().toLowerCase();
-      return ['název', 'uwg název', 'komentář'].indexOf(norm) === -1;
+      const norm = String(header).trim().toLowerCase().normalize('NFD').replace(/[^\x00-\x7F]/g, '');
+      return ['nazev', 'uwg nazev', 'komentar'].indexOf(norm) === -1;
     },
 
     /** Nejmenší šířka, při které se zadaný text v hlavičkovém tlačítku (stejný font/tučnost/prostrkání/verzálky jako .th-btn) zalomí maximálně na dva řádky - měří se na skryté DOM kopii, aby to sedělo přesně na použitý font. */
@@ -523,21 +523,38 @@
       return hi;
     },
 
-    /** Šířka sloupce = větší z (nejdelší hodnota DAT, minimální šířka pro dvouřádkovou hlavičku) - počítá se jednou při načtení dat, ne při každém překreslení, jinak by se u virtuálního scrollu sloupce "cukaly" podle toho, jaké řádky zrovna projíždí. */
-    _getColWidths(key) {
-      if (this._colWidths[key]) return this._colWidths[key];
+    _computeColWidths(key) {
       const data = this.importData[key];
-      const widths = data.headers.map((h, ci) => {
+      return data.headers.map((h, ci) => {
         let maxLen = 3;
         for (let i = 0; i < data.rows.length; i++) {
           const len = this._fixDecimal(data.rows[i][ci]).length;
           if (len > maxLen) maxLen = len;
         }
         const dataWidth = Math.min(240, Math.max(56, maxLen * 7 + 24));
-        const headerWidth = this._measureHeaderWidthFor2Lines(h) + 30;
+        const headerWidth = this._measureHeaderWidthFor2Lines(h) + 32;
         return Math.max(dataWidth, headerWidth);
       });
+    },
+
+    /** Šířka sloupce = větší z (nejdelší hodnota DAT, minimální šířka pro dvouřádkovou hlavičku) - počítá se jednou při načtení dat, ne při každém překreslení, jinak by se u virtuálního scrollu sloupce "cukaly" podle toho, jaké řádky zrovna projíždí. */
+    _getColWidths(key) {
+      if (this._colWidths[key]) return this._colWidths[key];
+      const widths = this._computeColWidths(key);
       this._colWidths[key] = widths;
+
+      // Vlastní web font (Lidl Font Pro) se může dogrudit až po tomto měření -
+      // dokud neběžel na skutečném fontu, mohl vyjít o pár px užší odhad a
+      // hlavička by se pak zalomila na tři řádky. Jakmile je font jistě
+      // načtený, přepočítá se a - pokud vyšlo jinak - tabulka se překreslí.
+      if (document.fonts && document.fonts.status !== 'loaded') {
+        document.fonts.ready.then(() => {
+          const fresh = this._computeColWidths(key);
+          const changed = fresh.some((w, i) => w !== widths[i]);
+          this._colWidths[key] = fresh;
+          if (changed && this.activeTab === key) this.renderTabContent();
+        });
+      }
       return widths;
     },
 
