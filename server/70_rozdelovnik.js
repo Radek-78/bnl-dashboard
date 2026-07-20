@@ -41,7 +41,10 @@ const RZ_IMPORT_LABELS = {
 // složka a název souboru, dokud nebude domluveno, jak přesně appka data z něj
 // využije. Má vlastní složku (jinou než ostatní 4 soubory) a hledá se v ní
 // i podle čísla LC, ne jen podle výrazu v názvu.
-const RZ_EXTRA_SETTING_KEYS = ['folderInformaceOArtiklech', 'patternInformaceOArtiklech'];
+// folderExport - cílová složka, kam se ukládá vyexportované rozdělení
+// (.xlsx + Google Sheet). Samotný export se dodělá, až bude domluvený přesný
+// formát listu; složka jde nastavit už teď.
+const RZ_EXTRA_SETTING_KEYS = ['folderInformaceOArtiklech', 'patternInformaceOArtiklech', 'folderExport'];
 
 function rzApp_() {
   const app = dbGetAll_(SHEETS.APPS).find((a) => a.slug === RZ_SLUG);

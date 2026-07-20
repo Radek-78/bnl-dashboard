@@ -225,6 +225,7 @@
         '      <div class="rz-modal-tabs">' +
         '        <button class="rz-modal-tabbtn is-active" type="button" data-settings-tab="soubory">Zdrojové soubory</button>' +
         '        <button class="rz-modal-tabbtn" type="button" data-settings-tab="informace">Informace o artiklech</button>' +
+        '        <button class="rz-modal-tabbtn" type="button" data-settings-tab="export">Export</button>' +
         '      </div>' +
         '      <div class="rz-settings-panel" data-settings-panel="soubory">' +
         '        <div class="form form-plain">' +
@@ -241,6 +242,12 @@
         '          <label><span>Složka s informacemi o artiklech (URL nebo ID)</span><input name="folderInformaceOArtiklech" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
         '          <label><span>Výraz v názvu souboru</span><input name="patternInformaceOArtiklech" type="text" placeholder="např. informace_o_artiklech"></label>' +
         '          <p class="form-hint">Hledá se soubor, jehož název obsahuje zadaný výraz a zároveň číslo výchozího LC.</p>' +
+        '        </div>' +
+        '      </div>' +
+        '      <div class="rz-settings-panel is-hidden" data-settings-panel="export">' +
+        '        <div class="form form-plain">' +
+        '          <label><span>Složka pro export rozdělení (URL nebo ID)</span><input name="folderExport" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
+        '          <p class="form-hint">Sem se bude ukládat vyexportované rozdělení jako .xlsx i jako Google Sheet. Samotný export se dokončí, až bude domluvený formát listu.</p>' +
         '        </div>' +
         '      </div>' +
         '    </div>' +
@@ -1496,6 +1503,7 @@
           f.elements.patternPrideleniPoArtiklech.value = this.settings.patternPrideleniPoArtiklech || '';
           f.elements.folderInformaceOArtiklech.value = this.settings.folderInformaceOArtiklech || '';
           f.elements.patternInformaceOArtiklech.value = this.settings.patternInformaceOArtiklech || '';
+          f.elements.folderExport.value = this.settings.folderExport || '';
           Ui.openModal(this.container.querySelector('#rzSettingsModal'));
         })
         .catch((e) => Ui.toast(e.message, 'error'));
@@ -1510,6 +1518,7 @@
         patternPrideleniPoArtiklech: form.elements.patternPrideleniPoArtiklech.value.trim(),
         folderInformaceOArtiklech: form.elements.folderInformaceOArtiklech.value.trim(),
         patternInformaceOArtiklech: form.elements.patternInformaceOArtiklech.value.trim(),
+        folderExport: form.elements.folderExport.value.trim(),
       };
       Ui.closeModal(this.container.querySelector('#rzSettingsModal'));
       Ui.call('apiRzSaveSettings', payload, { silent: true, busy: 'Ukládám nastavení…' })
