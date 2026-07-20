@@ -541,20 +541,37 @@
       const dis = this.canWrite ? '' : ' disabled';
 
       const frozenRows = this.stores.map((s) => '<div class="rzr-hrow rzr-store-cell">' + Ui.escape(s.code) + '</div>').join('');
+      const rwToPersist = [];
 
       const blocks = artikly.map((a) => {
         const cislo = a.cislo_artiklu;
         const minMax = byArtikl[cislo] || {};
         const upravy = byStore[cislo] || {};
         const perStore = this._computeMedianTeo(cislo);
-        const rozdeleno = this.stores.reduce((sum, s) => sum + (this._toNumber(upravy[s.code]) || 0), 0);
+        const target = (a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
 
+        // Chybí-li RW, dopočítá se vodorovným doplňováním (viz _solveRw) a rovnou
+        // se uloží, ať je od teď vidět a upravitelné jako běžná hodnota.
+        let rw = (minMax.rw !== '' && minMax.rw != null) ? Number(minMax.rw) : null;
+        if (rw === null) {
+          const storeData = this.stores.map((s) => ({ median: (perStore[s.code] || {}).median || 0, stav: (perStore[s.code] || {}).teo || 0 }));
+          rw = this._solveRw(target, storeData, minMax.min, minMax.max);
+          rwToPersist.push({ cislo: cislo, rw: rw });
+        }
+
+        let rozdeleno = 0;
         const dataRows = this.stores.map((s) => {
           const vals = perStore[s.code] || {};
+          const median = vals.median || 0;
+          const stav = vals.teo || 0;
+          const prideli = this._clampPrideli(rw, median, stav, minMax.min, minMax.max);
           const uprava = upravy[s.code];
+          const efektivni = (uprava != null && uprava !== '') ? (this._toNumber(uprava) || 0) : prideli;
+          rozdeleno += efektivni;
           return '<div class="rzr-hrow rzr-data-row">' +
             '<span>' + (vals.median != null ? this._fmtNum(vals.median) : '—') + '</span>' +
             '<span>' + (vals.teo != null ? this._fmtNum(vals.teo) : '—') + '</span>' +
+            '<span class="rzr-prideli">' + prideli + '</span>' +
             '<input type="text" inputmode="decimal" data-cislo="' + Ui.escape(cislo) + '" data-store="' + Ui.escape(s.code) + '" value="' + (uprava != null && uprava !== '' ? this._fmtNum(uprava) : '') + '"' + dis + '>' +
             '</div>';
         }).join('');
@@ -563,12 +580,13 @@
           '<div class="rzr-block">' +
           '  <div class="rzr-block-head">' +
           '    <div class="rzr-hrow rzr-artikl-row"><strong>' + Ui.escape(cislo) + '</strong> ' + Ui.escape(a.nazev || '') + '</div>' +
-          '    <div class="rzr-hrow rzr-kv-row"><span>k rozdělení</span><b>' + (a.k_rozdeleni !== '' && a.k_rozdeleni != null ? a.k_rozdeleni : '—') + '</b></div>' +
+          '    <div class="rzr-hrow rzr-kv-row"><span>k rozdělení</span><b>' + (target || '—') + '</b></div>' +
           '    <div class="rzr-hrow rzr-kv-row"><span>rozděleno</span><b class="rzr-rozdeleno" data-cislo="' + Ui.escape(cislo) + '">' + rozdeleno + '</b></div>' +
           '    <div class="rzr-hrow rzr-kv-row"><span>zaokrouhlit</span><b>—</b></div>' +
           '    <div class="rzr-hrow rzr-kv-row"><span>min</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="min" value="' + (minMax.min != null && minMax.min !== '' ? this._fmtNum(minMax.min) : '') + '"' + dis + '></div>' +
           '    <div class="rzr-hrow rzr-kv-row"><span>max</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="max" value="' + (minMax.max != null && minMax.max !== '' ? this._fmtNum(minMax.max) : '') + '"' + dis + '></div>' +
-          '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Úprava</span></div>' +
+          '    <div class="rzr-hrow rzr-kv-row"><span>RW</span><input type="text" inputmode="decimal" class="rzr-rw" data-cislo="' + Ui.escape(cislo) + '" value="' + this._fmtNum(rw) + '"' + dis + '></div>' +
+          '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Příděl</span><span>Úprava</span></div>' +
           '  </div>' +
           '  <div class="rzr-block-body">' + dataRows + '</div>' +
           '</div>'
@@ -579,7 +597,7 @@
         '<div class="rzr-scroll rz-compact">' +
         '  <div class="rzr-frozen">' +
         '    <div class="rzr-frozen-head">' +
-        '      <div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div>' +
+        '      <div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div>' +
         '      <div class="rzr-hrow rzr-cols-row"><span>Prodejna</span></div>' +
         '    </div>' +
         '    <div class="rzr-frozen-body">' + frozenRows + '</div>' +
@@ -591,19 +609,32 @@
         el.querySelectorAll('.rzr-minmax').forEach((input) => {
           input.addEventListener('blur', () => this.saveRozdeleniMinMax(input.dataset.cislo));
         });
+        el.querySelectorAll('.rzr-rw').forEach((input) => {
+          input.addEventListener('blur', () => this.saveRozdeleniRw(input.dataset.cislo));
+        });
         el.querySelectorAll('.rzr-data-row input').forEach((input) => {
           input.addEventListener('blur', () => this.saveRozdeleniUprava(input.dataset.cislo, input.dataset.store));
         });
       }
+
+      // Nově dopočítaná RW (viz výše) se rovnou uloží, ať je od dalšího
+      // vykreslení už jen "uživatelova" uložená hodnota, ne odhad počítaný pokaždé znovu.
+      if (this.canWrite) {
+        rwToPersist.forEach(({ cislo, rw }) => {
+          this._upsertRozdeleniLocal(cislo, '', { rw: rw });
+          this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }))
+            .catch((e) => Ui.toast(e.message, 'error'));
+        });
+      }
     },
 
-    /** { byArtikl: {cislo: {min,max}}, byStore: {cislo: {prodejna: uprava}} } */
+    /** { byArtikl: {cislo: {min,max,rw}}, byStore: {cislo: {prodejna: uprava}} } */
     _rozdeleniLookup() {
       const byArtikl = {};
       const byStore = {};
       (this.rozdeleni || []).forEach((r) => {
         if (!r.prodejna) {
-          byArtikl[r.cislo_artiklu] = { min: r.min, max: r.max };
+          byArtikl[r.cislo_artiklu] = { min: r.min, max: r.max, rw: r.rw };
         } else {
           if (!byStore[r.cislo_artiklu]) byStore[r.cislo_artiklu] = {};
           byStore[r.cislo_artiklu][r.prodejna] = r.uprava;
@@ -699,6 +730,34 @@
       return result;
     },
 
+    /**
+     * Vodorovné doplňování (Reichweite): příděl prodejny = RW × MEDIAN − Stav,
+     * zaokrouhleno na celé číslo, ohraničeno min/max (pokud jsou zadané - jinak
+     * jen spodní hranice 0, žádný záporný příděl). Stav je zatím jen poslední
+     * hodnota z Teo. stavů (vals.teo) - Přidělení po artiklech a Vyskladňovací
+     * listy do součtu zatím nevstupují, dokud neznáme jejich sloupce.
+     */
+    _clampPrideli(rw, median, stav, min, max) {
+      let v = Math.round(rw * median - stav);
+      const lo = (min !== '' && min != null) ? Number(min) : 0;
+      const hi = (max !== '' && max != null) ? Number(max) : Infinity;
+      if (v < lo) v = lo;
+      if (v > hi) v = hi;
+      return v;
+    },
+
+    /** Najde RW tak, aby součet přídělů (po ohraničení min/max) byl co nejblíž cílovému množství (k rozdělení) - součet je v RW neklesající, takže stačí půlení intervalu. */
+    _solveRw(target, storeData, min, max) {
+      const totalFor = (rw) => storeData.reduce((sum, s) => sum + this._clampPrideli(rw, s.median, s.stav, min, max), 0);
+      let lo = 0;
+      let hi = 60; // rozumný horní strop (dnů zásoby) - i kdyby na cíl nestačil, vrátí se jako nejvyšší rozumná hodnota
+      for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        if (totalFor(mid) < target) lo = mid; else hi = mid;
+      }
+      return Math.round(hi * 100) / 100;
+    },
+
     /** Promítne uloženou hodnotu do this.rozdeleni HNED, ne až po odpovědi serveru - stejný důvod jako u saveArtikly (rychlé přepnutí pryč a zpět by jinak mohlo ukázat ještě needitovaná data). */
     _upsertRozdeleniLocal(cislo, prodejna, patch) {
       if (!this.rozdeleni) this.rozdeleni = [];
@@ -718,6 +777,17 @@
       const max = maxRaw === '' ? '' : this._toNumber(maxRaw);
       this._upsertRozdeleniLocal(cislo, '', { min: min, max: max });
       this._enqueue('Ukládám min/max', () => Ui.call('apiRzSaveRozdeleniMinMax', { cislo_artiklu: cislo, min: min, max: max }, { silent: true }))
+        .then(() => this.loadRozdeleni())
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /** Ruční úprava RW - přepíše doposud uloženou/dopočítanou hodnotu, přepočítá se z ní příděl na všech prodejnách i celkem rozděleno. */
+    saveRozdeleniRw(cislo) {
+      const el = this.container.querySelector('#rzTabContent');
+      const raw = el.querySelector('.rzr-rw[data-cislo="' + CSS.escape(cislo) + '"]').value.trim();
+      const rw = raw === '' ? '' : this._toNumber(raw);
+      this._upsertRozdeleniLocal(cislo, '', { rw: rw });
+      this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }))
         .then(() => this.loadRozdeleni())
         .catch((e) => Ui.toast(e.message, 'error'));
     },

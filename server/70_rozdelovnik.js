@@ -14,8 +14,11 @@ const RZ_ARTIKLY_ROWS = 20;
 const RZ_SCHEMA = {
   '_settings': ['id', 'key', 'value', 'updated_at', 'updated_by'],
   'artikly': ['id', 'poradi', 'cislo_artiklu', 'nazev', 'obsah', 'k_rozdeleni', 'pocet_dni', 'metropol', 'created_at', 'created_by', 'updated_at'],
-  // Řádek s prázdnou prodejna = úroveň artiklu (min/max); řádek s vyplněnou prodejna = úroveň konkrétní prodejny (uprava).
-  'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at'],
+  // Řádek s prázdnou prodejna = úroveň artiklu (min/max/rw); řádek s vyplněnou prodejna = úroveň konkrétní prodejny (uprava).
+  // Pozor: nové sloupce se přidávají VŽDY na konec pole - řádky uložené podle
+  // staršího schématu mají data pozičně svázaná se starým pořadím sloupců,
+  // vložení doprostřed by je při čtení posunulo a rozbilo (viz updated_at/rw).
+  'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw'],
 };
 
 const RZ_IMPORT_TABLES = ['odprodej', 'teo_stavy', 'vyskladnovaci_listy', 'prideleni_po_artiklech'];
@@ -304,6 +307,17 @@ function apiRzSaveRozdeleniMinMax(payload) {
     const min = (payload && payload.min !== '' && payload.min != null) ? Number(payload.min) || 0 : '';
     const max = (payload && payload.max !== '' && payload.max != null) ? Number(payload.max) || 0 : '';
     return rzUpsertRozdeleni_(cislo, '', { min: min, max: max });
+  });
+}
+
+/** RW (denní násobitel) - vodorovné doplňování (viz _computePrideleni/_solveRw ve frontendu): příděl prodejny = RW × MEDIAN − Stav, ohraničeno min/max. */
+function apiRzSaveRozdeleniRw(payload) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k zápisu.');
+    const cislo = String((payload && payload.cislo_artiklu) || '').trim();
+    if (!cislo) throw new Error('Chybí číslo artiklu.');
+    const rw = (payload && payload.rw !== '' && payload.rw != null) ? Number(payload.rw) || 0 : '';
+    return rzUpsertRozdeleni_(cislo, '', { rw: rw });
   });
 }
 
