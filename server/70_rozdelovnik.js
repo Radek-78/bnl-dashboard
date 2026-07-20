@@ -275,6 +275,16 @@ function apiRzGetRozdeleni() {
   });
 }
 
+/** Volá se při resetu tabulky Artiklů - bez toho by min/max/Úprava zůstaly viset na starých číslech artiklů a při opětovném zadání stejného čísla by se nečekaně vynořily. */
+function apiRzResetRozdeleni() {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání.');
+    rzRepo_().clearTable('rozdeleni');
+    audit_('rz_rozdeleni_reset', 'Vymazána data záložky Rozdělení (reset tabulky Artiklů).');
+    return { ok: true };
+  });
+}
+
 /** Najde existující řádek (artikl + prodejna, prodejna '' = úroveň artiklu) a přepíše ho, jinak založí nový. */
 function rzUpsertRozdeleni_(cisloArtiklu, prodejna, patch) {
   const repo = rzRepo_();

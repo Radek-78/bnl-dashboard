@@ -330,7 +330,7 @@
       Ui.confirm({
         kicker: 'Artikly',
         title: 'Resetovat tabulku artiklů?',
-        message: 'Smaže se všech 20 řádků (čísla artiklů, názvy, obsah, množství i příznak Metropol). Tuto akci nelze vrátit.',
+        message: 'Smaže se všech 20 řádků (čísla artiklů, názvy, obsah, množství i příznak Metropol) a zároveň i data v záložce Rozdělení (min/max, Úprava po prodejnách) - jinak by po opětovném zadání stejného čísla artiklu zůstala viset stará čísla. Tuto akci nelze vrátit.',
         confirmLabel: 'Resetovat',
       }).then((confirmed) => {
         if (!confirmed) return;
@@ -338,6 +338,9 @@
         el.querySelectorAll('.rz-artikly-table input[type="text"], .rz-artikly-table input[type="number"]').forEach((input) => { input.value = ''; });
         el.querySelectorAll('.rz-artikly-table input[type="checkbox"]').forEach((input) => { input.checked = false; });
         this.saveArtikly();
+        Ui.call('apiRzResetRozdeleni', null, { silent: true })
+          .then(() => this.loadRozdeleni())
+          .catch((e) => Ui.toast(e.message, 'error'));
         Ui.toast('Tabulka artiklů byla resetována.');
       });
     },

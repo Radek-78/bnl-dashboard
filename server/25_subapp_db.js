@@ -116,6 +116,16 @@ function createDbRepo_(spreadsheetId, schema) {
     cacheInvalidate_(table);
   };
 
+  /** Smaže všechny řádky tabulky (hlavičku ponechá) - jedno rychlé mazání, ne cyklus přes delete() pro každý řádek zvlášť. */
+  const clearTable = (table) => {
+    withLock_(() => {
+      const sheet = sheet_(table);
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) sheet.deleteRows(2, lastRow - 1);
+    });
+    cacheInvalidate_(table);
+  };
+
   return {
     spreadsheet: spreadsheet_,
     ensureSchema: ensureSchema,
@@ -124,6 +134,7 @@ function createDbRepo_(spreadsheetId, schema) {
     insert: insert,
     update: update,
     delete: remove,
+    clearTable: clearTable,
   };
 }
 
