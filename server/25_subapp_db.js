@@ -135,6 +135,10 @@ function createDbRepo_(spreadsheetId, schema) {
     update: update,
     delete: remove,
     clearTable: clearTable,
+    // Pro hromadné operace, které si čtení/zápis dělají samy napřímo přes
+    // sheet (jeden zámek na celou dávku místo jednoho na řádek) - repo.insert/
+    // update by se pro to muselo volat opakovaně, což je právě to pomalé.
+    invalidateCache: (table) => cacheInvalidate_(table),
   };
 }
 

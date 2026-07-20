@@ -635,13 +635,14 @@
       }
 
       // Nově dopočítaná RW (viz výše) se rovnou uloží, ať je od dalšího
-      // vykreslení už jen "uživatelova" uložená hodnota, ne odhad počítaný pokaždé znovu.
-      if (this.canWrite) {
-        rwToPersist.forEach(({ cislo, rw }) => {
-          this._upsertRozdeleniLocal(cislo, '', { rw: rw });
-          this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }))
-            .catch((e) => Ui.toast(e.message, 'error'));
-        });
+      // vykreslení už jen "uživatelova" uložená hodnota, ne odhad počítaný
+      // pokaždé znovu. Pro víc artiklů najednou (typicky při prvním otevření
+      // záložky) se posílá jako jedna dávka - jinak by to bylo tolik
+      // samostatných round-tripů (a zámků na serveru), kolik je artiklů.
+      if (this.canWrite && rwToPersist.length) {
+        rwToPersist.forEach(({ cislo, rw }) => this._upsertRozdeleniLocal(cislo, '', { rw: rw }));
+        this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRwBatch', rwToPersist, { silent: true }))
+          .catch((e) => Ui.toast(e.message, 'error'));
       }
     },
 

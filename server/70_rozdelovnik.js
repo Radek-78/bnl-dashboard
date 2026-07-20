@@ -239,30 +239,66 @@ function apiRzListArtikly() {
 }
 
 /** Uloží najednou všech 20 řádků (přepíše existující podle pořadí, chybějící založí). */
+/**
+ * Ukládá všech 20 řádků najednou - jeden zámek, jedno čtení, jeden (až dva)
+ * zápis. Původně se pro každý řádek volalo repo.update/insert zvlášť (každé
+ * se svým zámkem i vlastním čtením celého listu) - při psaní do polí (volá se
+ * na blur) to dělalo až 20x tolik zámků/API volání, než bylo nutné, a citelně
+ * to appku zpomalovalo.
+ */
 function apiRzSaveArtikly(rows) {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k zápisu.');
     if (!Array.isArray(rows)) throw new Error('Neplatná data.');
     const repo = rzRepo_();
     repo.ensureSchema();
-    const existing = repo.getAll('artikly');
-    const byPoradi = new Map(existing.map((r) => [Number(r.poradi), r]));
+    const headers = RZ_SCHEMA.artikly;
+    const poradiCol = headers.indexOf('poradi');
 
-    const saved = rows.slice(0, RZ_ARTIKLY_ROWS).map((row, i) => {
-      const poradi = i + 1;
-      const data = {
-        poradi: poradi,
-        cislo_artiklu: String((row && row.cislo_artiklu) || '').trim(),
-        nazev: String((row && row.nazev) || '').trim(),
-        obsah: String((row && row.obsah) || '').trim(),
-        k_rozdeleni: (row && row.k_rozdeleni !== '' && row.k_rozdeleni != null) ? Number(row.k_rozdeleni) || 0 : '',
-        pocet_dni: (row && row.pocet_dni !== '' && row.pocet_dni != null) ? Number(row.pocet_dni) || 0 : '',
-        metropol: !!(row && row.metropol),
-      };
-      const ex = byPoradi.get(poradi);
-      return ex ? repo.update('artikly', ex.id, data) : repo.insert('artikly', data);
+    const saved = withLock_(() => {
+      const sheet = repo.spreadsheet().getSheetByName('artikly');
+      const lastRow = sheet.getLastRow();
+      const existingValues = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, headers.length).getValues() : [];
+      const now = nowIso_();
+      const email = currentEmail_();
+      const toAppend = [];
+      const results = [];
+
+      rows.slice(0, RZ_ARTIKLY_ROWS).forEach((row, i) => {
+        const poradi = i + 1;
+        const data = {
+          poradi: poradi,
+          cislo_artiklu: String((row && row.cislo_artiklu) || '').trim(),
+          nazev: String((row && row.nazev) || '').trim(),
+          obsah: String((row && row.obsah) || '').trim(),
+          k_rozdeleni: (row && row.k_rozdeleni !== '' && row.k_rozdeleni != null) ? Number(row.k_rozdeleni) || 0 : '',
+          pocet_dni: (row && row.pocet_dni !== '' && row.pocet_dni != null) ? Number(row.pocet_dni) || 0 : '',
+          metropol: !!(row && row.metropol),
+        };
+        const rowIdx = existingValues.findIndex((r) => Number(r[poradiCol]) === poradi);
+        if (rowIdx !== -1) {
+          const merged = {};
+          headers.forEach((h, ci) => { merged[h] = existingValues[rowIdx][ci]; });
+          Object.assign(merged, data, { updated_at: now });
+          existingValues[rowIdx] = headers.map((h) => (merged[h] !== undefined ? merged[h] : ''));
+          results.push(merged);
+        } else {
+          const record = Object.assign({ id: uuid_(), created_at: now, created_by: email, updated_at: now }, data);
+          toAppend.push(headers.map((h) => (record[h] !== undefined ? record[h] : '')));
+          results.push(record);
+        }
+      });
+
+      if (existingValues.length) {
+        sheet.getRange(2, 1, existingValues.length, headers.length).setValues(existingValues);
+      }
+      if (toAppend.length) {
+        sheet.getRange(lastRow + 1, 1, toAppend.length, headers.length).setValues(toAppend);
+      }
+      return results;
     });
 
+    repo.invalidateCache('artikly');
     audit_('rz_artikly_save', saved.filter((r) => r.cislo_artiklu).length + ' vyplněných řádků z ' + RZ_ARTIKLY_ROWS);
     return saved.sort((a, b) => (Number(a.poradi) || 0) - (Number(b.poradi) || 0));
   });
@@ -297,15 +333,47 @@ function rzArtiklMatches_(cellVal, cislo) {
   return !isNaN(na) && !isNaN(nb) && na === nb;
 }
 
-/** Najde existující řádek (artikl + prodejna, prodejna '' = úroveň artiklu) a přepíše ho, jinak založí nový. */
+/**
+ * Najde existující řádek (artikl + prodejna, prodejna '' = úroveň artiklu) a
+ * přepíše ho, jinak založí nový - jeden zámek/čtení/zápis (dřív getAll +
+ * repo.update/insert dělaly dohromady dvě čtení a zvlášť svůj zámek, zbytečně
+ * pomalé pro tak časté volání jako je uložení jednoho pole na blur).
+ */
 function rzUpsertRozdeleni_(cisloArtiklu, prodejna, patch) {
   const repo = rzRepo_();
   repo.ensureSchema();
-  const existing = repo.getAll('rozdeleni');
-  const match = existing.find((r) => rzArtiklMatches_(r.cislo_artiklu, cisloArtiklu) && String(r.prodejna || '') === String(prodejna || ''));
-  return match
-    ? repo.update('rozdeleni', match.id, patch)
-    : repo.insert('rozdeleni', Object.assign({ cislo_artiklu: cisloArtiklu, prodejna: prodejna || '' }, patch));
+  const headers = RZ_SCHEMA.rozdeleni;
+  const cisloCol = headers.indexOf('cislo_artiklu');
+  const prodejnaCol = headers.indexOf('prodejna');
+  const prodejnaNorm = String(prodejna || '');
+
+  const result = withLock_(() => {
+    const sheet = repo.spreadsheet().getSheetByName('rozdeleni');
+    const lastRow = sheet.getLastRow();
+    const existingValues = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, headers.length).getValues() : [];
+    const rowIdx = existingValues.findIndex((r) =>
+      rzArtiklMatches_(r[cisloCol], cisloArtiklu) && String(r[prodejnaCol] || '') === prodejnaNorm
+    );
+    const now = nowIso_();
+
+    if (rowIdx !== -1) {
+      const merged = {};
+      headers.forEach((h, ci) => { merged[h] = existingValues[rowIdx][ci]; });
+      Object.assign(merged, patch, { updated_at: now });
+      sheet.getRange(rowIdx + 2, 1, 1, headers.length).setValues([headers.map((h) => (merged[h] !== undefined ? merged[h] : ''))]);
+      return merged;
+    }
+
+    const record = Object.assign(
+      { id: uuid_(), cislo_artiklu: cisloArtiklu, prodejna: prodejna || '', created_at: now, created_by: currentEmail_(), updated_at: now },
+      patch
+    );
+    sheet.getRange(lastRow + 1, 1, 1, headers.length).setValues([headers.map((h) => (record[h] !== undefined ? record[h] : ''))]);
+    return record;
+  });
+
+  repo.invalidateCache('rozdeleni');
+  return result;
 }
 
 function apiRzSaveRozdeleniMinMax(payload) {
@@ -327,6 +395,60 @@ function apiRzSaveRozdeleniRw(payload) {
     if (!cislo) throw new Error('Chybí číslo artiklu.');
     const rw = (payload && payload.rw !== '' && payload.rw != null) ? Number(payload.rw) || 0 : '';
     return rzUpsertRozdeleni_(cislo, '', { rw: rw });
+  });
+}
+
+/**
+ * Uloží RW pro víc artiklů v jednom zámku/čtení/zápisu - používá se při
+ * prvním zobrazení záložky Rozdělení, kde se RW dopočítá a uloží pro každý
+ * vyplněný artikl zvlášť; bez dávky by to bylo tolik samostatných
+ * round-tripů (a zámků), kolik je artiklů. items: [{cislo_artiklu, rw}].
+ */
+function apiRzSaveRozdeleniRwBatch(items) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k zápisu.');
+    if (!Array.isArray(items) || !items.length) return { ok: true };
+    const repo = rzRepo_();
+    repo.ensureSchema();
+    const headers = RZ_SCHEMA.rozdeleni;
+    const cisloCol = headers.indexOf('cislo_artiklu');
+    const prodejnaCol = headers.indexOf('prodejna');
+
+    withLock_(() => {
+      const sheet = repo.spreadsheet().getSheetByName('rozdeleni');
+      const lastRow = sheet.getLastRow();
+      const existingValues = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, headers.length).getValues() : [];
+      const now = nowIso_();
+      const email = currentEmail_();
+      const toAppend = [];
+
+      items.forEach((item) => {
+        const cislo = String((item && item.cislo_artiklu) || '').trim();
+        if (!cislo) return;
+        const rw = (item && item.rw !== '' && item.rw != null) ? Number(item.rw) || 0 : '';
+        const rowIdx = existingValues.findIndex((r) => rzArtiklMatches_(r[cisloCol], cislo) && !String(r[prodejnaCol] || ''));
+        if (rowIdx !== -1) {
+          const merged = {};
+          headers.forEach((h, ci) => { merged[h] = existingValues[rowIdx][ci]; });
+          merged.rw = rw;
+          merged.updated_at = now;
+          existingValues[rowIdx] = headers.map((h) => (merged[h] !== undefined ? merged[h] : ''));
+        } else {
+          const record = { id: uuid_(), cislo_artiklu: cislo, prodejna: '', rw: rw, created_at: now, created_by: email, updated_at: now };
+          toAppend.push(headers.map((h) => (record[h] !== undefined ? record[h] : '')));
+        }
+      });
+
+      if (existingValues.length) {
+        sheet.getRange(2, 1, existingValues.length, headers.length).setValues(existingValues);
+      }
+      if (toAppend.length) {
+        sheet.getRange(lastRow + 1, 1, toAppend.length, headers.length).setValues(toAppend);
+      }
+    });
+
+    repo.invalidateCache('rozdeleni');
+    return { ok: true };
   });
 }
 
