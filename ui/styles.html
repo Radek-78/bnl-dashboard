@@ -1892,12 +1892,29 @@
     left: 0;
     position: sticky;
     width: 72px;
-    z-index: 3;
+    z-index: 5;
+  }
+
+  /* Hlavičková část (u frozen sloupce jen prázdný spacer + "Prodejna", u
+     bloků souhrn artiklu + názvy sloupců) je ukotvená nahoře - řádky
+     prodejen se scrollují až pod jejím spodním okrajem. */
+  .rzr-frozen-head,
+  .rzr-block-head {
+    background: var(--white);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .rzr-frozen-spacer {
+    height: 175px;
   }
 
   .rzr-store-cell {
     color: var(--muted);
     font-weight: 700;
+    justify-content: center;
+    text-align: center;
   }
 
   .rzr-cols-row {
@@ -1913,6 +1930,7 @@
   .rzr-cols-row span {
     flex: 1;
     overflow: hidden;
+    text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -1937,18 +1955,26 @@
   .rzr-kv-row span {
     color: var(--muted);
     flex: 1;
+    text-align: right;
   }
 
   .rzr-kv-row b {
+    flex: 1;
     font-weight: 700;
+    text-align: center;
   }
 
   /* Vzhled inputů (výška/padding/pozadí/zaoblení) řeší .rz-compact input
      (viz výše) - tady se dolaďuje jen šířka a zarovnání textu, specifické
      pro tenhle layout. */
   .rzr-kv-row input {
-    text-align: right;
+    text-align: center;
     width: 70px;
+  }
+
+  /* RW je number input se šipkami (krok 0,1) - o něco širší, ať se vejdou. */
+  .rzr-rw {
+    width: 80px !important;
   }
 
   .rzr-data-row {
@@ -1959,12 +1985,12 @@
   .rzr-data-row span {
     color: var(--text);
     flex: 1;
-    text-align: right;
+    text-align: center;
   }
 
   .rzr-data-row input {
     flex: 1;
-    text-align: right;
+    text-align: center;
   }
 
   .rzr-prideli {

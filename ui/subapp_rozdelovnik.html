@@ -589,7 +589,7 @@
           '    <div class="rzr-hrow rzr-kv-row"><span>zaokrouhlit</span><b>—</b></div>' +
           '    <div class="rzr-hrow rzr-kv-row"><span>min</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="min" value="' + (minMax.min != null && minMax.min !== '' ? this._fmtNum(minMax.min) : '') + '"' + dis + '></div>' +
           '    <div class="rzr-hrow rzr-kv-row"><span>max</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + Ui.escape(cislo) + '" data-field="max" value="' + (minMax.max != null && minMax.max !== '' ? this._fmtNum(minMax.max) : '') + '"' + dis + '></div>' +
-          '    <div class="rzr-hrow rzr-kv-row"><span>RW</span><input type="text" inputmode="decimal" class="rzr-rw" data-cislo="' + Ui.escape(cislo) + '" value="' + this._fmtNum(rw) + '"' + dis + '></div>' +
+          '    <div class="rzr-hrow rzr-kv-row"><span>RW</span><input type="number" step="0.1" class="rzr-rw" data-cislo="' + Ui.escape(cislo) + '" value="' + rw + '"' + dis + '></div>' +
           '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Příděl</span><span>Úprava</span></div>' +
           '  </div>' +
           '  <div class="rzr-block-body">' + dataRows + '</div>' +
@@ -601,7 +601,7 @@
         '<div class="rzr-scroll rz-compact">' +
         '  <div class="rzr-frozen">' +
         '    <div class="rzr-frozen-head">' +
-        '      <div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div><div class="rzr-hrow"></div>' +
+        '      <div class="rzr-frozen-spacer"></div>' +
         '      <div class="rzr-hrow rzr-cols-row"><span>Prodejna</span></div>' +
         '    </div>' +
         '    <div class="rzr-frozen-body">' + frozenRows + '</div>' +
@@ -813,8 +813,9 @@
     /** Ruční úprava RW - přepíše doposud uloženou/dopočítanou hodnotu, přepočítá se z ní příděl na všech prodejnách i celkem rozděleno. */
     saveRozdeleniRw(cislo) {
       const el = this.container.querySelector('#rzTabContent');
+      // type="number" vrací vždy tečkový formát, na rozdíl od ostatních (českých, čárkových) polí - proto tu není _toNumber.
       const raw = el.querySelector('.rzr-rw[data-cislo="' + CSS.escape(cislo) + '"]').value.trim();
-      const rw = raw === '' ? '' : this._toNumber(raw);
+      const rw = raw === '' ? '' : Number(raw);
       this._upsertRozdeleniLocal(cislo, '', { rw: rw });
       this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }))
         .then(() => this.loadRozdeleni())
