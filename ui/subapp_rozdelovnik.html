@@ -611,6 +611,7 @@
 
       if (this.canWrite) {
         el.querySelectorAll('.rzr-minmax').forEach((input) => {
+          input.addEventListener('input', () => this._recomputeBlockLive(input.dataset.cislo));
           input.addEventListener('blur', () => this.saveRozdeleniMinMax(input.dataset.cislo));
         });
         el.querySelectorAll('.rzr-rw').forEach((input) => {
