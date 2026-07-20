@@ -422,7 +422,7 @@
       if (!cislo) return;
 
       this._setLookupLoading(rowIndex, true);
-      const stillCurrent = () => this.artikly[rowIndex] && this.artikly[rowIndex].cislo_artiklu === cislo;
+      const stillCurrent = () => this.artikly[rowIndex] && this._artiklMatches(this.artikly[rowIndex].cislo_artiklu, cislo);
 
       const attempt = (retryDelaysMs) => {
         Ui.call('apiRzLookupArtikl', cislo, { silent: true })
@@ -819,7 +819,7 @@
     /** Promítne uloženou hodnotu do this.rozdeleni HNED, ne až po odpovědi serveru - stejný důvod jako u saveArtikly (rychlé přepnutí pryč a zpět by jinak mohlo ukázat ještě needitovaná data). */
     _upsertRozdeleniLocal(cislo, prodejna, patch) {
       if (!this.rozdeleni) this.rozdeleni = [];
-      const idx = this.rozdeleni.findIndex((r) => r.cislo_artiklu === cislo && String(r.prodejna || '') === String(prodejna || ''));
+      const idx = this.rozdeleni.findIndex((r) => this._artiklMatches(r.cislo_artiklu, cislo) && String(r.prodejna || '') === String(prodejna || ''));
       if (idx !== -1) {
         this.rozdeleni[idx] = Object.assign({}, this.rozdeleni[idx], patch);
       } else {
@@ -892,7 +892,7 @@
      * verze vzorce, i po opravě samotného výpočtu.
      */
     recomputeRw(cislo) {
-      const a = this.artikly.find((x) => x.cislo_artiklu === cislo);
+      const a = this.artikly.find((x) => this._artiklMatches(x.cislo_artiklu, cislo));
       if (!a) {
         Ui.toast('Artikl ' + cislo + ' nenalezen.', 'error');
         return;
