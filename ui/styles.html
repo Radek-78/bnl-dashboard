@@ -1229,48 +1229,49 @@
 
   /* ── Changelog modal ─────────────────────────────── */
   /* Seskupeno podle data (dřív se datum opakovalo u každého záznamu zvlášť,
-     i když jich bylo za jeden den klidně 6) - jedno záhlaví s datem, pod ním
-     jen odznak verze. Nejnovější záznam v celém seznamu má jemné zvýraznění
-     + žlutý štítek "Aktuální". */
+     i když jich bylo za jeden den klidně 6) - jedno záhlaví s datem nad
+     skupinou karet. Každý záznam je vlastní karta s modrým akcentem vlevo,
+     ne jen text oddělený čárou - nejnovější záznam má žlutý akcent, jemně
+     silnější podklad a štítek "Aktuální". */
 
   .changelog-date-group + .changelog-date-group {
-    margin-top: 10px;
+    margin-top: 22px;
   }
 
   .changelog-date-heading {
     align-items: center;
     color: var(--muted);
     display: flex;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
-    gap: 6px;
-    letter-spacing: 0.05em;
-    margin: 0 0 4px;
+    gap: 7px;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
     text-transform: uppercase;
   }
 
   .changelog-date-heading svg {
     color: var(--lidl-blue);
     flex-shrink: 0;
-    height: 13px;
-    width: 13px;
+    height: 14px;
+    width: 14px;
   }
 
   .changelog-entry {
-    border-bottom: 1px solid var(--line-soft);
-    padding: 10px 0;
+    background: var(--page);
+    border-left: 3px solid var(--lidl-blue);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    padding: 12px 16px;
   }
 
   .changelog-entry:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
   }
 
   .changelog-entry.is-latest {
-    background: rgba(0, 80, 170, 0.05);
-    border-bottom: none;
-    border-radius: 8px;
-    margin: 0 -10px 4px;
-    padding: 8px 10px;
+    background: rgba(0, 80, 170, 0.07);
+    border-left-color: var(--lidl-yellow);
   }
 
   .changelog-top {
@@ -1284,9 +1285,9 @@
     background: var(--lidl-blue);
     border-radius: 999px;
     color: var(--white);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
-    padding: 2px 9px;
+    padding: 3px 10px;
   }
 
   .changelog-entry.is-latest .changelog-version {
@@ -1297,18 +1298,19 @@
     background: var(--lidl-yellow);
     border-radius: 999px;
     color: var(--lidl-dark-blue);
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.04em;
-    padding: 2px 7px;
+    padding: 3px 8px;
     text-transform: uppercase;
   }
 
   .changelog-entry p {
     color: var(--text);
-    font-size: 13px;
-    line-height: 1.55;
-    margin: 6px 0 0;
+    font-size: 13.5px;
+    line-height: 1.6;
+    margin: 8px 0 0;
+    max-width: 74ch;
   }
 
   /* ── Module card variants ────────────────────────── */
@@ -1620,7 +1622,11 @@
     text-transform: uppercase;
   }
 
-  .button-secondary.button-small {
+  /* Platí pro všechny barevné varianty (primary/secondary/danger) - dřív se
+     vztahovalo jen na button-secondary, takže malé primary tlačítko (např.
+     "Importovat" vedle "Vymazat") zůstalo na výšce běžného tlačítka (36px)
+     a bylo tak o dost vyšší než "malé" sekundární vedle něj. */
+  .button-small {
     font-size: 12px;
     min-height: 28px;
     padding: 4px 10px;
