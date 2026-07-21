@@ -18,7 +18,7 @@ const RZ_SCHEMA = {
   // Pozor: nové sloupce se přidávají VŽDY na konec pole - řádky uložené podle
   // staršího schématu mají data pozičně svázaná se starým pořadím sloupců,
   // vložení doprostřed by je při čtení posunulo a rozbilo (viz updated_at/rw).
-  'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw'],
+  'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw', 'zaokrouhlit'],
   // cisla - čísla artiklů skupiny spojená čárkou (jen čísla, ne název/obsah/
   // množství - ty se dohledávají/zadávají znovu při každém vložení skupiny).
   'skupiny': ['id', 'nazev', 'cisla', 'created_at', 'created_by', 'updated_at'],
@@ -535,7 +535,8 @@ function apiRzSaveRozdeleniMinMax(payload) {
     if (!cislo) throw new Error('Chybí číslo artiklu.');
     const min = (payload && payload.min !== '' && payload.min != null) ? Number(payload.min) || 0 : '';
     const max = (payload && payload.max !== '' && payload.max != null) ? Number(payload.max) || 0 : '';
-    return rzUpsertRozdeleni_(cislo, '', { min: min, max: max });
+    const zaokrouhlit = (payload && payload.zaokrouhlit !== '' && payload.zaokrouhlit != null) ? Number(payload.zaokrouhlit) || 0 : '';
+    return rzUpsertRozdeleni_(cislo, '', { min: min, max: max, zaokrouhlit: zaokrouhlit });
   });
 }
 

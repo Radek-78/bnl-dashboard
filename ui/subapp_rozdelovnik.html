@@ -975,8 +975,6 @@
      * flex řádku), svislý scroll je automaticky společný, žádné ruční
      * synchronizování dvou scrollbarů.
      *
-     * Zaokrouhlit zatím není - algoritmus se domlouvá samostatně.
-     *
      * Barvení sloupce Příděl (viz _recolorAllPrideli) běží NAD hotovým DOM,
      * ne během generování HTML - stejná funkce se volá po prvním vykreslení
      * i po každé "online" úpravě (RW/min-max/ruční příděl), takže škála i
@@ -1020,7 +1018,7 @@
         let rw = (minMax.rw !== '' && minMax.rw != null) ? Number(minMax.rw) : null;
         if (rw === null) {
           const storeData = this.stores.filter(eligible).map((s) => ({ median: (perStore[s.code] || {}).median || 0, stav: stavProVypocet(s) }));
-          rw = this._solveRw(target, storeData, minMax.min, minMax.max);
+          rw = this._solveRw(target, storeData, minMax.min, minMax.max, minMax.zaokrouhlit);
           rwToPersist.push({ cislo: cislo, rw: rw });
         }
 
@@ -1029,7 +1027,7 @@
           const vals = perStore[s.code] || {};
           const stav = stavProVypocet(s);
           const isEligible = eligible(s);
-          const base = isEligible ? this._clampPrideli(rw, vals.median || 0, stav, minMax.min, minMax.max) : 0;
+          const base = isEligible ? this._clampPrideli(rw, vals.median || 0, stav, minMax.min, minMax.max, minMax.zaokrouhlit) : 0;
           const delta = isEligible ? (this._toNumber(upravy[s.code]) || 0) : 0;
           const efektivni = Math.max(0, base + delta);
           rozdeleno += efektivni;
@@ -1071,7 +1069,7 @@
           '    <div class="rzr-limits">' +
           '      <label><span>MIN</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + esc + '" data-field="min" value="' + (c.minMax.min != null && c.minMax.min !== '' ? this._fmtNum(c.minMax.min) : '') + '"' + dis + '></label>' +
           '      <label><span>MAX</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + esc + '" data-field="max" value="' + (c.minMax.max != null && c.minMax.max !== '' ? this._fmtNum(c.minMax.max) : '') + '"' + dis + '></label>' +
-          '      <label><span>ZAOKR.</span><b>—</b></label>' +
+          '      <label><span>ZAOKR.</span><input type="text" inputmode="decimal" class="rzr-minmax" data-cislo="' + esc + '" data-field="zaokrouhlit" value="' + (c.minMax.zaokrouhlit != null && c.minMax.zaokrouhlit !== '' ? this._fmtNum(c.minMax.zaokrouhlit) : '') + '"' + dis + '></label>' +
           '    </div>' +
           '    <div class="rzr-rw-bar">' +
           '      <span class="rzr-rw-label">RW</span>' +
@@ -1189,13 +1187,13 @@
       );
     },
 
-    /** { byArtikl: {cislo: {min,max,rw}}, byStore: {cislo: {prodejna: uprava}} } */
+    /** { byArtikl: {cislo: {min,max,rw,zaokrouhlit}}, byStore: {cislo: {prodejna: uprava}} } */
     _rozdeleniLookup() {
       const byArtikl = {};
       const byStore = {};
       (this.rozdeleni || []).forEach((r) => {
         if (!r.prodejna) {
-          byArtikl[r.cislo_artiklu] = { min: r.min, max: r.max, rw: r.rw };
+          byArtikl[r.cislo_artiklu] = { min: r.min, max: r.max, rw: r.rw, zaokrouhlit: r.zaokrouhlit };
         } else {
           if (!byStore[r.cislo_artiklu]) byStore[r.cislo_artiklu] = {};
           byStore[r.cislo_artiklu][r.prodejna] = r.uprava;
@@ -1415,13 +1413,17 @@
 
     /**
      * Vodorovné doplňování (Reichweite): příděl prodejny = RW × MEDIAN − Stav,
-     * zaokrouhleno na celé číslo, ohraničeno min/max (pokud jsou zadané - jinak
-     * jen spodní hranice 0, žádný záporný příděl). Stav = Teo. stav + Dodáno
-     * (Vyskladňovací listy) + Karton (Přidělení po artiklech) - viz
-     * stavProVypocet v renderRozdeleni / _computeMedianTeoRaw.
+     * zaokrouhleno na celé číslo, pak (je-li zadáno) přezaokrouhleno na
+     * nejbližší násobek hodnoty "Zaokrouhlit", a nakonec ohraničeno min/max
+     * (pokud jsou zadané - jinak jen spodní hranice 0, žádný záporný příděl) -
+     * min/max je vždy tvrdá hranice, i kdyby zaokrouhlení mírně přesáhlo.
+     * Stav = Teo. stav + Dodáno (Vyskladňovací listy) + Karton (Přidělení po
+     * artiklech) - viz stavProVypocet v renderRozdeleni / _computeMedianTeoRaw.
      */
-    _clampPrideli(rw, median, stav, min, max) {
+    _clampPrideli(rw, median, stav, min, max, zaokrouhlit) {
       let v = Math.round(rw * median - stav);
+      const zaokr = (zaokrouhlit !== '' && zaokrouhlit != null) ? Number(zaokrouhlit) : 0;
+      if (zaokr > 0) v = Math.round(v / zaokr) * zaokr;
       const lo = (min !== '' && min != null) ? Number(min) : 0;
       const hi = (max !== '' && max != null) ? Number(max) : Infinity;
       if (v < lo) v = lo;
@@ -1429,9 +1431,9 @@
       return v;
     },
 
-    /** Najde RW tak, aby součet přídělů (po ohraničení min/max) byl co nejblíž cílovému množství (k rozdělení) - součet je v RW neklesající, takže stačí půlení intervalu. */
-    _solveRw(target, storeData, min, max) {
-      const totalFor = (rw) => storeData.reduce((sum, s) => sum + this._clampPrideli(rw, s.median, s.stav, min, max), 0);
+    /** Najde RW tak, aby součet přídělů (po zaokrouhlení a ohraničení min/max) byl co nejblíž cílovému množství (k rozdělení) - součet je v RW neklesající, takže stačí půlení intervalu. */
+    _solveRw(target, storeData, min, max, zaokrouhlit) {
+      const totalFor = (rw) => storeData.reduce((sum, s) => sum + this._clampPrideli(rw, s.median, s.stav, min, max, zaokrouhlit), 0);
       let lo = 0;
       let hi = 60; // rozumný horní strop (dnů zásoby) - i kdyby na cíl nestačil, vrátí se jako nejvyšší rozumná hodnota
       for (let i = 0; i < 40; i++) {
@@ -1469,11 +1471,14 @@
       const rwInput = el.querySelector('.rzr-rw[data-cislo="' + CSS.escape(cislo) + '"]');
       const minInput = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="min"]');
       const maxInput = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="max"]');
+      const zaokrInput = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="zaokrouhlit"]');
       const rw = Number(rwInput.value) || 0;
       const minRaw = minInput.value.trim();
       const maxRaw = maxInput.value.trim();
+      const zaokrRaw = zaokrInput ? zaokrInput.value.trim() : '';
       const min = minRaw === '' ? '' : this._toNumber(minRaw);
       const max = maxRaw === '' ? '' : this._toNumber(maxRaw);
+      const zaokrouhlit = zaokrRaw === '' ? '' : this._toNumber(zaokrRaw);
       const perStore = this._computeMedianTeo(cislo);
       const a = this.artikly.find((x) => this._artiklMatches(x.cislo_artiklu, cislo));
       const { byStore } = this._rozdeleniLookup();
@@ -1485,7 +1490,7 @@
         const eligible = !a || !a.metropol || !!s.metropolitni;
         const vals = perStore[s.code] || {};
         const stav = (vals.teo || 0) + (vals.dodano || 0) + (vals.prideleno || 0);
-        const base = eligible ? this._clampPrideli(rw, vals.median || 0, stav, min, max) : 0;
+        const base = eligible ? this._clampPrideli(rw, vals.median || 0, stav, min, max, zaokrouhlit) : 0;
         const delta = eligible ? (this._toNumber(upravy[s.code]) || 0) : 0;
         const efektivni = Math.max(0, base + delta);
         rozdeleno += efektivni;
@@ -1615,14 +1620,17 @@
       const el = this.container.querySelector('#rzTabContent');
       const minRaw = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="min"]').value.trim();
       const maxRaw = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="max"]').value.trim();
+      const zaokrInput = el.querySelector('.rzr-minmax[data-cislo="' + CSS.escape(cislo) + '"][data-field="zaokrouhlit"]');
+      const zaokrRaw = zaokrInput ? zaokrInput.value.trim() : '';
       const min = minRaw === '' ? '' : this._toNumber(minRaw);
       const max = maxRaw === '' ? '' : this._toNumber(maxRaw);
+      const zaokrouhlit = zaokrRaw === '' ? '' : this._toNumber(zaokrRaw);
       // Bez loadRozdeleni() po uložení - lokální stav už je aktualizovaný přes
       // _upsertRozdeleniLocal, znovunačtení by byl jen další round-trip (~1-3 s)
       // a zbytečné překreslení celé záložky.
-      this._upsertRozdeleniLocal(cislo, '', { min: min, max: max });
+      this._upsertRozdeleniLocal(cislo, '', { min: min, max: max, zaokrouhlit: zaokrouhlit });
       this._enqueueDebounced('Ukládám min/max',
-        () => Ui.call('apiRzSaveRozdeleniMinMax', { cislo_artiklu: cislo, min: min, max: max }, { silent: true }),
+        () => Ui.call('apiRzSaveRozdeleniMinMax', { cislo_artiklu: cislo, min: min, max: max, zaokrouhlit: zaokrouhlit }, { silent: true }),
         'minmax:' + cislo);
     },
 
@@ -1676,7 +1684,7 @@
           median: (perStore[s.code] || {}).median || 0,
           stav: ((perStore[s.code] || {}).teo || 0) + ((perStore[s.code] || {}).dodano || 0) + ((perStore[s.code] || {}).prideleno || 0),
         }));
-      const rw = this._solveRw(target, storeData, minMax.min, minMax.max);
+      const rw = this._solveRw(target, storeData, minMax.min, minMax.max, minMax.zaokrouhlit);
 
       // Nejdřív okamžitě promítnout do DOM (bez čekání na server) - stejné
       // "online" chování jako ruční úprava RW - a teprve pak uložit na pozadí.
