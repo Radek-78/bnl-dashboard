@@ -1223,40 +1223,100 @@
   }
 
   /* ── Changelog modal ─────────────────────────────── */
+  /* Časová osa místo plochého seznamu odstavců - tečka + spojnice potvrzují
+     chronologii, verze je odznak (ne tučný text splývající s obsahem),
+     nejnovější záznam má jemné zvýraznění + žlutý štítek "Aktuální". */
+
+  .changelog-list {
+    padding-left: 18px;
+    position: relative;
+  }
+
+  .changelog-list::before {
+    background: var(--line);
+    bottom: 4px;
+    content: '';
+    left: 4px;
+    position: absolute;
+    top: 4px;
+    width: 2px;
+  }
 
   .changelog-entry {
-    border-bottom: 1px solid var(--line-soft);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 10px 0;
+    padding: 0 0 16px;
+    position: relative;
   }
 
   .changelog-entry:last-child {
-    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .changelog-dot {
+    background: var(--white);
+    border: 2.5px solid var(--lidl-blue);
+    border-radius: 50%;
+    height: 11px;
+    left: -18px;
+    position: absolute;
+    top: 3px;
+    width: 11px;
+  }
+
+  .changelog-entry.is-latest {
+    background: rgba(0, 80, 170, 0.05);
+    border-radius: 8px;
+    margin: -8px -10px 8px;
+    padding: 8px 10px 20px;
+  }
+
+  .changelog-entry.is-latest .changelog-dot {
+    background: var(--lidl-yellow);
+    border-color: var(--lidl-yellow);
+  }
+
+  .changelog-top {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .changelog-version {
-    align-items: center;
-    color: var(--lidl-dark-blue);
-    display: flex;
-    font-size: 13px;
+    background: var(--lidl-blue);
+    border-radius: 999px;
+    color: var(--white);
+    font-size: 11px;
     font-weight: 700;
-    gap: 8px;
-    justify-content: space-between;
+    padding: 2px 9px;
+  }
+
+  .changelog-entry.is-latest .changelog-version {
+    background: var(--lidl-dark-blue);
+  }
+
+  .changelog-current {
+    background: var(--lidl-yellow);
+    border-radius: 999px;
+    color: var(--lidl-dark-blue);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    text-transform: uppercase;
   }
 
   .changelog-date {
     color: var(--muted);
     font-size: 11px;
     font-weight: 400;
+    margin-left: auto;
   }
 
   .changelog-entry p {
     color: var(--text);
     font-size: 13px;
     line-height: 1.5;
-    margin: 4px 0 0;
+    margin: 5px 0 0;
   }
 
   /* ── Module card variants ────────────────────────── */
@@ -1793,6 +1853,84 @@
     align-self: stretch;
     flex: 1 1 auto;
     min-width: 240px;
+  }
+
+  /* Barevně odlišené hlavičky 4 panelů v záložce Artikly - ikonový čip +
+     spodní linka ve stejné barvě podle role panelu (tmavě modrá = hlavní
+     data, modrá = odvozené/uložené, světle modrá = průběžné, neutrální
+     modrošedá = referenční) - čtyři odstíny jedné rodiny, ne duha. Stavové
+     barvy (nalezeno/chybí, Metropol žlutá) zůstávají nezávislé na tomhle. */
+  .rzr-panel-title {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .rzr-panel-title h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rzr-panel-icon {
+    align-items: center;
+    border-radius: 7px;
+    color: var(--white);
+    display: inline-flex;
+    flex-shrink: 0;
+    height: 26px;
+    justify-content: center;
+    width: 26px;
+  }
+
+  .rzr-panel-icon svg {
+    height: 14px;
+    width: 14px;
+  }
+
+  .rzr-panel-pill {
+    background: rgba(0, 80, 170, 0.1);
+    border-radius: 999px;
+    color: var(--lidl-blue);
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    white-space: nowrap;
+  }
+
+  .rz-artikly-panel .panel-header--compact { border-bottom: 2px solid var(--lidl-dark-blue); }
+  .rz-artikly-panel .rzr-panel-icon { background: var(--lidl-dark-blue); }
+  .rz-artikly-panel .rzr-panel-pill { background: rgba(0, 36, 102, 0.1); color: var(--lidl-dark-blue); }
+
+  .rz-skupiny-panel .panel-header--compact { border-bottom: 2px solid var(--lidl-blue); }
+  .rz-skupiny-panel .rzr-panel-icon { background: var(--lidl-blue); }
+
+  .rz-import-panel .panel-header--compact { border-bottom: 2px solid var(--lidl-light-blue); }
+  .rz-import-panel .rzr-panel-icon { background: var(--lidl-light-blue); }
+  .rz-import-panel .rzr-panel-pill { background: rgba(0, 140, 210, 0.12); color: var(--lidl-light-blue); }
+
+  .rz-stores-panel .panel-header--compact { border-bottom: 2px solid var(--muted); }
+  .rz-stores-panel .rzr-panel-icon { background: var(--muted); }
+  .rz-stores-panel .rzr-panel-pill { background: rgba(94, 110, 138, 0.14); color: var(--muted); }
+
+  /* Stav importu jednotlivého souboru - "naimportováno: N řádků" jako kompaktní
+     nálepka místo obyčejného barevného textu (název souboru v řádku nad tím
+     zůstává čistý text, protože jeho délka kolísá a jako celá nálepka by
+     nepůsobil sjednoceně). */
+  .rz-import-status-pill {
+    border-radius: 999px;
+    font-weight: 700;
+    padding: 2px 8px;
+  }
+
+  .rz-import-status-pill.is-found {
+    background: rgba(0, 122, 69, 0.12);
+  }
+
+  .rz-import-status-pill.is-missing {
+    background: rgba(230, 10, 20, 0.1);
   }
 
   /* Správa souborů ve složce se zdrojovými soubory - smazání/nahrání, viz

@@ -1503,11 +1503,18 @@ _sfState: {},
     openChangelog() {
       Ui.call('apiGetChangelog', null, { silent: true, busy: 'Načítám historii změn…' })
         .then((entries) => {
-          document.querySelector('#changelogBody').innerHTML = entries.map((e) => `
-            <div class="changelog-entry">
-              <div class="changelog-version">${Ui.escape(e.version)}<span class="changelog-date">${Ui.escape(e.date)}</span></div>
+          // Nejnovější verze (první v poli, viz server/changelog.js) je vizuálně
+          // zvýrazněná - hned je jasné, co je aktuálně nasazené, bez čtení dat.
+          document.querySelector('#changelogBody').innerHTML = '<div class="changelog-list">' + entries.map((e, i) => `
+            <div class="changelog-entry${i === 0 ? ' is-latest' : ''}">
+              <span class="changelog-dot"></span>
+              <div class="changelog-top">
+                <span class="changelog-version">${Ui.escape(e.version)}</span>
+                ${i === 0 ? '<span class="changelog-current">Aktuální</span>' : ''}
+                <span class="changelog-date">${Ui.escape(e.date)}</span>
+              </div>
               <p>${Ui.escape(e.message)}</p>
-            </div>`).join('');
+            </div>`).join('') + '</div>';
           Ui.openModal(document.querySelector('#changelogModal'));
         })
         .catch(() => Ui.openModal(document.querySelector('#changelogModal')));

@@ -399,16 +399,28 @@
       }
     },
 
+    /** Malý barevný čip s ikonou v hlavičce panelu - viz _panelPill, sjednocuje vzhled hlaviček panelů v záložce Artikly. */
+    _panelIcon(icon) {
+      return '<span class="rzr-panel-icon"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-' + icon + '"></use></svg></span>';
+    },
+
+    /** Souhrnný štítek vedle názvu panelu (počet vyplněných řádků, skupin apod.) - informace, kterou by jinak musel uživatel spočítat sám pohledem do tabulky. */
+    _panelPill(text) {
+      return '<span class="rzr-panel-pill">' + Ui.escape(text) + '</span>';
+    },
+
     renderArtikly(el) {
       const rows = [];
       for (let i = 0; i < RZ_ARTIKLY_ROWS; i++) rows.push(this.artikly[i] || { poradi: i + 1 });
       const dis = this.canWrite ? '' : 'disabled';
+      const filledCount = this.artikly.filter((a) => a && a.cislo_artiklu).length;
 
       el.innerHTML =
         '<div class="rz-layout">' +
         '<div class="rz-artikly-col">' +
         '<section class="panel rz-compact rz-artikly-panel">' +
-        '  <div class="panel-header panel-header--compact"><div><h2>Artikly</h2></div>' +
+        '  <div class="panel-header panel-header--compact"><div class="rzr-panel-title">' + this._panelIcon('list') + '<h2>Artikly</h2>' +
+        this._panelPill(filledCount + ' / ' + RZ_ARTIKLY_ROWS + ' vyplněno') + '</div>' +
         (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzResetArtiklyBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg>Resetovat tabulku</button>' : '') +
         '</div>' +
         '  <div class="table-wrap rz-no-scroll"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>Obsah</th><th>K rozdělení</th><th>Počet dnů</th><th>Metropol</th></tr></thead><tbody>' +
@@ -427,11 +439,12 @@
         '</div>' +
         this.renderImportOverviewPanel() +
         '<section class="panel rz-compact rz-stores-panel">' +
-        '  <div class="panel-header panel-header--compact"><div><h2>Filiálky</h2></div></div>' +
+        '  <div class="panel-header panel-header--compact"><div class="rzr-panel-title">' + this._panelIcon('store') + '<h2>Filiálky</h2>' +
+        (this.stores.length ? this._panelPill(this.stores.length + ' poboček') : '') + '</div></div>' +
         '  <div class="table-wrap"><table class="rz-stores-table"><thead><tr><th>Prodejna</th><th>Název</th><th>Metropol</th></tr></thead><tbody>' +
         (this.stores.length
           ? this.stores.map((s) => '<tr><td>' + Ui.escape(s.code) + '</td><td>' + Ui.escape(s.name) + '</td><td style="text-align:center">' +
-              (s.metropolitni ? '<svg width="14" height="14"><use href="#i-check"></use></svg>' : '—') + '</td></tr>').join('')
+              (s.metropolitni ? '<span class="rzr-metro-tag">M</span>' : '—') + '</td></tr>').join('')
           : '<tr><td colspan="3">Načítám…</td></tr>') +
         '  </tbody></table></div>' +
         '</section>' +
@@ -496,9 +509,11 @@
      */
     renderSkupinyPanel() {
       const skupiny = this.skupiny || [];
+      const pocetSlovo = skupiny.length === 1 ? 'skupina' : (skupiny.length > 0 && skupiny.length < 5 ? 'skupiny' : 'skupin');
       return (
         '<section class="panel rz-compact rz-skupiny-panel">' +
-        '  <div class="panel-header panel-header--compact"><div><h2>Skupiny artiklů</h2></div>' +
+        '  <div class="panel-header panel-header--compact"><div class="rzr-panel-title">' + this._panelIcon('layers') + '<h2>Skupiny artiklů</h2>' +
+        (skupiny.length ? this._panelPill(skupiny.length + ' ' + pocetSlovo) : '') + '</div>' +
         (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzNewSkupinaBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>Nová skupina</button>' : '') +
         '</div>' +
         '  <div class="panel-body">' +
@@ -614,7 +629,8 @@
       const syncFiles = this.syncFiles;
       return (
         '<section class="panel rz-compact rz-import-panel">' +
-        '  <div class="panel-header panel-header--compact"><div><h2>Import dat</h2></div>' +
+        '  <div class="panel-header panel-header--compact"><div class="rzr-panel-title">' + this._panelIcon('sync') + '<h2>Import dat</h2>' +
+        (overview ? this._panelPill(overview.items.filter((i) => i.found).length + ' / ' + overview.items.length + ' nalezeno') : '') + '</div>' +
         (this.canWrite
           ? '<div style="display:flex;gap:6px;">' +
             '<button class="button button-secondary button-small" type="button" id="rzClearImportsBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg>Vymazat</button>' +
@@ -659,7 +675,7 @@
                 ? '✓ ' + Ui.escape(item.fileName) + ' <small>(' + Ui.formatDateTime(item.updatedAt) + ')</small>'
                 : '✗ soubor ve složce nenalezen') +
               '</span>' +
-              '<span class="' + (item.importedRowCount > 0 ? 'is-found' : 'is-missing') + '">' + (item.importedRowCount > 0 ? 'naimportováno: ' + item.importedRowCount + ' řádků' : 'zatím nenaimportováno') + '</span>' +
+              '<span class="rz-import-status-pill ' + (item.importedRowCount > 0 ? 'is-found' : 'is-missing') + '">' + (item.importedRowCount > 0 ? 'naimportováno: ' + item.importedRowCount + ' řádků' : 'zatím nenaimportováno') + '</span>' +
               '</div>' +
               '</li>'
             )).join('') +
