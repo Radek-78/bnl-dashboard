@@ -3094,6 +3094,18 @@ _sfState: {},
         });
     },
 
+    /* Aktuálně existující logistická centra - jen pro předvyplnění čísla a
+     * názvu v "Doplnit LC ze souboru" (viz _openBulkLogisticModalReady).
+     * Přibude-li v budoucnu nové LC, které tu není, uživatel si číslo/název
+     * prostě dopíše ručně, jako doteď. */
+    KNOWN_LOGISTICS: {
+      BNL: { code: '5', name: 'Brandýs nad Labem' },
+      OLO: { code: '6', name: 'Olomouc' },
+      CER: { code: '7', name: 'Cerhovice' },
+      BUS: { code: '9', name: 'Buštěhrad' },
+      BRV: { code: '11', name: 'Bravantice' },
+    },
+
     /** Zkratky LC nalezené ve filiálkách, které zatím nemají vlastní záznam v Log. centrech. */
     _missingLogisticAbbreviations() {
       const known = new Set((this.logistics || []).map((lc) => String(lc.abbreviation || '').trim().toUpperCase()));
@@ -3121,14 +3133,17 @@ _sfState: {},
         Ui.toast('Všechny LC ze souboru už mají svůj záznam.');
         return;
       }
-      document.querySelector('#bulkLogisticRows').innerHTML = missing.map((abbr, i) => `
+      document.querySelector('#bulkLogisticRows').innerHTML = missing.map((abbr, i) => {
+        const known = this.KNOWN_LOGISTICS[abbr];
+        return `
         <tr>
           <td style="text-align:center"><input type="checkbox" class="bulk-lc-use" data-idx="${i}" checked></td>
-          <td><input class="sm-input" data-idx="${i}" data-bulk-field="code" placeholder="5"></td>
+          <td><input class="sm-input" data-idx="${i}" data-bulk-field="code" placeholder="5" value="${Ui.escape(known ? known.code : '')}"></td>
           <td><strong>${Ui.escape(abbr)}</strong><input type="hidden" data-idx="${i}" data-bulk-field="abbreviation" value="${Ui.escape(abbr)}"></td>
-          <td><input class="sm-input" data-idx="${i}" data-bulk-field="name" placeholder="Brandýs nad Labem"></td>
+          <td><input class="sm-input" data-idx="${i}" data-bulk-field="name" placeholder="Brandýs nad Labem" value="${Ui.escape(known ? known.name : '')}"></td>
           <td style="text-align:center"><input type="checkbox" data-idx="${i}" data-bulk-field="active" checked></td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
       Ui.openModal(document.querySelector('#bulkLogisticModal'));
     },
 
