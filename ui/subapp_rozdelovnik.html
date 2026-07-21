@@ -300,6 +300,27 @@
         '      <button class="button button-primary" type="submit"><svg><use href="#i-check"></use></svg>Uložit</button>' +
         '    </footer>' +
         '  </form>' +
+        '</dialog>' +
+        '<dialog class="modal" id="rzSkupinaModal">' +
+        '  <form id="rzSkupinaForm">' +
+        '    <input type="hidden" name="id" id="rzSkupinaEditId">' +
+        '    <header class="modal-header">' +
+        '      <span class="modal-icon"><svg><use href="#i-layers"></use></svg></span>' +
+        '      <div class="modal-header-text"><p class="kicker">Rozdělovník 20 artiklů</p><h2 id="rzSkupinaModalTitle">Nová skupina</h2></div>' +
+        '      <button class="modal-close" type="button" id="rzCloseSkupinaModalBtn" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>' +
+        '    </header>' +
+        '    <div class="modal-body">' +
+        '      <div class="form form-plain">' +
+        '        <label><span>Název skupiny</span><input type="text" name="nazev" id="rzSkupinaName" placeholder="Např. Wurstttheke"></label>' +
+        '        <label><span>Čísla artiklů (jedno na řádek, nebo oddělená čárkou)</span><textarea name="cisla" id="rzSkupinaCisla" rows="8" placeholder="6717079"></textarea></label>' +
+        '      </div>' +
+        '    </div>' +
+        '    <footer class="modal-actions">' +
+        '      <button class="button button-secondary" type="button" id="rzSkupinaLoadFromTableBtn">Načíst z tabulky Artikly</button>' +
+        '      <button class="button button-secondary" type="button" id="rzCancelSkupinaModalBtn"><svg><use href="#i-close"></use></svg>Zrušit</button>' +
+        '      <button class="button button-primary" type="submit"><svg><use href="#i-check"></use></svg>Uložit</button>' +
+        '    </footer>' +
+        '  </form>' +
         '</dialog>';
 
       this.container.querySelectorAll('.rz-tabbtn').forEach((btn) => {
@@ -308,6 +329,10 @@
       this.container.querySelector('#rzCloseSettingsBtn').addEventListener('click', () => Ui.closeModal(this.container.querySelector('#rzSettingsModal')));
       this.container.querySelector('#rzCancelSettingsBtn').addEventListener('click', () => Ui.closeModal(this.container.querySelector('#rzSettingsModal')));
       this.container.querySelector('#rzSettingsForm').addEventListener('submit', (e) => { e.preventDefault(); this.saveSettings(e.target); });
+      this.container.querySelector('#rzCloseSkupinaModalBtn').addEventListener('click', () => Ui.closeModal(this.container.querySelector('#rzSkupinaModal')));
+      this.container.querySelector('#rzCancelSkupinaModalBtn').addEventListener('click', () => Ui.closeModal(this.container.querySelector('#rzSkupinaModal')));
+      this.container.querySelector('#rzSkupinaLoadFromTableBtn').addEventListener('click', () => this.loadSkupinaFromTable());
+      this.container.querySelector('#rzSkupinaForm').addEventListener('submit', (e) => { e.preventDefault(); this.saveSkupinaModal(e.target); });
       this.container.querySelectorAll('.rz-modal-tabbtn').forEach((btn) => {
         btn.addEventListener('click', () => {
           const key = btn.dataset.settingsTab;
@@ -415,39 +440,34 @@
         if (importBtn) importBtn.addEventListener('click', () => this.importAll());
         const clearImportsBtn = el.querySelector('#rzClearImportsBtn');
         if (clearImportsBtn) clearImportsBtn.addEventListener('click', () => this.clearImports());
-        const saveSkupinaBtn = el.querySelector('#rzSkupinaSaveBtn');
-        if (saveSkupinaBtn) saveSkupinaBtn.addEventListener('click', () => this.saveSkupina());
-        const loadFromTableBtn = el.querySelector('#rzSkupinaLoadFromTableBtn');
-        if (loadFromTableBtn) loadFromTableBtn.addEventListener('click', () => this.loadSkupinaFromTable());
-        const cancelEditSkupinaBtn = el.querySelector('#rzSkupinaCancelEditBtn');
-        if (cancelEditSkupinaBtn) cancelEditSkupinaBtn.addEventListener('click', () => this.cancelEditSkupina());
         el.querySelectorAll('.rz-skupina-apply').forEach((btn) => {
           btn.addEventListener('click', () => this.applySkupina(btn.dataset.id));
         });
         el.querySelectorAll('.rz-skupina-edit').forEach((btn) => {
-          btn.addEventListener('click', () => this.editSkupina(btn.dataset.id));
+          btn.addEventListener('click', () => this.openSkupinaModal(btn.dataset.id));
         });
         el.querySelectorAll('.rz-skupina-delete').forEach((btn) => {
           btn.addEventListener('click', () => this.deleteSkupina(btn.dataset.id));
         });
+        const newSkupinaBtn = el.querySelector('#rzNewSkupinaBtn');
+        if (newSkupinaBtn) newSkupinaBtn.addEventListener('click', () => this.openSkupinaModal());
       }
     },
 
     /**
      * Panel pod tabulkou Artikly - sdílená knihovna skupin (často používaných
-     * sestav čísel artiklů, viz apiRzListSkupiny/apiRzSaveSkupina). Editor
-     * (název + čísla artiklů) funguje NEZÁVISLE na tabulce Artikly - "Načíst z
-     * tabulky Artikly" je jen volitelná zkratka, jak editor předvyplnit, ne
-     * jediná cesta k vytvoření skupiny. Stejný editor slouží i pro úpravu
-     * existující skupiny (viz editSkupina) - #rzSkupinaEditId rozlišuje, jestli
-     * uložení založí novou, nebo přepíše stávající. "Vložit" doplní čísla jen
-     * do PRÁZDNÝCH řádků tabulky (už vyplněné řádky se nepřepisují).
+     * sestav čísel artiklů, viz apiRzListSkupiny/apiRzSaveSkupina). Vytvoření
+     * i úprava skupiny probíhá v samostatném modalu (viz openSkupinaModal),
+     * ne inline v tomhle panelu. "Vložit" doplní čísla jen do PRÁZDNÝCH řádků
+     * tabulky Artikly (už vyplněné řádky se nepřepisují).
      */
     renderSkupinyPanel() {
       const skupiny = this.skupiny || [];
       return (
         '<section class="panel rz-compact rz-skupiny-panel">' +
-        '  <div class="panel-header panel-header--compact"><div><h2>Skupiny artiklů</h2></div></div>' +
+        '  <div class="panel-header panel-header--compact"><div><h2>Skupiny artiklů</h2></div>' +
+        (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzNewSkupinaBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>Nová skupina</button>' : '') +
+        '</div>' +
         '  <div class="panel-body">' +
         (skupiny.length
           ? '<div class="rz-skupiny-list">' +
@@ -463,18 +483,6 @@
             }).join('') +
             '</div>'
           : '<p class="form-hint">Zatím žádné uložené skupiny.</p>') +
-        (this.canWrite
-          ? '<div class="rz-skupina-editor">' +
-            '<input type="hidden" id="rzSkupinaEditId">' +
-            '<label class="rz-skupina-field"><span>Název skupiny</span><input type="text" id="rzSkupinaName" class="sm-input" placeholder="Např. Wurstttheke"></label>' +
-            '<label class="rz-skupina-field"><span>Čísla artiklů (jedno na řádek, nebo oddělená čárkou)</span><textarea id="rzSkupinaCisla" class="sm-input" rows="4" placeholder="6717079"></textarea></label>' +
-            '<div class="rz-skupina-editor-actions">' +
-            '<button type="button" class="button button-secondary button-small" id="rzSkupinaLoadFromTableBtn">Načíst z tabulky Artikly</button>' +
-            '<button type="button" class="button button-secondary button-small is-hidden" id="rzSkupinaCancelEditBtn">Zrušit úpravu</button>' +
-            '<button type="button" class="button button-primary button-small" id="rzSkupinaSaveBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"></use></svg><span id="rzSkupinaSaveBtnLabel">Uložit jako novou skupinu</span></button>' +
-            '</div>' +
-            '</div>'
-          : '') +
         '  </div>' +
         '</section>'
       );
@@ -485,54 +493,41 @@
       return String(raw || '').split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
     },
 
-    /** Uloží editor (název + čísla) - s vyplněným #rzSkupinaEditId přepíše existující skupinu, jinak založí novou. Po uložení se editor resetuje spolu s celým překreslením ze čerstvého seznamu (viz loadSkupiny). */
-    saveSkupina() {
-      const el = this.container.querySelector('#rzTabContent');
-      const id = el.querySelector('#rzSkupinaEditId').value || '';
-      const nazev = el.querySelector('#rzSkupinaName').value.trim();
+    /** Otevře modal Skupiny artiklů - prázdný pro novou skupinu, nebo předvyplněný daty existující (id). */
+    openSkupinaModal(id) {
+      const skupina = id ? (this.skupiny || []).find((g) => g.id === id) : null;
+      const modal = this.container.querySelector('#rzSkupinaModal');
+      modal.querySelector('#rzSkupinaModalTitle').textContent = skupina ? 'Upravit skupinu' : 'Nová skupina';
+      modal.querySelector('#rzSkupinaEditId').value = skupina ? skupina.id : '';
+      modal.querySelector('#rzSkupinaName').value = skupina ? (skupina.nazev || '') : '';
+      modal.querySelector('#rzSkupinaCisla').value = skupina ? String(skupina.cisla || '').split(',').filter(Boolean).join('\n') : '';
+      Ui.openModal(modal);
+    },
+
+    /** Uloží modal (název + čísla) - s vyplněným #rzSkupinaEditId přepíše existující skupinu, jinak založí novou. */
+    saveSkupinaModal(form) {
+      const id = form.elements.id.value || '';
+      const nazev = form.elements.nazev.value.trim();
       if (!nazev) { Ui.toast('Vyplňte název skupiny.', 'error'); return; }
-      const cisla = this._parseSkupinaCisla(el.querySelector('#rzSkupinaCisla').value);
+      const cisla = this._parseSkupinaCisla(form.elements.cisla.value);
       if (!cisla.length) { Ui.toast('Vyplňte aspoň jedno číslo artiklu.', 'error'); return; }
       Ui.call('apiRzSaveSkupina', { id: id || undefined, nazev: nazev, cisla: cisla }, { silent: true, busy: 'Ukládám skupinu…' })
         .then(() => {
+          Ui.closeModal(this.container.querySelector('#rzSkupinaModal'));
           Ui.toast('Skupina „' + nazev + '" byla uložena.');
           return this.loadSkupiny();
         })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
-    /** Předvyplní editor daty existující skupiny - uložení pak jde přes stejné apiRzSaveSkupina, jen s jejím id. */
-    editSkupina(id) {
-      const skupina = (this.skupiny || []).find((g) => g.id === id);
-      if (!skupina) return;
-      const el = this.container.querySelector('#rzTabContent');
-      el.querySelector('#rzSkupinaEditId').value = skupina.id;
-      el.querySelector('#rzSkupinaName').value = skupina.nazev || '';
-      el.querySelector('#rzSkupinaCisla').value = String(skupina.cisla || '').split(',').filter(Boolean).join('\n');
-      el.querySelector('#rzSkupinaSaveBtnLabel').textContent = 'Uložit úpravu';
-      el.querySelector('#rzSkupinaCancelEditBtn').classList.remove('is-hidden');
-      el.querySelector('#rzSkupinaName').focus();
-    },
-
-    /** Vrátí editor zpátky do stavu "nová skupina" - beze změny uložených dat. */
-    cancelEditSkupina() {
-      const el = this.container.querySelector('#rzTabContent');
-      if (!el) return;
-      el.querySelector('#rzSkupinaEditId').value = '';
-      el.querySelector('#rzSkupinaName').value = '';
-      el.querySelector('#rzSkupinaCisla').value = '';
-      el.querySelector('#rzSkupinaSaveBtnLabel').textContent = 'Uložit jako novou skupinu';
-      el.querySelector('#rzSkupinaCancelEditBtn').classList.add('is-hidden');
-    },
-
-    /** Volitelná zkratka - předvyplní editor aktuálně vyplněnými čísly z tabulky Artikly, editor jinak funguje i bez ní. */
+    /** Volitelná zkratka v modalu - předvyplní čísla artiklů aktuálně vyplněnými hodnotami z tabulky Artikly, modal jinak funguje i bez ní. */
     loadSkupinaFromTable() {
-      const el = this.container.querySelector('#rzTabContent');
-      const cisla = [...el.querySelectorAll('.rz-artikly-table input[data-f="cislo_artiklu"]')]
+      const artiklyEl = this.container.querySelector('#rzTabContent');
+      const cisla = [...artiklyEl.querySelectorAll('.rz-artikly-table input[data-f="cislo_artiklu"]')]
         .map((input) => input.value.trim())
         .filter(Boolean);
       if (!cisla.length) { Ui.toast('Tabulka Artikly je prázdná.', 'error'); return; }
-      el.querySelector('#rzSkupinaCisla').value = cisla.join('\n');
+      this.container.querySelector('#rzSkupinaCisla').value = cisla.join('\n');
     },
 
     /** Doplní čísla artiklů uložené skupiny do prázdných řádků tabulky (vyplněné řádky se nemění) a spustí dohledání Název/Obsah pro nově doplněné řádky. */
