@@ -1756,9 +1756,17 @@
     text-align: center;
   }
 
+  /* Artikly + Skupiny artiklů pod sebou ve společném sloupci - viz renderArtikly. */
+  .rz-artikly-col {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 10px;
+    width: 610px;
+  }
+
   .rz-artikly-panel {
     flex: 0 0 auto;
-    width: 610px;
   }
 
   .rz-stores-panel {
@@ -1871,13 +1879,41 @@
     font-size: 11px;
   }
 
-  .rz-skupina-save-row {
+  /* Editor skupiny (název + čísla artiklů) - funguje nezávisle na tabulce
+     Artikly, "Načíst z tabulky" v editor-actions je jen volitelná zkratka. */
+  .rz-skupina-editor {
     display: flex;
+    flex-direction: column;
     gap: 8px;
+    margin-top: 4px;
   }
 
-  .rz-skupina-save-row .sm-input {
-    flex: 1;
+  .rz-skupina-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .rz-skupina-field span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .rz-skupina-field .sm-input {
+    width: 100%;
+  }
+
+  textarea.sm-input {
+    font-family: inherit;
+    resize: vertical;
+  }
+
+  .rz-skupina-editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
   }
 
   #rzSettingsModal {

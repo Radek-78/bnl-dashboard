@@ -344,7 +344,7 @@ function apiRzListSkupiny() {
   });
 }
 
-/** Uloží aktuálně vyplněná čísla artiklů (z klienta) jako novou pojmenovanou skupinu. */
+/** Uloží pojmenovanou skupinu čísel artiklů - s payload.id přepíše existující, jinak založí novou. */
 function apiRzSaveSkupina(payload) {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k ukládání skupin.');
@@ -356,8 +356,10 @@ function apiRzSaveSkupina(payload) {
     if (!cisla.length) throw new Error('Skupina musí obsahovat aspoň jeden artikl.');
     const repo = rzRepo_();
     repo.ensureSchema();
-    const saved = repo.insert('skupiny', { nazev: nazev, cisla: cisla.join(',') });
-    audit_('rz_skupina_create', nazev + ' (' + cisla.length + ' artiklů)');
+    const id = payload && payload.id;
+    const data = { nazev: nazev, cisla: cisla.join(',') };
+    const saved = id ? repo.update('skupiny', id, data) : repo.insert('skupiny', data);
+    audit_('rz_skupina_' + (id ? 'update' : 'create'), nazev + ' (' + cisla.length + ' artiklů)');
     return saved;
   });
 }
