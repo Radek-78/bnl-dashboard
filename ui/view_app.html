@@ -2079,12 +2079,16 @@ _sfState: {},
       const STATUS_CLASS = { available: 'mc--available', coming: 'mc--coming', inactive: 'mc--inactive' };
       const STATUS_BADGE = { available: 'Dostupná', coming: 'V přípravě', inactive: 'Nedostupná' };
       const STATUS_ICON = { coming: '#i-clock', inactive: '#i-lock' };
+      const isSuperAdmin = this.boot.user && this.boot.user.role === 'SUPERADMIN';
       active.forEach((app) => {
         const colorCls = COLOR_CLASS[app.color] || '';
         const statusCls = STATUS_CLASS[app.status] || 'mc--coming';
         const statusIcon = STATUS_ICON[app.status] ? `<div class="mc-status-icon"><svg><use href="${STATUS_ICON[app.status]}"></use></svg></div>` : '';
-        const isAvailable = app.status === 'available';
         const isComing = app.status === 'coming';
+        // Superadmin si i rozpracovanou (V přípravě) aplikaci může otevřít a
+        // rozkoukat - jen "Nedostupná" (inactive, typicky vyřazená appka)
+        // zůstává zamčená i pro něj.
+        const isAvailable = app.status === 'available' || (isComing && isSuperAdmin);
         const sideIcon = isComing ? 'clock' : (app.icon || 'info');
         const art = document.createElement('article');
         art.className = 'module-card mc--sidebar ' + statusCls;
