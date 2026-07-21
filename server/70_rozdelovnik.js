@@ -19,6 +19,9 @@ const RZ_SCHEMA = {
   // staršího schématu mají data pozičně svázaná se starým pořadím sloupců,
   // vložení doprostřed by je při čtení posunulo a rozbilo (viz updated_at/rw).
   'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw'],
+  // cisla - čísla artiklů skupiny spojená čárkou (jen čísla, ne název/obsah/
+  // množství - ty se dohledávají/zadávají znovu při každém vložení skupiny).
+  'skupiny': ['id', 'nazev', 'cisla', 'created_at', 'created_by', 'updated_at'],
 };
 
 const RZ_IMPORT_TABLES = ['odprodej', 'teo_stavy', 'vyskladnovaci_listy', 'prideleni_po_artiklech'];
@@ -324,6 +327,49 @@ function apiRzSaveArtikly(rows) {
     // stisku Tab, a v auditu jen šum. Audit zůstává u zásadních akcí (import,
     // reset, mazání dat).
     return saved.sort((a, b) => (Number(a.poradi) || 0) - (Number(b.poradi) || 0));
+  });
+}
+
+/* ── Skupiny artiklů ──────────────────────────────────────────── */
+/* Sdílená knihovna často používaných sestav čísel artiklů (napříč všemi
+ * uživateli subaplikace) - ukládá se jen číslo artiklu, ne název/obsah/
+ * množství/Metropol, protože ty se při každém vložení stejně dohledávají
+ * nebo zadávají znovu (viz lookupArtikl na klientovi). */
+
+function apiRzListSkupiny() {
+  return rzGuard_(() => {
+    const repo = rzRepo_();
+    repo.ensureSchema();
+    return repo.getAll('skupiny').sort((a, b) => String(a.nazev).localeCompare(String(b.nazev), 'cs'));
+  });
+}
+
+/** Uloží aktuálně vyplněná čísla artiklů (z klienta) jako novou pojmenovanou skupinu. */
+function apiRzSaveSkupina(payload) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k ukládání skupin.');
+    const nazev = String((payload && payload.nazev) || '').trim();
+    if (!nazev) throw new Error('Vyplňte název skupiny.');
+    const cisla = Array.isArray(payload && payload.cisla)
+      ? [...new Set(payload.cisla.map((c) => String(c).trim()).filter(Boolean))].slice(0, RZ_ARTIKLY_ROWS)
+      : [];
+    if (!cisla.length) throw new Error('Skupina musí obsahovat aspoň jeden artikl.');
+    const repo = rzRepo_();
+    repo.ensureSchema();
+    const saved = repo.insert('skupiny', { nazev: nazev, cisla: cisla.join(',') });
+    audit_('rz_skupina_create', nazev + ' (' + cisla.length + ' artiklů)');
+    return saved;
+  });
+}
+
+function apiRzDeleteSkupina(id) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání skupin.');
+    const repo = rzRepo_();
+    repo.ensureSchema();
+    repo.delete('skupiny', id);
+    audit_('rz_skupina_delete', id);
+    return { ok: true };
   });
 }
 

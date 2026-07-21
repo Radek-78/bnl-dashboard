@@ -18,6 +18,7 @@
     user: null,
     activeTab: 'artikly',
     artikly: [],
+    skupiny: [],
     stores: [],
     settings: {},
     importData: {},
@@ -67,6 +68,7 @@
       Ui.call('apiRzListStores', null, { silent: true })
         .then((rows) => { this.stores = rows; if (this.activeTab === 'artikly' || this.activeTab === 'rozdeleni') this.renderTabContent(); })
         .catch((e) => Ui.toast(e.message, 'error'));
+      this.loadSkupiny();
       this.loadImportOverview();
       this.loadRozdeleni();
       // Data importovaných souborů se natáhnou rovnou po startu, ne až po
@@ -88,6 +90,12 @@
           this.rozdeleni = rows;
           if (this.activeTab === 'rozdeleni') this.renderTabContent();
         })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    loadSkupiny() {
+      return Ui.call('apiRzListSkupiny', null, { silent: true })
+        .then((rows) => { this.skupiny = rows || []; if (this.activeTab === 'artikly') this.renderTabContent(); })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
@@ -371,6 +379,7 @@
           '</tr>').join('') +
         '  </tbody></table></div>' +
         '</section>' +
+        this.renderSkupinyPanel() +
         this.renderImportOverviewPanel() +
         '<section class="panel rz-compact rz-stores-panel">' +
         '  <div class="panel-header panel-header--compact"><div><h2>Filiálky</h2></div></div>' +
@@ -395,7 +404,111 @@
         if (importBtn) importBtn.addEventListener('click', () => this.importAll());
         const clearImportsBtn = el.querySelector('#rzClearImportsBtn');
         if (clearImportsBtn) clearImportsBtn.addEventListener('click', () => this.clearImports());
+        const saveSkupinaBtn = el.querySelector('#rzSkupinaSaveBtn');
+        if (saveSkupinaBtn) saveSkupinaBtn.addEventListener('click', () => this.saveSkupina());
+        el.querySelectorAll('.rz-skupina-apply').forEach((btn) => {
+          btn.addEventListener('click', () => this.applySkupina(btn.dataset.id));
+        });
+        el.querySelectorAll('.rz-skupina-delete').forEach((btn) => {
+          btn.addEventListener('click', () => this.deleteSkupina(btn.dataset.id));
+        });
       }
+    },
+
+    /**
+     * Panel pod tabulkou Artikly - sdílená knihovna skupin (často používaných
+     * sestav čísel artiklů, viz apiRzListSkupiny/apiRzSaveSkupina). "Vložit"
+     * doplní čísla jen do PRÁZDNÝCH řádků (už vyplněné řádky se nepřepisují),
+     * "Uložit aktuální artikly jako skupinu" uloží čísla právě vyplněná v
+     * tabulce pod zadaný název.
+     */
+    renderSkupinyPanel() {
+      const skupiny = this.skupiny || [];
+      return (
+        '<section class="panel rz-compact rz-skupiny-panel">' +
+        '  <div class="panel-header panel-header--compact"><div><h2>Skupiny artiklů</h2></div></div>' +
+        '  <div class="panel-body">' +
+        (skupiny.length
+          ? '<div class="rz-skupiny-list">' +
+            skupiny.map((g) => {
+              const count = String(g.cisla || '').split(',').filter(Boolean).length;
+              return '<div class="rz-skupina-row">' +
+                '<span class="rz-skupina-name">' + Ui.escape(g.nazev) + '</span>' +
+                '<span class="rz-skupina-count">' + count + ' ' + (count === 1 ? 'artikl' : 'artiklů') + '</span>' +
+                (this.canWrite ? '<button type="button" class="button button-secondary button-small rz-skupina-apply" data-id="' + Ui.escape(g.id) + '">Vložit</button>' : '') +
+                (this.canWrite ? '<button type="button" class="icon-action icon-action--danger rz-skupina-delete" data-id="' + Ui.escape(g.id) + '" title="Smazat skupinu"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg></button>' : '') +
+                '</div>';
+            }).join('') +
+            '</div>'
+          : '<p class="form-hint">Zatím žádné uložené skupiny.</p>') +
+        (this.canWrite
+          ? '<div class="rz-skupina-save-row">' +
+            '<input type="text" id="rzSkupinaNewName" placeholder="Název nové skupiny" class="sm-input">' +
+            '<button type="button" class="button button-primary button-small" id="rzSkupinaSaveBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit aktuální artikly jako skupinu</button>' +
+            '</div>'
+          : '') +
+        '  </div>' +
+        '</section>'
+      );
+    },
+
+    /** Vezme aktuálně vyplněná čísla artiklů z tabulky (ne this.artikly - to nemusí mít poslední rozepsanou úpravu) a uloží je pod zadaný název jako novou skupinu. */
+    saveSkupina() {
+      const el = this.container.querySelector('#rzTabContent');
+      const nameInput = el.querySelector('#rzSkupinaNewName');
+      const nazev = nameInput.value.trim();
+      if (!nazev) { Ui.toast('Vyplňte název skupiny.', 'error'); return; }
+      const cisla = [...el.querySelectorAll('.rz-artikly-table input[data-f="cislo_artiklu"]')]
+        .map((input) => input.value.trim())
+        .filter(Boolean);
+      if (!cisla.length) { Ui.toast('Tabulka Artikly je prázdná, není co uložit.', 'error'); return; }
+      Ui.call('apiRzSaveSkupina', { nazev: nazev, cisla: cisla }, { silent: true, busy: 'Ukládám skupinu…' })
+        .then(() => {
+          Ui.toast('Skupina „' + nazev + '" byla uložena.');
+          nameInput.value = '';
+          return this.loadSkupiny();
+        })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /** Doplní čísla artiklů uložené skupiny do prázdných řádků tabulky (vyplněné řádky se nemění) a spustí dohledání Název/Obsah pro nově doplněné řádky. */
+    applySkupina(id) {
+      const skupina = (this.skupiny || []).find((g) => g.id === id);
+      if (!skupina) return;
+      const cisla = String(skupina.cisla || '').split(',').filter(Boolean);
+      const el = this.container.querySelector('#rzTabContent');
+      const inputs = [...el.querySelectorAll('.rz-artikly-table input[data-f="cislo_artiklu"]')];
+      const emptyInputs = inputs.filter((input) => !input.value.trim());
+      if (!emptyInputs.length) { Ui.toast('Tabulka je plná, uvolněte řádky.', 'error'); return; }
+
+      const toInsert = cisla.slice(0, emptyInputs.length);
+      const filledIndexes = [];
+      toInsert.forEach((cislo, i) => {
+        emptyInputs[i].value = cislo;
+        filledIndexes.push(Number(emptyInputs[i].dataset.i));
+      });
+
+      if (toInsert.length < cisla.length) {
+        Ui.toast('Vloženo ' + toInsert.length + ' z ' + cisla.length + ' artiklů, tabulka měla jen tolik volných řádků.', 'error');
+      } else {
+        Ui.toast('Skupina „' + skupina.nazev + '" byla vložena.');
+      }
+      filledIndexes.forEach((idx) => this.lookupArtikl(idx));
+    },
+
+    deleteSkupina(id) {
+      const skupina = (this.skupiny || []).find((g) => g.id === id);
+      Ui.confirm({
+        kicker: 'Skupiny artiklů',
+        title: 'Smazat skupinu?',
+        message: 'Opravdu smazat skupinu „' + ((skupina && skupina.nazev) || '') + '"? Tuto akci nelze vrátit.',
+        confirmLabel: 'Smazat',
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        Ui.call('apiRzDeleteSkupina', id, { silent: true, busy: 'Mažu skupinu…' })
+          .then(() => { Ui.toast('Skupina byla smazána.'); return this.loadSkupiny(); })
+          .catch((e) => Ui.toast(e.message, 'error'));
+      });
     },
 
     /**

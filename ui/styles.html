@@ -1836,6 +1836,50 @@
     color: var(--muted);
   }
 
+  /* Skupiny artiklů - panel pod tabulkou Artikly (viz renderSkupinyPanel). */
+  .rz-skupiny-list {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+  }
+
+  .rz-skupina-row {
+    align-items: center;
+    border-bottom: 1px solid var(--line-soft);
+    display: flex;
+    gap: 8px;
+    padding: 6px 0;
+  }
+
+  .rz-skupina-row:last-child {
+    border-bottom: 0;
+  }
+
+  .rz-skupina-name {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rz-skupina-count {
+    color: var(--muted);
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+
+  .rz-skupina-save-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .rz-skupina-save-row .sm-input {
+    flex: 1;
+  }
+
   #rzSettingsModal {
     width: min(860px, calc(100vw - 32px));
   }
