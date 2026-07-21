@@ -1313,36 +1313,42 @@
     max-width: 74ch;
   }
 
-  /* Hlavička modalu Historie změn - zvětšená oproti ostatním modalům appky
-     (ty zůstávají beze změny, tohle je jen pro changelog), ať sedí k
-     širšímu (modal-large) oknu a nepůsobí ve srovnání s ním nahusto. */
+  /* Hlavička modalu Historie změn - výrazně zvětšená oproti ostatním modalům
+     appky (ty zůstávají beze změny, tohle je jen pro changelog), ať se do ní
+     tři řádky (kicker/nadpis/podnadpis) vejdou pohodlně s rezervou, ne
+     namačkané na spodní hranu. Modal samotný má naopak nižší max-height než
+     běžný modal-large (ten je hodně vysoký) - není potřeba tolik místa. */
+  #changelogModal {
+    max-height: calc(100vh - 120px);
+  }
+
   #changelogModal .modal-header {
-    gap: 16px;
-    padding: 22px 26px;
+    gap: 18px;
+    padding: 30px 28px;
   }
 
   #changelogModal .modal-icon {
-    height: 48px;
-    width: 48px;
+    height: 56px;
+    width: 56px;
   }
 
   #changelogModal .modal-icon svg {
-    height: 22px;
-    width: 22px;
+    height: 26px;
+    width: 26px;
   }
 
   #changelogModal .modal-header .kicker {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   #changelogModal .modal-header h2 {
-    font-size: 21px;
+    font-size: 23px;
   }
 
   #changelogModal .modal-header-subtitle {
     color: rgba(255, 255, 255, 0.65);
-    font-size: 12.5px;
-    margin: 3px 0 0;
+    font-size: 13px;
+    margin: 7px 0 0;
     position: relative;
     z-index: 1;
   }
