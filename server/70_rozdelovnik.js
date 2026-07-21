@@ -676,7 +676,7 @@ function apiRzListStores() {
 function rzImportSheet_(fileKey) {
   const ss = rzRepo_().spreadsheet();
   let sheet = ss.getSheetByName(fileKey);
-  if (!sheet) sheet = ss.insertSheet(fileKey);
+  if (!sheet) { sheet = ss.insertSheet(fileKey); applySheetFont_(sheet); }
   return sheet;
 }
 
@@ -852,32 +852,66 @@ function apiRzSaveImportTable(payload) {
   });
 }
 
+/** Zapíše mřížku exportu (viz apiRzExportWb) do listu - hodnoty, zvýraznění vyplněných sloupců artiklů a font appky. Sdílené mezi listem WB v DB i samostatným souborem v Export složce, ať vypadají identicky. */
+function rzWriteExportGrid_(sheet, grid, filledCount) {
+  sheet.getRange(1, 1, grid.length, grid[0].length).setValues(grid);
+  applySheetFont_(sheet);
+  const headerRows = 7;
+  const storesCount = grid.length - headerRows;
+  if (filledCount > 0 && storesCount > 0) {
+    sheet.getRange(headerRows + 1, 4, storesCount, filledCount).setBackground('#00e5e5');
+  }
+}
+
 /**
- * Export hotového rozdělení pro oddělení WB - list "WB" přímo v DB
- * spreadsheetu subaplikace (vedle Artikly/Rozdelovnik/Odprodeje_WAWI atd.),
- * ne samostatný soubor. Mřížku (7 hlavičkových řádků + řádky prodejen) si
- * sestaví klient z aktuálně zobrazených hodnot Příděl - list se jen
- * přepíše/vytvoří a zvýrazní se vyplněné sloupce artiklů.
+ * Export hotového rozdělení pro oddělení WB:
+ *  1) list "WB" přímo v DB spreadsheetu subaplikace (vedle Artikly/Rozdelovnik/
+ *     Odprodeje_WAWI atd.) - přepíše/vytvoří se při každém exportu.
+ *  2) pokud je v Nastavení zadaná složka Export (folderExport), navíc nový
+ *     samostatný Google Sheet + identický .xlsx soubor s datem a časem v
+ *     názvu - každý export tak zůstane v historii, nic se nepřepisuje.
+ * Mřížku (7 hlavičkových řádků + řádky prodejen) si sestaví klient z aktuálně
+ * zobrazených hodnot Příděl. Selhání kroku 2) (chybějící/nedostupná složka)
+ * export do DB nezablokuje - jen se zapíše do auditu.
  */
 function apiRzExportWb(payload) {
-  return rzGuard_((user, app) => {
+  return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k exportu.');
     const grid = (payload && payload.grid) || [];
     const filledCount = Number(payload && payload.filledCount) || 0;
     if (!grid.length || !grid[0].length) throw new Error('Nejsou data k exportu.');
-    return withLock_(() => {
+
+    withLock_(() => {
       const ss = rzRepo_().spreadsheet();
       let sheet = ss.getSheetByName('WB');
-      if (sheet) sheet.clear();
-      else sheet = ss.insertSheet('WB');
-      sheet.getRange(1, 1, grid.length, grid[0].length).setValues(grid);
-      const headerRows = 7;
-      const storesCount = grid.length - headerRows;
-      if (filledCount > 0 && storesCount > 0) {
-        sheet.getRange(headerRows + 1, 4, storesCount, filledCount).setBackground('#00e5e5');
-      }
-      audit_('rz_export_wb', 'Export listu WB (' + filledCount + ' artiklů, ' + storesCount + ' prodejen)');
-      return { ok: true };
+      if (!sheet) sheet = ss.insertSheet('WB');
+      else sheet.clear();
+      rzWriteExportGrid_(sheet, grid, filledCount);
     });
+
+    let exportedToFolder = false;
+    const folderId = rzExtractFolderId_(rzSettingsAll_().folderExport);
+    if (folderId) {
+      try {
+        const folder = DriveApp.getFolderById(folderId);
+        const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'd.M.yyyy H-mm');
+        const fileName = 'WB export ' + stamp;
+        const exportSs = SpreadsheetApp.create(fileName);
+        const exportSheet = exportSs.getSheets()[0];
+        exportSheet.setName('WB');
+        rzWriteExportGrid_(exportSheet, grid, filledCount);
+        const exportFile = DriveApp.getFileById(exportSs.getId());
+        exportFile.moveTo(folder);
+        const xlsxBlob = exportFile.getAs(MimeType.MICROSOFT_EXCEL).setName(fileName + '.xlsx');
+        folder.createFile(xlsxBlob);
+        exportedToFolder = true;
+      } catch (e) {
+        console.error('Export souborů do složky Export selhal: ' + e);
+        audit_('rz_export_wb_file_failed', e.message);
+      }
+    }
+
+    audit_('rz_export_wb', 'Export listu WB (' + filledCount + ' artiklů) - soubory do složky Export: ' + (exportedToFolder ? 'ano' : 'ne'));
+    return { ok: true, exportedToFolder: exportedToFolder };
   });
 }

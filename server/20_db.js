@@ -83,7 +83,7 @@ function dbSheet_(table) {
 function dbEnsureSchema_(ss) {
   Object.keys(DB_SCHEMA).forEach((name) => {
     let sheet = ss.getSheetByName(name);
-    if (!sheet) sheet = ss.insertSheet(name);
+    if (!sheet) { sheet = ss.insertSheet(name); applySheetFont_(sheet); }
     const headers = DB_SCHEMA[name];
     const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
     if (headers.some((header, i) => current[i] !== header)) {

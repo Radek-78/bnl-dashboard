@@ -51,7 +51,7 @@ function createDbRepo_(spreadsheetId, schema) {
     const ss = spreadsheet_();
     Object.keys(schema).forEach((name) => {
       let sheet = ss.getSheetByName(name);
-      if (!sheet) sheet = ss.insertSheet(name);
+      if (!sheet) { sheet = ss.insertSheet(name); applySheetFont_(sheet); }
       const headers = schema[name];
       const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
       if (headers.some((header, i) => current[i] !== header)) {
@@ -184,7 +184,9 @@ function provisionSubAppDb_(appName) {
   const parentFolder = scriptFolder_();
   const subFolder = parentFolder ? parentFolder.createFolder(appName) : DriveApp.createFolder(appName);
   const ss = SpreadsheetApp.create(appName + ' – databáze');
-  ss.getSheets()[0].setName('_settings');
+  const settingsSheet = ss.getSheets()[0];
+  settingsSheet.setName('_settings');
+  applySheetFont_(settingsSheet);
   DriveApp.getFileById(ss.getId()).moveTo(subFolder);
   return { dbSpreadsheetId: ss.getId(), folderId: subFolder.getId() };
 }

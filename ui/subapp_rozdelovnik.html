@@ -1213,7 +1213,9 @@
       });
 
       Ui.call('apiRzExportWb', { grid: grid, filledCount: filled }, { busy: 'Exportuji do listu WB…' })
-        .then(() => Ui.toast('List WB byl vytvořen/aktualizován.', 'success'))
+        .then((res) => Ui.toast(res && res.exportedToFolder
+          ? 'List WB byl aktualizován a export uložen do složky Export.'
+          : 'List WB byl aktualizován. Soubor do složky Export se neuložil - zkontrolujte nastavenou složku Export.', 'success'))
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
