@@ -1091,7 +1091,12 @@
     transition: transform 0.42s cubic-bezier(0.33, 1, 0.68, 1);
   }
 
+  /* min-height zaručuje stejnou výšku hlavičky u všech panelů bez ohledu na
+     to, jestli mají akční tlačítko (Filiálky žádné nemá) - jinak by hlavička
+     bez tlačítka byla o pár px nižší než ty s ním. */
   .panel-header--compact {
+    box-sizing: border-box;
+    min-height: 44px;
     padding: 8px 16px;
   }
 
@@ -1223,55 +1228,49 @@
   }
 
   /* ── Changelog modal ─────────────────────────────── */
-  /* Časová osa místo plochého seznamu odstavců - tečka + spojnice potvrzují
-     chronologii, verze je odznak (ne tučný text splývající s obsahem),
-     nejnovější záznam má jemné zvýraznění + žlutý štítek "Aktuální". */
+  /* Seskupeno podle data (dřív se datum opakovalo u každého záznamu zvlášť,
+     i když jich bylo za jeden den klidně 6) - jedno záhlaví s datem, pod ním
+     jen odznak verze. Nejnovější záznam v celém seznamu má jemné zvýraznění
+     + žlutý štítek "Aktuální". */
 
-  .changelog-list {
-    padding-left: 18px;
-    position: relative;
+  .changelog-date-group + .changelog-date-group {
+    margin-top: 10px;
   }
 
-  .changelog-list::before {
-    background: var(--line);
-    bottom: 4px;
-    content: '';
-    left: 4px;
-    position: absolute;
-    top: 4px;
-    width: 2px;
+  .changelog-date-heading {
+    align-items: center;
+    color: var(--muted);
+    display: flex;
+    font-size: 11px;
+    font-weight: 700;
+    gap: 6px;
+    letter-spacing: 0.05em;
+    margin: 0 0 4px;
+    text-transform: uppercase;
+  }
+
+  .changelog-date-heading svg {
+    color: var(--lidl-blue);
+    flex-shrink: 0;
+    height: 13px;
+    width: 13px;
   }
 
   .changelog-entry {
-    padding: 0 0 16px;
-    position: relative;
+    border-bottom: 1px solid var(--line-soft);
+    padding: 10px 0;
   }
 
   .changelog-entry:last-child {
-    padding-bottom: 0;
-  }
-
-  .changelog-dot {
-    background: var(--white);
-    border: 2.5px solid var(--lidl-blue);
-    border-radius: 50%;
-    height: 11px;
-    left: -18px;
-    position: absolute;
-    top: 3px;
-    width: 11px;
+    border-bottom: none;
   }
 
   .changelog-entry.is-latest {
     background: rgba(0, 80, 170, 0.05);
+    border-bottom: none;
     border-radius: 8px;
-    margin: -8px -10px 8px;
-    padding: 8px 10px 20px;
-  }
-
-  .changelog-entry.is-latest .changelog-dot {
-    background: var(--lidl-yellow);
-    border-color: var(--lidl-yellow);
+    margin: 0 -10px 4px;
+    padding: 8px 10px;
   }
 
   .changelog-top {
@@ -1305,18 +1304,11 @@
     text-transform: uppercase;
   }
 
-  .changelog-date {
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 400;
-    margin-left: auto;
-  }
-
   .changelog-entry p {
     color: var(--text);
     font-size: 13px;
-    line-height: 1.5;
-    margin: 5px 0 0;
+    line-height: 1.55;
+    margin: 6px 0 0;
   }
 
   /* ── Module card variants ────────────────────────── */
