@@ -260,13 +260,15 @@
         '              <option value="none">Bez barevného zvýraznění</option>' +
         '            </select>' +
         '          </label>' +
-        '          <div class="rz-color-row">' +
-        '            <label><span>Nejnižší hodnota</span><input type="color" name="prideliColorLow"></label>' +
-        '            <label id="rzScaleMidRow"><span>Prostřední hodnota</span><input type="color" name="prideliColorMid"></label>' +
-        '            <label><span>Nejvyšší hodnota</span><input type="color" name="prideliColorHigh"></label>' +
+        '          <div id="rzScaleColors">' +
+        '            <div class="rz-color-row">' +
+        '              <label><span>Nejnižší hodnota</span><input type="color" name="prideliColorLow"></label>' +
+        '              <label id="rzScaleMidRow"><span>Prostřední hodnota</span><input type="color" name="prideliColorMid"></label>' +
+        '              <label><span>Nejvyšší hodnota</span><input type="color" name="prideliColorHigh"></label>' +
+        '            </div>' +
+        '            <div class="rz-color-preview" id="rzColorPreview"></div>' +
+        '            <p class="form-hint">Škála se počítá přes hodnoty Příděl napříč všemi zobrazenými artikly najednou (jako Excel Color Scales).</p>' +
         '          </div>' +
-        '          <div class="rz-color-preview" id="rzColorPreview"></div>' +
-        '          <p class="form-hint">Škála se počítá přes hodnoty Příděl napříč všemi zobrazenými artikly najednou (jako Excel Color Scales).</p>' +
         '        </div>' +
         '      </div>' +
         '    </div>' +
@@ -1727,8 +1729,15 @@
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
-    /** Barva "prostřední hodnoty" dává smysl jen u tříbarevné škály. */
+    /**
+     * Výběr barev má smysl jen když je škála zapnutá - u "Bez barevného
+     * zvýraznění" by jinak byl matoucí (uživatel by si mohl myslet, že
+     * nastavené barvy se přesto někam promítnou). Prostřední barva navíc jen
+     * u tříbarevné škály.
+     */
     _toggleScaleMidRow(mode) {
+      const wrap = this.container.querySelector('#rzScaleColors');
+      if (wrap) wrap.classList.toggle('is-hidden', mode === 'none');
       const row = this.container.querySelector('#rzScaleMidRow');
       if (row) row.classList.toggle('is-hidden', mode !== '3color');
     },
