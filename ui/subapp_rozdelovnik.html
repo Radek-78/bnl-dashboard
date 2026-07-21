@@ -1033,7 +1033,7 @@
           const delta = isEligible ? (this._toNumber(upravy[s.code]) || 0) : 0;
           const efektivni = Math.max(0, base + delta);
           rozdeleno += efektivni;
-          return { store: s, median: vals.median, stav: stav, efektivni: efektivni, delta: delta, eligible: isEligible };
+          return { store: s, median: vals.median, stav: stav, efektivni: efektivni, delta: delta, eligible: isEligible, vals: vals };
         });
 
         return { a: a, cislo: cislo, minMax: minMax, rw: rw, target: target, rozdeleno: rozdeleno, storeRows: storeRows };
@@ -1045,8 +1045,8 @@
           // Pevně vyhrazený slot na deltu (i prázdný) - hodnota Příděl tak
           // nikdy nemění pozici podle toho, jestli je nebo není upravená.
           return '<div class="rzr-hrow rzr-data-row">' +
-            '<span>' + (r.median != null ? this._fmtNum(r.median) : '—') + '</span>' +
-            '<span>' + (r.stav != null ? this._fmtNum(r.stav) : '—') + '</span>' +
+            '<span title="' + Ui.escape(this._medianTooltip(r.vals)) + '">' + (r.median != null ? this._fmtNum(r.median) : '—') + '</span>' +
+            '<span title="' + Ui.escape(this._stavTooltip(r.vals)) + '">' + (r.stav != null ? this._fmtNum(r.stav) : '—') + '</span>' +
             '<div class="rzr-prideli-cell' + (r.eligible ? '' : ' is-excluded') + '" data-cislo="' + esc + '" data-store="' + Ui.escape(r.store.code) + '">' +
             '<span class="rzr-prideli-num">' + this._fmtNum(r.efektivni) + '</span>' +
             '<span class="rzr-prideli-delta' + this._deltaClass(r.delta) + '">' + (r.delta ? '<b>' + (r.delta > 0 ? '+' : '') + this._fmtNum(r.delta) + '</b>' : '') + '</span>' +
@@ -1288,6 +1288,8 @@
           Object.keys(byStore).forEach((store) => {
             result[store] = result[store] || {};
             result[store].median = this._median(byStore[store]);
+            // Jednotlivé hodnoty jen pro tooltip (viz _medianTooltip) - ne pro samotný výpočet.
+            result[store].medianValues = byStore[store];
           });
         }
       }
@@ -1309,11 +1311,16 @@
             if (isNaN(stavKs) || isNaN(obsah) || !obsah) return;
             const val = stavKs / obsah;
             const dateVal = ciD !== -1 ? (this._parseDate(r[ciD]) || 0) : 0;
-            if (!latest[store] || dateVal >= latest[store].dateVal) latest[store] = { val, dateVal };
+            const dateDisplay = ciD !== -1 ? String(r[ciD]).trim() : '';
+            if (!latest[store] || dateVal >= latest[store].dateVal) latest[store] = { val, dateVal, stavKs, obsah, dateDisplay };
           });
           Object.keys(latest).forEach((store) => {
             result[store] = result[store] || {};
             result[store].teo = latest[store].val;
+            // Jen pro tooltip (viz _stavTooltip) - zdrojová Ks/Obsah/datum poslední použité hodnoty.
+            result[store].teoKs = latest[store].stavKs;
+            result[store].teoObsah = latest[store].obsah;
+            result[store].teoDateDisplay = latest[store].dateDisplay;
           });
         }
       }
@@ -1327,16 +1334,19 @@
         const ciDod = this._findColIndex(vysklad.headers, ['dodano']);
         if (ciP !== -1 && ciA !== -1 && ciDod !== -1) {
           const soucet = {};
+          const pocet = {};
           vysklad.rows.forEach((r) => {
             if (!this._artiklMatches(r[ciA], cisloArtiklu)) return;
             const store = String(r[ciP]).trim();
             const val = this._toNumber(r[ciDod]);
             if (isNaN(val)) return;
             soucet[store] = (soucet[store] || 0) + val;
+            pocet[store] = (pocet[store] || 0) + 1;
           });
           Object.keys(soucet).forEach((store) => {
             result[store] = result[store] || {};
             result[store].dodano = soucet[store];
+            result[store].dodanoCount = pocet[store];
           });
         }
       }
@@ -1351,22 +1361,56 @@
         const ciKarton = this._findColIndex(prideleni.headers, ['karton']);
         if (ciP !== -1 && ciA !== -1 && ciKarton !== -1) {
           const soucet = {};
+          const pocet = {};
           prideleni.rows.forEach((r) => {
             if (!this._artiklMatches(r[ciA], cisloArtiklu)) return;
             const store = String(r[ciP]).trim();
             const val = this._toNumber(r[ciKarton]);
             if (isNaN(val)) return;
             soucet[store] = (soucet[store] || 0) + val;
+            pocet[store] = (pocet[store] || 0) + 1;
           });
           Object.keys(soucet).forEach((store) => {
             result[store] = result[store] || {};
             // 1 karton = 1 kolli, žádný přepočet přes Obsah.
             result[store].prideleno = soucet[store];
+            result[store].prideleneCount = pocet[store];
           });
         }
       }
 
       return result;
+    },
+
+    /** Tooltip nad hodnotou MEDIAN - ze kterých hodnot "Prodáno v kartonech" (Odprodej) se počítala. */
+    _medianTooltip(vals) {
+      const values = vals && vals.medianValues;
+      if (!values || !values.length) return 'Žádná data z Odprodeje pro tuto prodejnu.';
+      const sorted = values.slice().sort((a, b) => a - b).map((v) => this._fmtNum(v));
+      const pocetSlovo = values.length === 1 ? 'hodnota' : (values.length < 5 ? 'hodnoty' : 'hodnot');
+      return 'Medián "Prodáno v kartonech" z Odprodeje (' + values.length + ' ' + pocetSlovo + ')\n' +
+        'Hodnoty: ' + sorted.join(', ') + '\n' +
+        'Medián = ' + this._fmtNum(this._median(values));
+    },
+
+    /** Tooltip nad hodnotou Teo. stav - rozpis Teo. stav + Dodáno + Karton, ze kterých se sečetla (viz stavProVypocet/_computeMedianTeoRaw). */
+    _stavTooltip(vals) {
+      if (!vals) return 'Žádná data pro tuto prodejnu.';
+      const lines = [];
+      if (vals.teo != null) {
+        lines.push('Teo. stav: ' + this._fmtNum(vals.teoKs) + ' ks ÷ ' + this._fmtNum(vals.teoObsah) + ' (obsah)' +
+          (vals.teoDateDisplay ? ', nejnovější záznam ' + vals.teoDateDisplay : '') + ' = ' + this._fmtNum(vals.teo));
+      } else {
+        lines.push('Teo. stav: žádná data z Teo. stavů');
+      }
+      if (vals.dodano != null) {
+        lines.push('+ Dodáno (Vyskladňovací listy, ' + vals.dodanoCount + (vals.dodanoCount === 1 ? ' řádek' : ' řádků') + '): ' + this._fmtNum(vals.dodano));
+      }
+      if (vals.prideleno != null) {
+        lines.push('+ Karton (Přidělení po artiklech, ' + vals.prideleneCount + (vals.prideleneCount === 1 ? ' řádek' : ' řádků') + '): ' + this._fmtNum(vals.prideleno));
+      }
+      lines.push('Celkem = ' + this._fmtNum((vals.teo || 0) + (vals.dodano || 0) + (vals.prideleno || 0)));
+      return lines.join('\n');
     },
 
     /**
