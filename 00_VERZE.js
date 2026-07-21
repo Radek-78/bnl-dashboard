@@ -1,7 +1,7 @@
 /**
  * ============================================
  *  POSLEDNI NASAZENI
- *  Verze:    v3.1.116
+ *  Verze:    v3.1.117
  *  Nahrano:  21.07.2026 08:21
  * ============================================
  * Generovano automaticky skriptem tools/release.ps1 - needituj rucne.

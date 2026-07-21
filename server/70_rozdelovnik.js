@@ -1049,9 +1049,19 @@ function apiRzExportWb(payload) {
       }
 
       // Krok 2: identický .xlsx - jen pokud se Sheet povedl.
+      // File.getAs(MimeType.MICROSOFT_EXCEL) tenhle převod nepodporuje ("Převod
+      // z formátu application/vnd.google-apps.spreadsheet... není podporován") -
+      // funkční cesta je stáhnout export přes vlastní export URL Google Sheets
+      // (stejný mechanismus jako "Soubor > Stáhnout > Microsoft Excel" v UI).
       if (exportFile) {
         try {
-          const xlsxBlob = exportFile.getAs(MimeType.MICROSOFT_EXCEL).setName(fileName + '.xlsx');
+          const url = 'https://docs.google.com/spreadsheets/d/' + exportFile.getId() + '/export?format=xlsx';
+          const response = UrlFetchApp.fetch(url, {
+            headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+            muteHttpExceptions: true,
+          });
+          if (response.getResponseCode() !== 200) throw new Error('Export URL vrátila HTTP ' + response.getResponseCode());
+          const xlsxBlob = response.getBlob().setName(fileName + '.xlsx');
           DriveApp.getFolderById(folderId).createFile(xlsxBlob);
         } catch (e) {
           console.error('Export .xlsx do složky Export selhal: ' + e);
