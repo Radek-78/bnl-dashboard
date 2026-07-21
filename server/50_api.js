@@ -744,8 +744,18 @@ function apiSaveApp(payload) {
     // jen se o tom zapíše audit záznam a db_spreadsheet_id zůstane prázdné.
     if (!existing) {
       try {
-        const dbSpreadsheetId = provisionSubAppDb_(name);
-        saved = dbUpdate_(SHEETS.APPS, saved.id, { db_spreadsheet_id: dbSpreadsheetId });
+        const provisioned = provisionSubAppDb_(name);
+        saved = dbUpdate_(SHEETS.APPS, saved.id, { db_spreadsheet_id: provisioned.dbSpreadsheetId });
+        // Rozdělovník 20 artiklů má navíc vlastní podsložky Import/Export
+        // (viz rzProvisionFolders_) — selhání appku stejně nezablokuje.
+        if (data.slug === RZ_SLUG) {
+          try {
+            rzProvisionFolders_(provisioned.folderId, provisioned.dbSpreadsheetId);
+          } catch (e2) {
+            console.error('Založení Import/Export složek selhalo: ' + e2);
+            audit_('app_folders_provision_failed', name + ': ' + e2.message);
+          }
+        }
       } catch (e) {
         console.error('Vytvoření DB pro subaplikaci selhalo: ' + e);
         audit_('app_db_provision_failed', name + ': ' + e.message);

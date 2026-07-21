@@ -3042,6 +3042,64 @@
     padding: 20px 22px 22px;
   }
 
+  /* Krok "Vyberte šablonu" před formulářem Nová aplikace. */
+  .app-template-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    margin-top: 12px;
+  }
+
+  .app-template-card {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px;
+    text-align: left;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .app-template-card:hover {
+    border-color: var(--lidl-blue);
+    box-shadow: 0 4px 14px rgba(0, 20, 80, 0.1);
+  }
+
+  .app-template-card strong {
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  .app-template-card span {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .app-template-icon {
+    align-items: center;
+    background: rgba(0, 80, 170, 0.08);
+    border-radius: 6px;
+    color: var(--lidl-blue);
+    display: flex;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+  }
+
+  .app-template-icon svg {
+    height: 16px;
+    width: 16px;
+  }
+
+  .app-template-card--blank .app-template-icon {
+    background: var(--page);
+    color: var(--muted);
+  }
+
   /* ── User workspace search widget ── */
   .uw-search-wrap { position: relative; }
 

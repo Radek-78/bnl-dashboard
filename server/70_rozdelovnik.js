@@ -94,6 +94,23 @@ function rzSettingsSet_(key, value) {
   }
 }
 
+/**
+ * Založí podsložky Import a Export uvnitř vlastní složky subaplikace (viz
+ * provisionSubAppDb_/apiSaveApp) a Export rovnou předvyplní do Nastavení
+ * jako folderExport - jen výchozí hodnota, uživatel si ji v Nastavení
+ * kdykoliv změní na libovolnou jinou složku. Import se nikam automaticky
+ * nedosazuje - zdrojová složka (syncFolderUrl) i vzory názvů souborů se
+ * pořád nastavují ručně, tahle složka je jen připravené místo, kam je nahrát.
+ */
+function rzProvisionFolders_(parentFolderId, dbSpreadsheetId) {
+  const parent = DriveApp.getFolderById(parentFolderId);
+  parent.createFolder('Import');
+  const exportFolder = parent.createFolder('Export');
+  const repo = createDbRepo_(dbSpreadsheetId, RZ_SCHEMA);
+  repo.ensureSchema();
+  repo.insert('_settings', { key: 'folderExport', value: exportFolder.getUrl(), updated_by: currentEmail_() });
+}
+
 function apiRzGetSettings() {
   return rzGuard_(() => rzSettingsAll_());
 }

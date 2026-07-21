@@ -168,12 +168,14 @@ function createDbRepo_(spreadsheetId, schema) {
 /**
  * Založí vlastní podsložku a spreadsheet DB pro nově vytvořenou subaplikaci
  * (ve stejné složce, kde leží hlavní DB — viz scriptFolder_ v 40_setup.js).
- * Vrací ID nového spreadsheetu, které se ukládá do apps.db_spreadsheet_id.
+ * Vrací ID nového spreadsheetu (apps.db_spreadsheet_id) i ID podsložky —
+ * tu využívají specifické subaplikace, které si v ní zakládají další vlastní
+ * podsložky (viz rzProvisionFolders_ v 70_rozdelovnik.js).
  */
 function provisionSubAppDb_(appName) {
   const parentFolder = scriptFolder_();
   const subFolder = parentFolder ? parentFolder.createFolder(appName) : DriveApp.createFolder(appName);
   const ss = SpreadsheetApp.create(appName + ' – databáze');
   DriveApp.getFileById(ss.getId()).moveTo(subFolder);
-  return ss.getId();
+  return { dbSpreadsheetId: ss.getId(), folderId: subFolder.getId() };
 }

@@ -1063,7 +1063,7 @@ _sfState: {},
       });
 
       document.querySelector('#addUserButton').addEventListener('click', () => this.openUserModal(null));
-      document.querySelector('#addAppButton').addEventListener('click', () => this.openAppModal(null));
+      document.querySelector('#addAppButton').addEventListener('click', () => this.openAppTemplatePicker());
       document.querySelectorAll('[data-action="close-user-modal"]').forEach((b) => {
         b.addEventListener('click', () => Ui.closeModal(document.querySelector('#userModal')));
       });
@@ -2116,23 +2116,86 @@ _sfState: {},
             <svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>
             <span>Přidat aplikaci</span>
           </div>`;
-        ghost.addEventListener('click', () => this.openAppModal(null));
+        ghost.addEventListener('click', () => this.openAppTemplatePicker());
         grid.appendChild(ghost);
       }
     },
 
-    openAppModal(appIdOrObj) {
+    /* Předpřipravené aplikace, jejichž kód (server + UI) už je v projektu hotový
+     * - slug MUSÍ přesně odpovídat SUBAPP_VIEWS klíči (viz ui/view_subapp.html),
+     * jinak appka po vytvoření zůstane nefunkční. Proto se u nich slug ve
+     * formuláři zamyká, aby se nedal překlepnout. */
+    APP_TEMPLATES: [
+      {
+        slug: 'rozdelovnik-20-artiklu',
+        name: 'Rozdělovník 20 artiklů',
+        description: 'Rozdělení naskladněného množství až 20 artiklů na jednotlivé prodejny podle historie prodejů a teoretických stavů.',
+        icon: 'package',
+      },
+    ],
+
+    /** Krok před Nová aplikace - výběr předpřipravené appky (viz APP_TEMPLATES), nebo prázdný formulář. */
+    openAppTemplatePicker() {
+      document.querySelector('#appTemplateModal')?.remove();
+      const dialog = document.createElement('dialog');
+      dialog.id = 'appTemplateModal';
+      dialog.className = 'modal';
+      dialog.innerHTML = `
+        <div class="modal-header">
+          <span class="modal-icon"><svg><use href="#i-plus"></use></svg></span>
+          <div class="modal-header-text"><p class="kicker">Administrace</p><h2>Nová aplikace</h2></div>
+          <button class="modal-close" type="button" id="closeAppTemplateModal" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>
+        </div>
+        <div class="modal-body">
+          <p class="form-hint">Vyberte předpřipravenou aplikaci, nebo začněte od prázdné.</p>
+          <div class="app-template-grid">
+            ${this.APP_TEMPLATES.map((t) => `
+              <button type="button" class="app-template-card" data-slug="${Ui.escape(t.slug)}">
+                <span class="app-template-icon"><svg><use href="#i-${t.icon}"></use></svg></span>
+                <strong>${Ui.escape(t.name)}</strong>
+                <span>${Ui.escape(t.description)}</span>
+              </button>`).join('')}
+            <button type="button" class="app-template-card app-template-card--blank" data-slug="">
+              <span class="app-template-icon"><svg><use href="#i-plus"></use></svg></span>
+              <strong>Prázdná aplikace</strong>
+              <span>Vlastní název, ikona i odkaz.</span>
+            </button>
+          </div>
+        </div>`;
+      document.body.appendChild(dialog);
+
+      const close = () => { Ui.closeModal(dialog); setTimeout(() => dialog.remove(), 400); };
+      dialog.querySelector('#closeAppTemplateModal').addEventListener('click', close);
+      let _mousedownOnBackdrop = false;
+      dialog.addEventListener('mousedown', (e) => { _mousedownOnBackdrop = e.target === dialog; });
+      dialog.addEventListener('click', (e) => { if (e.target === dialog && _mousedownOnBackdrop) close(); });
+
+      dialog.querySelectorAll('.app-template-card').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tpl = this.APP_TEMPLATES.find((t) => t.slug === btn.dataset.slug) || null;
+          close();
+          this.openAppModal(null, tpl ? { name: tpl.name, description: tpl.description, icon: tpl.icon, slug: tpl.slug, slugLocked: true } : null);
+        });
+      });
+      Ui.openModal(dialog);
+    },
+
+    /** templateSeed (jen pro novou appku, viz openAppTemplatePicker) - předvyplní název/popis/ikonu/slug, případně slug zamkne. */
+    openAppModal(appIdOrObj, templateSeed) {
       document.querySelector('#appModal')?.remove();
       const app = typeof appIdOrObj === 'string'
         ? (this.apps || []).find((a) => a.id === appIdOrObj) || null
         : appIdOrObj;
       const isNew = !app;
-      const name = isNew ? '' : (app.name || '');
-      const desc = isNew ? '' : (app.description || '');
-      const icon = isNew ? 'info' : (app.icon || 'info');
+      const seed = isNew ? (templateSeed || {}) : {};
+      const name = isNew ? (seed.name || '') : (app.name || '');
+      const desc = isNew ? (seed.description || '') : (app.description || '');
+      const icon = isNew ? (seed.icon || 'info') : (app.icon || 'info');
       const color = isNew ? '' : (app.color || '');
       const status = isNew ? 'coming' : (app.status || 'coming');
       const order = isNew ? '' : String(app.order || '');
+      const seedSlug = isNew ? (seed.slug || '') : '';
+      const slugLocked = isNew && !!seed.slugLocked;
       const COLORS = [
         { value: '',        label: 'Lidl modrá',    hex: '#0053b3' },
         { value: 'dark',    label: 'Tmavě modrá',   hex: '#002466' },
@@ -2189,7 +2252,8 @@ _sfState: {},
               ${app ? `<input type="hidden" name="id" value="${Ui.escape(app.id)}">` : ''}
               <label><span>Název</span><input name="name" id="appName" type="text" value="${Ui.escape(name)}" required></label>
               <label><span>Popis</span><input name="description" id="appDesc" type="text" value="${Ui.escape(desc)}"></label>
-              <label><span>Odkaz v URL (?app=…)</span><input name="slug" id="appSlug" type="text" value="${Ui.escape(isNew ? '' : (app.slug || ''))}" placeholder="např. sklad" pattern="[-a-z0-9]+" title="Jen malá písmena, číslice a pomlčky"></label>
+              <label><span>Odkaz v URL (?app=…)</span><input name="slug" id="appSlug" type="text" value="${Ui.escape(isNew ? seedSlug : (app.slug || ''))}" placeholder="např. sklad" pattern="[-a-z0-9]+" title="Jen malá písmena, číslice a pomlčky"${slugLocked ? ' readonly' : ''}></label>
+              ${slugLocked ? '<p class="form-hint">Odkaz je u předpřipravené aplikace pevně daný, aby zůstala funkční.</p>' : ''}
               <div>
                 <span class="form-field-label">Ikona</span>
                 <input type="hidden" name="icon" id="appIconInput" value="${Ui.escape(icon)}">
@@ -2269,7 +2333,7 @@ _sfState: {},
       const slugify = (v) => String(v || '').trim().toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-      let slugTouched = !isNew && !!slugInput.value;
+      let slugTouched = !isNew || slugLocked || !!slugInput.value;
       slugInput.addEventListener('input', () => { slugTouched = slugInput.value !== ''; });
       dialog.querySelector('#appName').addEventListener('input', () => {
         if (!slugTouched) slugInput.value = slugify(dialog.querySelector('#appName').value);
