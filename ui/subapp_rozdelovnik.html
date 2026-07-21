@@ -1386,8 +1386,8 @@
       if (!values || !values.length) return 'Žádná data z Odprodeje pro tuto prodejnu.';
       const sorted = values.slice().sort((a, b) => a - b).map((v) => this._fmtNum(v));
       const pocetSlovo = values.length === 1 ? 'hodnota' : (values.length < 5 ? 'hodnoty' : 'hodnot');
-      return 'Medián "Prodáno v kartonech" z Odprodeje (' + values.length + ' ' + pocetSlovo + ')\n' +
-        'Hodnoty: ' + sorted.join(', ') + '\n' +
+      return 'Medián "Prodáno v kartonech" z Odprodeje (' + values.length + ' ' + pocetSlovo + '):\n' +
+        sorted.join('\n') + '\n' +
         'Medián = ' + this._fmtNum(this._median(values));
     },
 
@@ -1610,9 +1610,15 @@
       });
 
       Ui.call('apiRzExportWb', { grid: grid, filledCount: filled }, { silent: true, busy: 'Exportuji do listu WB…' })
-        .then((res) => Ui.toast(res && res.exportedToFolder
-          ? 'List WB byl aktualizován a export uložen do složky Export.'
-          : 'List WB byl aktualizován. Soubor do složky Export se neuložil - zkontrolujte nastavenou složku Export.', 'success'))
+        .then((res) => {
+          if (!res || !res.exportedToFolder) {
+            Ui.toast('List WB byl aktualizován. Soubor do složky Export se neuložil - zkontrolujte nastavenou složku Export.', 'error');
+          } else if (res.xlsxError) {
+            Ui.toast('List WB i Google Sheet ve složce Export uloženy, ale .xlsx se nepodařilo vytvořit: ' + res.xlsxError, 'error');
+          } else {
+            Ui.toast('List WB byl aktualizován a export uložen do složky Export.', 'success');
+          }
+        })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 

@@ -1020,28 +1020,48 @@ function apiRzExportWb(payload) {
     });
 
     let exportedToFolder = false;
+    let xlsxError = null;
     const folderId = rzExtractFolderId_(rzSettingsAll_().folderExport);
     if (folderId) {
+      const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'd.M.yyyy H-mm');
+      const fileName = 'WB export ' + stamp;
+      let exportFile = null;
+
+      // Krok 1: Google Sheet - odděleno od kroku 2 (xlsx), ať selhání převodu
+      // na xlsx nezpůsobí, že se ztratí i informace o už hotovém Sheetu.
       try {
         const folder = DriveApp.getFolderById(folderId);
-        const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'd.M.yyyy H-mm');
-        const fileName = 'WB export ' + stamp;
         const exportSs = SpreadsheetApp.create(fileName);
         const exportSheet = exportSs.getSheets()[0];
         exportSheet.setName('WB');
         rzWriteExportGrid_(exportSheet, grid, filledCount);
-        const exportFile = DriveApp.getFileById(exportSs.getId());
+        // Bez flush by getAs() níže mohl číst list ještě před zápisem hodnot -
+        // na rozdíl od běžných zápisů uvnitř jedné exekuce tady jde o export
+        // přes Drive API (jiná vrstva než Spreadsheet API), kde se na
+        // automatické commitnutí změn na konci exekuce nedá spolehnout.
+        SpreadsheetApp.flush();
+        exportFile = DriveApp.getFileById(exportSs.getId());
         exportFile.moveTo(folder);
-        const xlsxBlob = exportFile.getAs(MimeType.MICROSOFT_EXCEL).setName(fileName + '.xlsx');
-        folder.createFile(xlsxBlob);
         exportedToFolder = true;
       } catch (e) {
-        console.error('Export souborů do složky Export selhal: ' + e);
-        audit_('rz_export_wb_file_failed', e.message);
+        console.error('Export Google Sheetu do složky Export selhal: ' + e);
+        audit_('rz_export_wb_file_failed', 'Sheet: ' + e.message);
+      }
+
+      // Krok 2: identický .xlsx - jen pokud se Sheet povedl.
+      if (exportFile) {
+        try {
+          const xlsxBlob = exportFile.getAs(MimeType.MICROSOFT_EXCEL).setName(fileName + '.xlsx');
+          DriveApp.getFolderById(folderId).createFile(xlsxBlob);
+        } catch (e) {
+          console.error('Export .xlsx do složky Export selhal: ' + e);
+          xlsxError = e.message;
+          audit_('rz_export_wb_file_failed', 'xlsx: ' + e.message);
+        }
       }
     }
 
-    audit_('rz_export_wb', 'Export listu WB (' + filledCount + ' artiklů) - soubory do složky Export: ' + (exportedToFolder ? 'ano' : 'ne'));
-    return { ok: true, exportedToFolder: exportedToFolder };
+    audit_('rz_export_wb', 'Export listu WB (' + filledCount + ' artiklů) - soubory do složky Export: ' + (exportedToFolder ? 'ano' : 'ne') + (xlsxError ? ' (xlsx selhal)' : ''));
+    return { ok: true, exportedToFolder: exportedToFolder, xlsxError: xlsxError };
   });
 }
