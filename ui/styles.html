@@ -1313,6 +1313,40 @@
     max-width: 74ch;
   }
 
+  /* Hlavička modalu Historie změn - zvětšená oproti ostatním modalům appky
+     (ty zůstávají beze změny, tohle je jen pro changelog), ať sedí k
+     širšímu (modal-large) oknu a nepůsobí ve srovnání s ním nahusto. */
+  #changelogModal .modal-header {
+    gap: 16px;
+    padding: 22px 26px;
+  }
+
+  #changelogModal .modal-icon {
+    height: 48px;
+    width: 48px;
+  }
+
+  #changelogModal .modal-icon svg {
+    height: 22px;
+    width: 22px;
+  }
+
+  #changelogModal .modal-header .kicker {
+    font-size: 11px;
+  }
+
+  #changelogModal .modal-header h2 {
+    font-size: 21px;
+  }
+
+  #changelogModal .modal-header-subtitle {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 12.5px;
+    margin: 3px 0 0;
+    position: relative;
+    z-index: 1;
+  }
+
   /* ── Module card variants ────────────────────────── */
 
   /* 1: Boční pruh — barevný sloupec s ikonou vlevo */
