@@ -204,6 +204,14 @@
           '<svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-settings"></use></svg>Nastavení</button>');
         document.querySelector('#rzSettingsBtn').addEventListener('click', () => this.openSettings());
       }
+      // Export je akce nad rozdělením - tlačítko proto viditelné jen v záložce
+      // Rozdělení (přepíná se v showTab), ne trvale ve sdílené horní liště.
+      if (settingsBtnWrap && this.canWrite && !settingsBtnWrap.querySelector('#rzExportWbBtn')) {
+        settingsBtnWrap.insertAdjacentHTML('afterbegin',
+          '<button class="button button-secondary button-small is-hidden" type="button" id="rzExportWbBtn">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-file-text"></use></svg>Exportovat</button>');
+        document.querySelector('#rzExportWbBtn').addEventListener('click', () => this.exportWb());
+      }
       if (settingsBtnWrap && !settingsBtnWrap.querySelector('#rzQueueIndicator')) {
         settingsBtnWrap.insertAdjacentHTML('afterbegin', '<span class="rz-queue-indicator is-hidden" id="rzQueueIndicator"></span>');
       }
@@ -324,6 +332,8 @@
       this.flushPendingWrites();
       this.activeTab = key;
       this.container.querySelectorAll('.rz-tabbtn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === key));
+      const exportBtn = document.querySelector('#rzExportWbBtn');
+      if (exportBtn) exportBtn.classList.toggle('is-hidden', key !== 'rozdeleni');
       this.renderTabContent();
     },
 
@@ -1159,6 +1169,52 @@
       cells.forEach((c, i) => {
         c.style.background = this._prideliColor(values[i], min, max) || '';
       });
+    },
+
+    /**
+     * Export rozdělení pro oddělení WB - list "WB" přímo v DB spreadsheetu
+     * subaplikace (vedle Artikly/Rozdelovnik/Odprodeje_WAWI atd.), ne
+     * samostatný soubor. Hodnoty Příděl se čtou přímo z DOM (ne z posledního
+     * plného výpočtu), protože po "online" úpravě RW/min-max/ruční hodnoty se
+     * mění jen DOM - _rzComputed by po takové úpravě bylo zastaralé.
+     * Pevná šířka 20 sloupců artiklů (RZ_ARTIKLY_ROWS) i pro málo vyplněných
+     * artiklů - odpovídá to kapacitě nástroje a formátu, který WB očekává.
+     */
+    exportWb() {
+      const el = this.container.querySelector('#rzTabContent');
+      const artikly = this.artikly.filter((a) => a && a.cislo_artiklu).slice(0, RZ_ARTIKLY_ROWS);
+      if (!artikly.length || !el || !el.querySelector('.rzr-prideli-cell')) {
+        Ui.toast('Export je dostupný v záložce Rozdělení, až budou vyplněné artikly.', 'error');
+        return;
+      }
+      const n = RZ_ARTIKLY_ROWS;
+      const filled = artikly.length;
+      const pad = (vals, emptyVal) => { const out = vals.slice(); while (out.length < n) out.push(emptyVal); return out; };
+      const today = new Date();
+      const dateStr = today.getDate() + '.' + (today.getMonth() + 1) + '.' + today.getFullYear();
+
+      const grid = [
+        ['', '', dateStr].concat(pad([], '')),
+        ['', '', ''].concat(pad(artikly.map((a) => (a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0), 0)),
+        ['', '', 'Název'].concat(pad(artikly.map((a) => a.nazev || ''), '')),
+        ['', '', 'Artikly'].concat(pad(artikly.map((a) => a.cislo_artiklu), '')),
+        ['', '', 'KI'].concat(pad(artikly.map((a) => a.obsah || ''), '')),
+        ['', '', 'Kolli/kusy'].concat(pad(artikly.map(() => 'Kolli'), '')),
+        ['', '', 'Skladové místo'].concat(pad([], '')),
+      ];
+
+      this.stores.forEach((s) => {
+        const vals = artikly.map((a) => {
+          const cell = el.querySelector('.rzr-prideli-cell[data-cislo="' + CSS.escape(a.cislo_artiklu) + '"][data-store="' + CSS.escape(s.code) + '"]');
+          const numEl = cell ? cell.querySelector('.rzr-prideli-num') : null;
+          return numEl ? (this._toNumber(numEl.textContent) || 0) : 0;
+        });
+        grid.push(['', s.code, s.name].concat(pad(vals, 0)));
+      });
+
+      Ui.call('apiRzExportWb', { grid: grid, filledCount: filled }, { busy: 'Exportuji do listu WB…' })
+        .then(() => Ui.toast('List WB byl vytvořen/aktualizován.', 'success'))
+        .catch((e) => Ui.toast(e.message, 'error'));
     },
 
     saveRozdeleniMinMax(cislo) {

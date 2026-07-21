@@ -834,3 +834,33 @@ function apiRzSaveImportTable(payload) {
     return { ok: true };
   });
 }
+
+/**
+ * Export hotového rozdělení pro oddělení WB - list "WB" přímo v DB
+ * spreadsheetu subaplikace (vedle Artikly/Rozdelovnik/Odprodeje_WAWI atd.),
+ * ne samostatný soubor. Mřížku (7 hlavičkových řádků + řádky prodejen) si
+ * sestaví klient z aktuálně zobrazených hodnot Příděl - list se jen
+ * přepíše/vytvoří a zvýrazní se vyplněné sloupce artiklů.
+ */
+function apiRzExportWb(payload) {
+  return rzGuard_((user, app) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k exportu.');
+    const grid = (payload && payload.grid) || [];
+    const filledCount = Number(payload && payload.filledCount) || 0;
+    if (!grid.length || !grid[0].length) throw new Error('Nejsou data k exportu.');
+    return withLock_(() => {
+      const ss = rzRepo_().spreadsheet();
+      let sheet = ss.getSheetByName('WB');
+      if (sheet) sheet.clear();
+      else sheet = ss.insertSheet('WB');
+      sheet.getRange(1, 1, grid.length, grid[0].length).setValues(grid);
+      const headerRows = 7;
+      const storesCount = grid.length - headerRows;
+      if (filledCount > 0 && storesCount > 0) {
+        sheet.getRange(headerRows + 1, 4, storesCount, filledCount).setBackground('#00e5e5');
+      }
+      audit_('rz_export_wb', 'Export listu WB (' + filledCount + ' artiklů, ' + storesCount + ' prodejen)');
+      return { ok: true };
+    });
+  });
+}
