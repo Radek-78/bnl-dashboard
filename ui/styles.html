@@ -1958,6 +1958,11 @@
     width: 280px;
   }
 
+  /* Metropol artikl má navíc úzký sloupec s odznakem M napravo od Příděl - blok proto potřebuje trochu víc místa. */
+  .rzr-block.has-metro {
+    width: 300px;
+  }
+
   /* Jemné odlišení sudých/lichých bloků od sebe, ať je na první pohled jasné, kde jeden artikl končí a další začíná. */
   .rzr-block:nth-child(even) {
     background: rgba(0, 80, 170, 0.025);
@@ -2178,25 +2183,33 @@
     opacity: 0.55;
   }
 
-  /* Metropol filiálka v Metropol artiklu - odliší "0 protože vyloučeno z výpočtu" od "0 protože tak vyšel vzorec". Výrazný levý pruh místo drobné tečky. */
-  /* Nezávislé na barevné škále (uživatel si tam může zvolit i žlutou) - pevná
-     tmavě modrá/bílá kombinace, ne barva z palety. */
-  .rzr-prideli-cell.is-metro {
-    position: relative;
+  /* Úzký sloupec napravo od Příděl - jen u Metropol artiklů, odznak M jen u
+     Metropolitních filiálek (ostatní řádky mají prázdnou buňku). Nezávislé
+     na barevné škále Příděl (uživatel si tam může zvolit i žlutou) - pevná
+     žlutá stejně jako odznak v hlavičce artiklu. */
+  .rzr-metro-col {
+    flex: 0 0 18px;
   }
 
-  .rzr-prideli-cell.is-metro::after {
-    background: rgba(255, 255, 255, 0.85);
-    border-radius: 2px;
+  /* Vyšší specificita než ".rzr-cols-row span" (flex:1) výše. */
+  .rzr-cols-row .rzr-metro-col-head {
+    flex: 0 0 18px;
+  }
+
+  .rzr-metro-col {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+  }
+
+  .rzr-metro-tag {
+    background: var(--lidl-yellow);
+    border-radius: 3px;
     color: var(--lidl-dark-blue);
-    content: 'M';
-    font-size: 7px;
+    font-size: 9px;
     font-weight: 700;
     line-height: 1;
-    padding: 1px 2px;
-    position: absolute;
-    right: 1px;
-    top: 1px;
+    padding: 2px 4px;
   }
 
   .rzr-prideli-num {
@@ -2217,12 +2230,22 @@
     white-space: nowrap;
   }
 
-  .rzr-prideli-delta.is-positive {
+  .rzr-prideli-delta.is-positive b {
     color: #3B6D11;
   }
 
-  .rzr-prideli-delta.is-negative {
+  .rzr-prideli-delta.is-negative b {
     color: #A32D2D;
+  }
+
+  /* Bílý podklad jako odznak - hodnota úpravy tak zůstane čitelná i když
+     barevná škála obarví buňku Příděl tmavší/syté barvou. Podklad hugne jen
+     text (ne celý pevný slot delty), protože je na vnořeném <b>, ne na
+     obalovém <span>, který dál slouží jako neviditelný "vždy stejné místo". */
+  .rzr-prideli-delta b {
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 2px;
+    padding: 1px 3px;
   }
 
   .rzr-prideli-btns {
@@ -2274,6 +2297,10 @@
     flex: 1;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .rz-color-row label span {
+    text-align: center;
   }
 
   .rz-color-row input[type="color"] {

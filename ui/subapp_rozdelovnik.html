@@ -711,13 +711,12 @@
         const dataRows = c.storeRows.map((r) => {
           // Pevně vyhrazený slot na deltu (i prázdný) - hodnota Příděl tak
           // nikdy nemění pozici podle toho, jestli je nebo není upravená.
-          const isMetroRow = c.a.metropol && r.eligible;
           return '<div class="rzr-hrow rzr-data-row">' +
             '<span>' + (r.median != null ? this._fmtNum(r.median) : '—') + '</span>' +
             '<span>' + (r.stav != null ? this._fmtNum(r.stav) : '—') + '</span>' +
-            '<div class="rzr-prideli-cell' + (r.eligible ? '' : ' is-excluded') + (isMetroRow ? ' is-metro' : '') + '" data-cislo="' + esc + '" data-store="' + Ui.escape(r.store.code) + '">' +
+            '<div class="rzr-prideli-cell' + (r.eligible ? '' : ' is-excluded') + '" data-cislo="' + esc + '" data-store="' + Ui.escape(r.store.code) + '">' +
             '<span class="rzr-prideli-num">' + this._fmtNum(r.efektivni) + '</span>' +
-            '<span class="rzr-prideli-delta' + this._deltaClass(r.delta) + '">' + (r.delta ? (r.delta > 0 ? '+' : '') + this._fmtNum(r.delta) : '') + '</span>' +
+            '<span class="rzr-prideli-delta' + this._deltaClass(r.delta) + '">' + (r.delta ? '<b>' + (r.delta > 0 ? '+' : '') + this._fmtNum(r.delta) + '</b>' : '') + '</span>' +
             (this.canWrite && r.eligible ?
               '<span class="rzr-prideli-btns">' +
               '<button class="rzr-prideli-btn" type="button" data-dir="-1" aria-label="Snížit příděl">−</button>' +
@@ -725,11 +724,12 @@
               '</span>'
               : '') +
             '</div>' +
+            (c.a.metropol ? '<div class="rzr-metro-col">' + (r.eligible ? '<span class="rzr-metro-tag">M</span>' : '') + '</div>' : '') +
             '</div>';
         }).join('');
 
         return (
-          '<div class="rzr-block">' +
+          '<div class="rzr-block' + (c.a.metropol ? ' has-metro' : '') + '">' +
           '  <div class="rzr-block-head">' +
           '    <div class="rzr-artikl-row"><strong>' + esc + '</strong><span>' + Ui.escape(c.a.nazev || '') + '</span>' +
           (c.a.metropol ? '<span class="rzr-metro-badge" title="Rozděluje se jen na Metropolitní filiálky">M</span>' : '') +
@@ -747,7 +747,7 @@
           (this.canWrite ? '<button class="rzr-step" type="button" data-cislo="' + esc + '" data-step="0.1" aria-label="Zvýšit RW">+</button>' : '') +
           (this.canWrite ? '<button class="rzr-rw-recalc" type="button" data-cislo="' + esc + '" title="Přepočítat RW podle aktuálního vzorce" aria-label="Přepočítat RW">⟲</button>' : '') +
           '    </div>' +
-          '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Příděl</span></div>' +
+          '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Příděl</span>' + (c.a.metropol ? '<span class="rzr-metro-col-head"></span>' : '') + '</div>' +
           '  </div>' +
           '  <div class="rzr-block-body">' + dataRows + '</div>' +
           '</div>'
@@ -1093,7 +1093,7 @@
           if (numEl) numEl.textContent = this._fmtNum(efektivni);
           const deltaEl = cellEl.querySelector('.rzr-prideli-delta');
           if (deltaEl) {
-            deltaEl.textContent = delta ? (delta > 0 ? '+' : '') + this._fmtNum(delta) : '';
+            deltaEl.innerHTML = delta ? '<b>' + (delta > 0 ? '+' : '') + this._fmtNum(delta) + '</b>' : '';
             deltaEl.className = 'rzr-prideli-delta' + this._deltaClass(delta);
           }
         }
