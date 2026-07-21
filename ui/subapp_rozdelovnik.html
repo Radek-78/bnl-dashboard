@@ -220,6 +220,13 @@
           '<svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-file-text"></use></svg>Exportovat</button>');
         document.querySelector('#rzExportWbBtn').addEventListener('click', () => this.exportWb());
       }
+      // Stejně jako Exportovat - jen v záložce Rozdělení, přepíná se v showTab.
+      if (settingsBtnWrap && this.canWrite && !settingsBtnWrap.querySelector('#rzRecalcAllBtn')) {
+        settingsBtnWrap.insertAdjacentHTML('afterbegin',
+          '<button class="button button-secondary button-small is-hidden" type="button" id="rzRecalcAllBtn">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-refresh"></use></svg>Přepočítat vše</button>');
+        document.querySelector('#rzRecalcAllBtn').addEventListener('click', () => this.recomputeAllRw());
+      }
       if (settingsBtnWrap && !settingsBtnWrap.querySelector('#rzQueueIndicator')) {
         settingsBtnWrap.insertAdjacentHTML('afterbegin', '<span class="rz-queue-indicator is-hidden" id="rzQueueIndicator"></span>');
       }
@@ -342,6 +349,8 @@
       this.container.querySelectorAll('.rz-tabbtn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === key));
       const exportBtn = document.querySelector('#rzExportWbBtn');
       if (exportBtn) exportBtn.classList.toggle('is-hidden', key !== 'rozdeleni');
+      const recalcAllBtn = document.querySelector('#rzRecalcAllBtn');
+      if (recalcAllBtn) recalcAllBtn.classList.toggle('is-hidden', key !== 'rozdeleni');
       this.renderTabContent();
     },
 
@@ -617,12 +626,17 @@
           Ui.toast('Naimportováno ' + okCount + '/' + results.length + ' souborů.' +
             (failed.length ? ' Nenaimportováno: ' + failed.map((r) => r.label + ' (' + r.message + ')').join(', ') : ''),
             failed.length ? 'error' : undefined);
-          this.importData = {};
           this._sfState = {};
           this._sfViewCache = {};
           this._colWidths = {};
-          this._medianCache = {};
-          return this.loadImportOverview();
+          // Bez tohoto by v this.importData zůstala stará data až do chvíle,
+          // kdy uživatel ručně proklikal jednotlivé záložky (loadImportTable se
+          // jinak volá jen líně při otevření té které záložky) - MEDIAN/stav v
+          // Rozdělení by tak počítalo se starým importem, dokud si toho někdo
+          // nevšiml. Načtou se všechny 4 nanovo hned po importu, ať je Rozdělení
+          // (i právě otevřená importní záložka) rovnou aktuální.
+          return Promise.all(RZ_IMPORT_TABS.map((key) => this.loadImportTable(key)))
+            .then(() => this.loadImportOverview());
         })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
@@ -643,6 +657,7 @@
             this._colWidths = {};
             this._medianCache = {};
             Ui.toast('Naimportovaná data byla vymazána.');
+            if (this.activeTab === 'rozdeleni' || RZ_IMPORT_TABS.indexOf(this.activeTab) !== -1) this.renderTabContent();
             return this.loadImportOverview();
           })
           .catch((e) => Ui.toast(e.message, 'error'));
@@ -1430,12 +1445,16 @@
      * nějaká hodnota je uložená - jinak by RW zůstalo napořád "zamrzlé" na
      * staré hodnotě dopočítané ještě podle dřívější (třeba později opravené)
      * verze vzorce, i po opravě samotného výpočtu.
+     * silent potlačí dílčí toast a skipSave přeskočí jednotlivé uložení -
+     * obojí používá recomputeAllRw, kde by 20 toastů a 20 samostatných volání
+     * serveru bylo přesně to zbytečné zpomalení, které appka jinde řeší
+     * dávkovými zápisy (viz apiRzSaveRozdeleniRwBatch).
      */
-    recomputeRw(cislo) {
+    recomputeRw(cislo, silent, skipSave) {
       const a = this.artikly.find((x) => this._artiklMatches(x.cislo_artiklu, cislo));
       if (!a) {
         Ui.toast('Artikl ' + cislo + ' nenalezen.', 'error');
-        return;
+        return null;
       }
       const { byArtikl } = this._rozdeleniLookup();
       const minMax = byArtikl[cislo] || {};
@@ -1456,12 +1475,33 @@
       const rwInput = el && el.querySelector('.rzr-rw[data-cislo="' + CSS.escape(cislo) + '"]');
       if (rwInput) rwInput.value = rw;
       this._recomputeBlockLive(cislo);
-      Ui.toast('RW přepočítáno na ' + this._fmtNum(rw) + '.');
+      if (!silent) Ui.toast('RW přepočítáno na ' + this._fmtNum(rw) + '.');
 
       this._upsertRozdeleniLocal(cislo, '', { rw: rw });
-      this._enqueueDebounced('Ukládám RW',
-        () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }),
-        'rw:' + cislo);
+      if (!skipSave) {
+        this._enqueueDebounced('Ukládám RW',
+          () => Ui.call('apiRzSaveRozdeleniRw', { cislo_artiklu: cislo, rw: rw }, { silent: true }),
+          'rw:' + cislo);
+      }
+      return rw;
+    },
+
+    /**
+     * Přepočítá RW (a tím i Příděl) pro VŠECHNY vyplněné artikly najednou -
+     * jinak šlo jen po jednom přes ⟲ u každého bloku. Uložení jde jedním
+     * dávkovým voláním (apiRzSaveRozdeleniRwBatch), ne 20 samostatnými.
+     */
+    recomputeAllRw() {
+      const el = this.container.querySelector('#rzTabContent');
+      const artikly = this.artikly.filter((a) => a && a.cislo_artiklu);
+      if (!artikly.length || !el || !el.querySelector('.rzr-rw')) {
+        Ui.toast('Přepočet je dostupný v záložce Rozdělení, až budou vyplněné artikly.', 'error');
+        return;
+      }
+      const items = artikly.map((a) => ({ cislo_artiklu: a.cislo_artiklu, rw: this.recomputeRw(a.cislo_artiklu, true, true) }));
+      this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRwBatch', items, { silent: true }))
+        .catch((e) => Ui.toast(e.message, 'error'));
+      Ui.toast('RW přepočítáno pro ' + items.length + ' ' + (items.length === 1 ? 'artikl' : 'artiklů') + '.');
     },
 
     /**
