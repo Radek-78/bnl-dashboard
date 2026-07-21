@@ -1971,8 +1971,16 @@
 
   .rzr-artikl-row span {
     color: rgba(255, 255, 255, 0.75);
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Vyšší specificita než ".rzr-artikl-row span" výše, ať odznaku zůstane vlastní tmavá barva na žlutém podkladu. */
+  .rzr-artikl-row .rzr-metro-badge {
+    color: var(--lidl-dark-blue);
+    flex: 0 0 auto;
   }
 
   /* Rozděleno / K rozdělení jako jeden ukazatel naplnění - viz _progressHtml. */
@@ -2138,14 +2146,72 @@
     text-align: center;
   }
 
-  .rzr-data-row input {
+  /* Buňka Příděl: delta (pokud upravená) a číslo vlevo, tlačítka -/+ napravo. */
+  .rzr-prideli-cell {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
     flex: 1;
-    text-align: center;
+    gap: 2px;
+    height: 100%;
+    padding: 0 2px;
   }
 
-  .rzr-prideli {
+  .rzr-prideli-cell.is-excluded {
+    background: var(--page) !important;
+    opacity: 0.55;
+  }
+
+  .rzr-prideli-num {
     color: var(--lidl-blue);
+    flex: 1;
     font-weight: 700;
+    text-align: left;
+  }
+
+  .rzr-prideli-delta {
+    color: var(--muted);
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  .rzr-prideli-btn {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    color: var(--lidl-blue);
+    cursor: pointer;
+    flex: 0 0 13px;
+    font-size: 10px;
+    height: 13px;
+    line-height: 1;
+    padding: 0;
+    width: 13px;
+  }
+
+  .rzr-prideli-btn:hover {
+    background: var(--white);
+    border-color: var(--lidl-blue);
+  }
+
+  /* Odznak "M" vpravo nahoře v hlavičce Metropol artiklu. */
+  .rzr-metro-badge {
+    background: var(--lidl-yellow);
+    border-radius: 3px;
+    color: var(--lidl-dark-blue);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 5px;
+  }
+
+  /* Malá tečka u Metropol filiálek v Metropol artiklu - odliší "0 protože vyloučeno z výpočtu" od "0 protože tak vyšel vzorec". */
+  .rzr-metro-dot {
+    background: var(--lidl-yellow);
+    border-radius: 50%;
+    flex: 0 0 5px;
+    height: 5px;
+    width: 5px;
   }
 
   /* ── Panel body ──────────────────────────────────── */

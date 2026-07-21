@@ -44,7 +44,7 @@ const RZ_IMPORT_LABELS = {
 // folderExport - cílová složka, kam se ukládá vyexportované rozdělení
 // (.xlsx + Google Sheet). Samotný export se dodělá, až bude domluvený přesný
 // formát listu; složka jde nastavit už teď.
-const RZ_EXTRA_SETTING_KEYS = ['folderInformaceOArtiklech', 'patternInformaceOArtiklech', 'folderExport'];
+const RZ_EXTRA_SETTING_KEYS = ['folderInformaceOArtiklech', 'patternInformaceOArtiklech', 'folderExport', 'prideliColorScale'];
 
 function rzApp_() {
   const app = dbGetAll_(SHEETS.APPS).find((a) => a.slug === RZ_SLUG);
