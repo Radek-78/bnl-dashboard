@@ -171,11 +171,20 @@ function createDbRepo_(spreadsheetId, schema) {
  * Vrací ID nového spreadsheetu (apps.db_spreadsheet_id) i ID podsložky —
  * tu využívají specifické subaplikace, které si v ní zakládají další vlastní
  * podsložky (viz rzProvisionFolders_ v 70_rozdelovnik.js).
+ *
+ * Nový spreadsheet má vždy jeden výchozí list ("List1"/"Sheet1" podle jazyka
+ * Disku) — smazat ho hned nejde, spreadsheet musí mít vždy aspoň jeden list,
+ * a schéma konkrétní subaplikace tady ještě neznáme (ensureSchema se volá
+ * až později, líně). Místo mazání se proto rovnou přejmenuje na _settings,
+ * což je list, který má (podle stejné konvence jako hlavní DB) každá
+ * subaplikace — ensureSchema ho pak jen doplní o hlavičku jako kterýkoli
+ * jiný list schématu, žádný prázdný "List1" navíc už nezůstane.
  */
 function provisionSubAppDb_(appName) {
   const parentFolder = scriptFolder_();
   const subFolder = parentFolder ? parentFolder.createFolder(appName) : DriveApp.createFolder(appName);
   const ss = SpreadsheetApp.create(appName + ' – databáze');
+  ss.getSheets()[0].setName('_settings');
   DriveApp.getFileById(ss.getId()).moveTo(subFolder);
   return { dbSpreadsheetId: ss.getId(), folderId: subFolder.getId() };
 }
