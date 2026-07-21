@@ -866,12 +866,13 @@
         // z výpočtu (i z cílového součtu ve _solveRw) úplně vyloučené.
         const eligible = (s) => !a.metropol || !!s.metropolitni;
 
-        // Stav = Teo. stav + Dodáno (Vyskladňovací listy) - zobrazuje se rovnou
-        // tahle kombinovaná hodnota, ať tabulka ukazuje totéž, co se počítá.
+        // Stav = Teo. stav + Dodáno (Vyskladňovací listy) + Karton (Přidělení
+        // po artiklech) - zobrazuje se rovnou tahle kombinovaná hodnota, ať
+        // tabulka ukazuje totéž, co se počítá.
         const stavProVypocet = (s) => {
           const v = perStore[s.code] || {};
-          if (v.teo == null && v.dodano == null) return null;
-          return (v.teo || 0) + (v.dodano || 0);
+          if (v.teo == null && v.dodano == null && v.prideleno == null) return null;
+          return (v.teo || 0) + (v.dodano || 0) + (v.prideleno || 0);
         };
 
         let rw = (minMax.rw !== '' && minMax.rw != null) ? Number(minMax.rw) : null;
@@ -1109,10 +1110,12 @@
      * stavu z Teo. stavů, přepočtená na kartony (Stav v ks ÷ Obsah). dodano =
      * součet sloupce "Dodáno" z Vyskladňovacích listů (zboží skutečně
      * doručené na prodejnu, které ještě nemusí být v Teo. stavu promítnuté; je
-     * už v kartonech, nepřepočítává se). Zobrazený sloupec "Teo. stav" i
-     * výpočet přídělu (_clampPrideli) používají stejnou hodnotu: teo + dodano
-     * (viz stavProVypocet v renderRozdeleni). Přidělení po artiklech zatím do
-     * stavu nevstupuje - není naimportováno / neznáme jeho sloupce.
+     * už v kartonech, nepřepočítává se). prideleno = součet sloupce "Karton"
+     * z Přidělení po artiklech (artikl podle sloupce "Art", ne "Artikl" - viz
+     * poznámka u Vyskladňovacích listů níže); 1 karton = 1 kolli, bez
+     * přepočtu. Zobrazený sloupec "Teo. stav" i výpočet přídělu
+     * (_clampPrideli) používají stejnou hodnotu: teo + dodano + prideleno
+     * (viz stavProVypocet v renderRozdeleni).
      */
     /** Obal s cache - samotný výpočet (_computeMedianTeoRaw) prochází ~13 tisíc řádků importů, ale volá se i z _recomputeBlockLive při KAŽDÉM stisku klávesy v RW/min/max. Výsledek závisí jen na naimportovaných datech, takže se cachuje a maže až při novém importu/vymazání. */
     _computeMedianTeo(cisloArtiklu) {
@@ -1196,15 +1199,40 @@
         }
       }
 
+      const prideleni = this.importData.prideleni_po_artiklech;
+      if (prideleni && prideleni.headers && prideleni.headers.length) {
+        const ciP = this._findColIndex(prideleni.headers, ['prodejna']);
+        // Pozor: sloupec "Artikl" tu obsahuje jiný (delší interní) kód -
+        // skutečné číslo artiklu je ve sloupci "Art", stejně jako u
+        // Vyskladňovacích listů - proto přesná shoda, ne podřetězec.
+        const ciA = this._findColIndexExact(prideleni.headers, ['art']);
+        const ciKarton = this._findColIndex(prideleni.headers, ['karton']);
+        if (ciP !== -1 && ciA !== -1 && ciKarton !== -1) {
+          const soucet = {};
+          prideleni.rows.forEach((r) => {
+            if (!this._artiklMatches(r[ciA], cisloArtiklu)) return;
+            const store = String(r[ciP]).trim();
+            const val = this._toNumber(r[ciKarton]);
+            if (isNaN(val)) return;
+            soucet[store] = (soucet[store] || 0) + val;
+          });
+          Object.keys(soucet).forEach((store) => {
+            result[store] = result[store] || {};
+            // 1 karton = 1 kolli, žádný přepočet přes Obsah.
+            result[store].prideleno = soucet[store];
+          });
+        }
+      }
+
       return result;
     },
 
     /**
      * Vodorovné doplňování (Reichweite): příděl prodejny = RW × MEDIAN − Stav,
      * zaokrouhleno na celé číslo, ohraničeno min/max (pokud jsou zadané - jinak
-     * jen spodní hranice 0, žádný záporný příděl). Stav je zatím jen poslední
-     * hodnota z Teo. stavů (vals.teo) - Přidělení po artiklech a Vyskladňovací
-     * listy do součtu zatím nevstupují, dokud neznáme jejich sloupce.
+     * jen spodní hranice 0, žádný záporný příděl). Stav = Teo. stav + Dodáno
+     * (Vyskladňovací listy) + Karton (Přidělení po artiklech) - viz
+     * stavProVypocet v renderRozdeleni / _computeMedianTeoRaw.
      */
     _clampPrideli(rw, median, stav, min, max) {
       let v = Math.round(rw * median - stav);
@@ -1270,7 +1298,7 @@
         const cellEl = el.querySelector('.rzr-prideli-cell[data-cislo="' + CSS.escape(cislo) + '"][data-store="' + CSS.escape(s.code) + '"]');
         const eligible = !a || !a.metropol || !!s.metropolitni;
         const vals = perStore[s.code] || {};
-        const stav = (vals.teo || 0) + (vals.dodano || 0);
+        const stav = (vals.teo || 0) + (vals.dodano || 0) + (vals.prideleno || 0);
         const base = eligible ? this._clampPrideli(rw, vals.median || 0, stav, min, max) : 0;
         const delta = eligible ? (this._toNumber(upravy[s.code]) || 0) : 0;
         const efektivni = Math.max(0, base + delta);
@@ -1460,7 +1488,7 @@
         .filter((s) => !a.metropol || !!s.metropolitni)
         .map((s) => ({
           median: (perStore[s.code] || {}).median || 0,
-          stav: ((perStore[s.code] || {}).teo || 0) + ((perStore[s.code] || {}).dodano || 0),
+          stav: ((perStore[s.code] || {}).teo || 0) + ((perStore[s.code] || {}).dodano || 0) + ((perStore[s.code] || {}).prideleno || 0),
         }));
       const rw = this._solveRw(target, storeData, minMax.min, minMax.max);
 
