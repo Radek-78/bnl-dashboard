@@ -265,6 +265,7 @@
         '            <label id="rzScaleMidRow"><span>Prostřední hodnota</span><input type="color" name="prideliColorMid"></label>' +
         '            <label><span>Nejvyšší hodnota</span><input type="color" name="prideliColorHigh"></label>' +
         '          </div>' +
+        '          <div class="rz-color-preview" id="rzColorPreview"></div>' +
         '          <p class="form-hint">Škála se počítá přes hodnoty Příděl napříč všemi zobrazenými artikly najednou (jako Excel Color Scales).</p>' +
         '        </div>' +
         '      </div>' +
@@ -289,7 +290,13 @@
           this.container.querySelectorAll('.rz-settings-panel').forEach((p) => p.classList.toggle('is-hidden', p.dataset.settingsPanel !== key));
         });
       });
-      this.container.querySelector('#rzScaleMode').addEventListener('change', (e) => this._toggleScaleMidRow(e.target.value));
+      this.container.querySelector('#rzScaleMode').addEventListener('change', (e) => {
+        this._toggleScaleMidRow(e.target.value);
+        this._renderColorPreview();
+      });
+      ['prideliColorLow', 'prideliColorMid', 'prideliColorHigh'].forEach((name) => {
+        this.container.querySelector('input[name="' + name + '"]').addEventListener('input', () => this._renderColorPreview());
+      });
 
       this.renderTabContent();
       this.fitHeight();
@@ -710,7 +717,7 @@
             '<span>' + (r.stav != null ? this._fmtNum(r.stav) : '—') + '</span>' +
             '<div class="rzr-prideli-cell' + (r.eligible ? '' : ' is-excluded') + (isMetroRow ? ' is-metro' : '') + '" data-cislo="' + esc + '" data-store="' + Ui.escape(r.store.code) + '">' +
             '<span class="rzr-prideli-num">' + this._fmtNum(r.efektivni) + '</span>' +
-            '<span class="rzr-prideli-delta">' + (r.delta ? (r.delta > 0 ? '+' : '') + this._fmtNum(r.delta) : '') + '</span>' +
+            '<span class="rzr-prideli-delta' + this._deltaClass(r.delta) + '">' + (r.delta ? (r.delta > 0 ? '+' : '') + this._fmtNum(r.delta) : '') + '</span>' +
             (this.canWrite && r.eligible ?
               '<span class="rzr-prideli-btns">' +
               '<button class="rzr-prideli-btn" type="button" data-dir="-1" aria-label="Snížit příděl">−</button>' +
@@ -806,6 +813,13 @@
         this._enqueue('Ukládám RW', () => Ui.call('apiRzSaveRozdeleniRwBatch', rwToPersist, { silent: true }))
           .catch((e) => Ui.toast(e.message, 'error'));
       }
+    },
+
+    /** Barva delty u ruční úpravy Příděl - kladná zeleně, záporná červeně. */
+    _deltaClass(delta) {
+      if (delta > 0) return ' is-positive';
+      if (delta < 0) return ' is-negative';
+      return '';
     },
 
     /**
@@ -1078,7 +1092,10 @@
           const numEl = cellEl.querySelector('.rzr-prideli-num');
           if (numEl) numEl.textContent = this._fmtNum(efektivni);
           const deltaEl = cellEl.querySelector('.rzr-prideli-delta');
-          if (deltaEl) deltaEl.textContent = delta ? (delta > 0 ? '+' : '') + this._fmtNum(delta) : '';
+          if (deltaEl) {
+            deltaEl.textContent = delta ? (delta > 0 ? '+' : '') + this._fmtNum(delta) : '';
+            deltaEl.className = 'rzr-prideli-delta' + this._deltaClass(delta);
+          }
         }
       });
 
@@ -1704,6 +1721,7 @@
           f.elements.prideliColorMid.value = this.settings.prideliColorMid || '#ef9f27';
           f.elements.prideliColorHigh.value = this.settings.prideliColorHigh || '#e24b4a';
           this._toggleScaleMidRow(f.elements.prideliScaleMode.value);
+          this._renderColorPreview();
           Ui.openModal(this.container.querySelector('#rzSettingsModal'));
         })
         .catch((e) => Ui.toast(e.message, 'error'));
@@ -1713,6 +1731,29 @@
     _toggleScaleMidRow(mode) {
       const row = this.container.querySelector('#rzScaleMidRow');
       if (row) row.classList.toggle('is-hidden', mode !== '3color');
+    },
+
+    /** Náhled škály jako 20 sousedících barevných bloků - podle rozpracovaných (ještě neuložených) hodnot formuláře. */
+    _renderColorPreview() {
+      const el = this.container.querySelector('#rzColorPreview');
+      if (!el) return;
+      const f = this.container.querySelector('#rzSettingsForm');
+      const mode = f.elements.prideliScaleMode.value;
+      if (mode === 'none') {
+        el.innerHTML = '';
+        return;
+      }
+      const low = this._hexToRgb(f.elements.prideliColorLow.value);
+      const high = this._hexToRgb(f.elements.prideliColorHigh.value);
+      const mid = mode === '3color' ? this._hexToRgb(f.elements.prideliColorMid.value) : null;
+      const n = 20;
+      let html = '';
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1);
+        const color = mid ? (t < 0.5 ? this._mixColor(low, mid, t / 0.5) : this._mixColor(mid, high, (t - 0.5) / 0.5)) : this._mixColor(low, high, t);
+        html += '<div style="background:' + color + '"></div>';
+      }
+      el.innerHTML = html;
     },
 
     saveSettings(form) {

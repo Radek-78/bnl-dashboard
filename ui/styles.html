@@ -2179,9 +2179,24 @@
   }
 
   /* Metropol filiálka v Metropol artiklu - odliší "0 protože vyloučeno z výpočtu" od "0 protože tak vyšel vzorec". Výrazný levý pruh místo drobné tečky. */
+  /* Nezávislé na barevné škále (uživatel si tam může zvolit i žlutou) - pevná
+     tmavě modrá/bílá kombinace, ne barva z palety. */
   .rzr-prideli-cell.is-metro {
-    border-left: 3px solid var(--lidl-yellow);
-    padding-left: 2px;
+    position: relative;
+  }
+
+  .rzr-prideli-cell.is-metro::after {
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 2px;
+    color: var(--lidl-dark-blue);
+    content: 'M';
+    font-size: 7px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 1px 2px;
+    position: absolute;
+    right: 1px;
+    top: 1px;
   }
 
   .rzr-prideli-num {
@@ -2196,9 +2211,18 @@
     color: var(--muted);
     flex: 1;
     font-size: 9px;
+    font-weight: 700;
     overflow: hidden;
     text-align: left;
     white-space: nowrap;
+  }
+
+  .rzr-prideli-delta.is-positive {
+    color: #3B6D11;
+  }
+
+  .rzr-prideli-delta.is-negative {
+    color: #A32D2D;
   }
 
   .rzr-prideli-btns {
@@ -2243,20 +2267,35 @@
     gap: 12px;
   }
 
+  /* Popisek nad polem, ne vedle - lépe se to čte u tří polí vedle sebe. */
   .rz-color-row label {
-    align-items: center;
+    align-items: stretch;
     display: flex;
     flex: 1;
-    gap: 8px;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 6px;
   }
 
   .rz-color-row input[type="color"] {
     border: 1px solid var(--line);
     border-radius: 4px;
-    height: 30px;
+    height: 34px;
     padding: 2px;
-    width: 46px;
+    width: 100%;
+  }
+
+  /* Náhled přechodu - diskrétní dílky (jako Excel Color Scales náhled), ne plynulý gradient. */
+  .rz-color-preview {
+    border-radius: 4px;
+    display: flex;
+    gap: 1px;
+    height: 22px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+
+  .rz-color-preview > div {
+    flex: 1;
   }
 
   /* ── Panel body ──────────────────────────────────── */
