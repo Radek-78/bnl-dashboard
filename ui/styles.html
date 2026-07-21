@@ -1795,6 +1795,42 @@
     min-width: 240px;
   }
 
+  /* Správa souborů ve složce se zdrojovými soubory - smazání/nahrání, viz
+     renderImportOverviewPanel. Nad seznamem podle vzorů názvů (rz-import-overview-list). */
+  .rz-syncfiles-toolbar {
+    margin: 8px 0;
+  }
+
+  .rz-syncfiles-list {
+    border-bottom: 1px solid var(--line-soft);
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+  }
+
+  .rz-syncfiles-list li {
+    align-items: center;
+    border-top: 1px solid var(--line-soft);
+    display: flex;
+    font-size: 12px;
+    gap: 8px;
+    padding: 6px 0;
+  }
+
+  .rz-syncfile-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rz-syncfile-date {
+    color: var(--muted);
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+
   .rz-import-overview-list {
     list-style: none;
     margin: 8px 0 0;

@@ -136,7 +136,7 @@ function rzListFolderFiles_(folderId) {
     const it = folder.getFilesByType(mimeType);
     while (it.hasNext()) {
       const f = it.next();
-      files.push({ name: f.getName(), updatedAt: f.getLastUpdated().toISOString() });
+      files.push({ id: f.getId(), name: f.getName(), updatedAt: f.getLastUpdated().toISOString() });
     }
   });
   files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -192,6 +192,60 @@ function apiRzGetImportOverview() {
     });
 
     return { folderName: listing.folderName, items: items };
+  });
+}
+
+/** Vrátí surový seznam souborů ve složce se zdrojovými soubory - na rozdíl od apiRzGetImportOverview (co se podle vzoru názvu k čemu přiřadí) tady jde jen o správu obsahu složky (smazání/nahrání). */
+function apiRzListSyncFolderFiles() {
+  return rzGuard_(() => {
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.syncFolderUrl);
+    if (!folderId) return { folderName: '', files: [] };
+    try {
+      return rzListFolderFiles_(folderId);
+    } catch (e) {
+      throw new Error('Složku se nepodařilo otevřít: ' + e.message);
+    }
+  });
+}
+
+/** Smaže (přesune do koše) soubor ve složce se zdrojovými soubory - ověří, že soubor opravdu leží v TÉTO složce, ne že jde jen o libovolné cizí ID z Disku. */
+function apiRzDeleteSyncFolderFile(fileId) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání souborů.');
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.syncFolderUrl);
+    if (!folderId) throw new Error('Není nastavena složka se zdrojovými soubory (Nastavení).');
+    const file = DriveApp.getFileById(fileId);
+    const parents = file.getParents();
+    let inFolder = false;
+    while (parents.hasNext()) {
+      if (parents.next().getId() === folderId) { inFolder = true; break; }
+    }
+    if (!inFolder) throw new Error('Soubor neleží ve složce se zdrojovými soubory.');
+    const name = file.getName();
+    file.setTrashed(true);
+    audit_('rz_sync_file_delete', name);
+    return { ok: true };
+  });
+}
+
+/** Nahraje soubor vybraný uživatelem (viz filepicker na klientovi) do složky se zdrojovými soubory. base64Data je obsah souboru zakódovaný na klientovi (FileReader). */
+function apiRzUploadSyncFolderFile(payload) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k nahrávání souborů.');
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.syncFolderUrl);
+    if (!folderId) throw new Error('Není nastavena složka se zdrojovými soubory (Nastavení).');
+    const name = String((payload && payload.name) || '').trim();
+    const base64Data = payload && payload.base64Data;
+    if (!name || !base64Data) throw new Error('Chybí soubor k nahrání.');
+    const mimeType = String((payload && payload.mimeType) || '') || MimeType.MICROSOFT_EXCEL;
+    const folder = DriveApp.getFolderById(folderId);
+    const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, name);
+    const file = folder.createFile(blob);
+    audit_('rz_sync_file_upload', name);
+    return { id: file.getId(), name: file.getName(), updatedAt: file.getLastUpdated().toISOString() };
   });
 }
 

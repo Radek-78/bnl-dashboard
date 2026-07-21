@@ -23,6 +23,7 @@
     settings: {},
     importData: {},
     importOverview: null,
+    syncFiles: null,
     rozdeleni: null,
     _artiklyDirty: false,
     _artiklySaveReqId: 0,
@@ -70,6 +71,7 @@
         .catch((e) => Ui.toast(e.message, 'error'));
       this.loadSkupiny();
       this.loadImportOverview();
+      this.loadSyncFiles();
       this.loadRozdeleni();
       // Data importovaných souborů se natáhnou rovnou po startu, ne až po
       // kliknutí na záložku - u větších souborů by pak čekání bylo znát.
@@ -199,6 +201,13 @@
     loadImportOverview() {
       return Ui.call('apiRzGetImportOverview', null, { silent: true })
         .then((overview) => { this.importOverview = overview; if (this.activeTab === 'artikly') this.renderTabContent(); })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /** Surový seznam souborů ve složce se zdrojovými soubory (viz apiRzListSyncFolderFiles) - pro smazání starých/nahrání nových, nezávisle na tom, jestli soubor zrovna sedí na některý ze 4 vzorů. */
+    loadSyncFiles() {
+      return Ui.call('apiRzListSyncFolderFiles', null, { silent: true })
+        .then((res) => { this.syncFiles = res || { folderName: '', files: [] }; if (this.activeTab === 'artikly') this.renderTabContent(); })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
@@ -440,6 +449,18 @@
         if (importBtn) importBtn.addEventListener('click', () => this.importAll());
         const clearImportsBtn = el.querySelector('#rzClearImportsBtn');
         if (clearImportsBtn) clearImportsBtn.addEventListener('click', () => this.clearImports());
+        const uploadFilesInput = el.querySelector('#rzUploadFilesInput');
+        const uploadFilesBtn = el.querySelector('#rzUploadFilesBtn');
+        if (uploadFilesBtn && uploadFilesInput) {
+          uploadFilesBtn.addEventListener('click', () => uploadFilesInput.click());
+          uploadFilesInput.addEventListener('change', () => {
+            this.uploadSyncFiles(uploadFilesInput.files);
+            uploadFilesInput.value = '';
+          });
+        }
+        el.querySelectorAll('.rz-syncfile-delete').forEach((btn) => {
+          btn.addEventListener('click', () => this.deleteSyncFile(btn.dataset.id, btn.dataset.name));
+        });
         el.querySelectorAll('.rz-skupina-apply').forEach((btn) => {
           btn.addEventListener('click', () => this.applySkupina(btn.dataset.id));
         });
@@ -578,6 +599,7 @@
      */
     renderImportOverviewPanel() {
       const overview = this.importOverview;
+      const syncFiles = this.syncFiles;
       return (
         '<section class="panel rz-compact rz-import-panel">' +
         '  <div class="panel-header panel-header--compact"><div><h2>Import dat</h2></div>' +
@@ -589,11 +611,29 @@
           : '') +
         '  </div>' +
         '  <div class="panel-body">' +
+        '    <p class="form-hint">Složka: ' + (syncFiles && syncFiles.folderName ? Ui.escape(syncFiles.folderName) : 'nenastavena — viz Nastavení') + '</p>' +
+        (this.canWrite
+          ? '<div class="rz-syncfiles-toolbar">' +
+            '<button class="button button-secondary button-small" type="button" id="rzUploadFilesBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>Nahrát soubory</button>' +
+            '<input type="file" id="rzUploadFilesInput" multiple accept=".xlsx,.xls,.csv" class="is-hidden">' +
+            '</div>'
+          : '') +
+        (!syncFiles
+          ? '<p class="form-hint">Načítám…</p>'
+          : (syncFiles.files.length
+            ? '<ul class="rz-syncfiles-list">' +
+              syncFiles.files.map((f) => (
+                '<li>' +
+                '<span class="rz-syncfile-name">' + Ui.escape(f.name) + '</span>' +
+                '<span class="rz-syncfile-date">' + Ui.formatDateTime(f.updatedAt) + '</span>' +
+                (this.canWrite ? '<button type="button" class="icon-action icon-action--danger rz-syncfile-delete" data-id="' + Ui.escape(f.id) + '" data-name="' + Ui.escape(f.name) + '" title="Smazat soubor"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg></button>' : '') +
+                '</li>'
+              )).join('') +
+              '</ul>'
+            : '<p class="form-hint">Ve složce nejsou žádné soubory.</p>')) +
         (!overview
           ? '<p class="form-hint">Načítám…</p>'
-          : (
-            '<p class="form-hint">Složka: ' + (overview.folderName ? Ui.escape(overview.folderName) : 'nenastavena — viz Nastavení') + '</p>' +
-            '<ul class="rz-import-overview-list">' +
+          : '<ul class="rz-import-overview-list">' +
             overview.items.map((item) => (
               '<li>' +
               '<strong>' + Ui.escape(item.label) + '</strong>' +
@@ -606,8 +646,7 @@
               '</div>' +
               '</li>'
             )).join('') +
-            '</ul>'
-          )) +
+            '</ul>') +
         '  </div>' +
         '</section>'
       );
@@ -654,6 +693,57 @@
             Ui.toast('Naimportovaná data byla vymazána.');
             if (this.activeTab === 'rozdeleni' || RZ_IMPORT_TABS.indexOf(this.activeTab) !== -1) this.renderTabContent();
             return this.loadImportOverview();
+          })
+          .catch((e) => Ui.toast(e.message, 'error'));
+      });
+    },
+
+    /** Přečte vybraný soubor jako base64 (bez data: prefixu) - google.script.run neumí posílat File/Blob přímo, jen text/JSON. */
+    _readFileAsBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+        reader.onerror = () => reject(new Error('Soubor „' + file.name + '" se nepodařilo přečíst.'));
+        reader.readAsDataURL(file);
+      });
+    },
+
+    /** Nahraje vybrané soubory do složky se zdrojovými soubory, jeden po druhém (ne najednou - ať je vidět, co se zrovna nahrává, a chyba u jednoho souboru nezastaví zbytek). */
+    uploadSyncFiles(fileList) {
+      const files = [...(fileList || [])];
+      if (!files.length) return;
+      const uploadNext = (i) => {
+        if (i >= files.length) {
+          Ui.toast('Nahráno souborů: ' + files.length + '.');
+          this.loadSyncFiles();
+          this.loadImportOverview();
+          return;
+        }
+        const file = files[i];
+        this._readFileAsBase64(file)
+          .then((base64Data) => Ui.call('apiRzUploadSyncFolderFile',
+            { name: file.name, mimeType: file.type || 'application/octet-stream', base64Data: base64Data },
+            { silent: true, busy: 'Nahrávám ' + file.name + '…' }))
+          .catch((e) => { Ui.toast('Nahrání souboru „' + file.name + '" selhalo: ' + e.message, 'error'); })
+          .then(() => uploadNext(i + 1));
+      };
+      uploadNext(0);
+    },
+
+    /** Přesune soubor ve složce se zdrojovými soubory do koše na Disku - naimportovaná data v appce zůstávají, dokud se znovu neklikne na Importovat. */
+    deleteSyncFile(id, name) {
+      Ui.confirm({
+        kicker: 'Import dat',
+        title: 'Smazat soubor?',
+        message: 'Soubor „' + name + '" se přesune do koše na Disku. Naimportovaná data v appce zůstanou beze změny, dokud znovu nekliknete na Importovat.',
+        confirmLabel: 'Smazat',
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        Ui.call('apiRzDeleteSyncFolderFile', id, { silent: true, busy: 'Mažu soubor…' })
+          .then(() => {
+            Ui.toast('Soubor byl smazán.');
+            this.loadSyncFiles();
+            this.loadImportOverview();
           })
           .catch((e) => Ui.toast(e.message, 'error'));
       });
