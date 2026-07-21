@@ -1644,18 +1644,34 @@
   }
 
   .rz-tabbtn {
+    align-items: center;
     background: transparent;
     border: 0;
     border-top: 2px solid transparent;
     color: var(--muted);
     cursor: pointer;
+    display: flex;
     flex: 1;
     font-size: 12px;
+    gap: 6px;
+    justify-content: center;
     padding: 10px 4px;
-    transition: color 0.12s, border-color 0.12s;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+  }
+
+  /* Viditelné oddělení jednotlivých záložek - dřív jen barva/tučnost aktivní záložky. */
+  .rz-tabbtn + .rz-tabbtn {
+    border-left: 1px solid var(--line-soft);
+  }
+
+  .rz-tabbtn svg {
+    flex-shrink: 0;
+    height: 14px;
+    width: 14px;
   }
 
   .rz-tabbtn:hover {
+    background: rgba(0, 80, 170, 0.05);
     color: var(--lidl-blue);
   }
 
@@ -1665,16 +1681,31 @@
     font-weight: 700;
   }
 
+  /* border-collapse:collapse + sticky th sdílí okrajový pixel se sousední
+     buňkou mimo sticky vrstvu hlaviček, takže hlavička při scrollu nejdřív
+     jemně poskočí a pak pod ní prosvítají data - stejná oprava jako u
+     .rz-import-table-panel: border nahrazen box-shadow uvnitř každé buňky
+     (vždy součástí jejího vlastního sticky vykreslení) a výška hlavičky
+     sjednocená na 32px se stejnými tabulkami. */
   .rz-compact table {
-    border: 1px solid var(--line);
+    border: 0;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 11px;
     min-width: 0;
   }
 
   .rz-compact th,
   .rz-compact td {
-    border: 1px solid var(--line-soft);
+    border: 0;
+    box-shadow: inset -1px -1px 0 var(--line-soft);
     padding: 1px 6px;
+  }
+
+  .rz-compact th {
+    box-shadow: inset -1px -1px 0 rgba(255, 255, 255, 0.2);
+    height: 32px;
+    vertical-align: middle;
   }
 
   .rz-compact tbody tr:nth-child(even) td {

@@ -1,12 +1,12 @@
 <script>
 (function () {
   const RZ_TABS = [
-    { key: 'artikly', label: 'Artikly' },
-    { key: 'rozdeleni', label: 'Rozdělení' },
-    { key: 'odprodej', label: 'Odprodej' },
-    { key: 'teo_stavy', label: 'Teo. stavy' },
-    { key: 'vyskladnovaci_listy', label: 'Vyskladňovací listy' },
-    { key: 'prideleni_po_artiklech', label: 'Přidělení po artiklech' },
+    { key: 'artikly', label: 'Artikly', icon: 'list' },
+    { key: 'rozdeleni', label: 'Rozdělení', icon: 'grid' },
+    { key: 'odprodej', label: 'Odprodej', icon: 'chart' },
+    { key: 'teo_stavy', label: 'Teo. stavy', icon: 'package' },
+    { key: 'vyskladnovaci_listy', label: 'Vyskladňovací listy', icon: 'truck' },
+    { key: 'prideleni_po_artiklech', label: 'Přidělení po artiklech', icon: 'clipboard' },
   ];
   const RZ_IMPORT_TABS = ['odprodej', 'teo_stavy', 'vyskladnovaci_listy', 'prideleni_po_artiklech'];
   const RZ_ARTIKLY_ROWS = 20;
@@ -244,7 +244,7 @@
         '<div class="section-body" id="rzTabContent"></div>' +
         '<nav class="rz-tabbar">' +
         RZ_TABS.map((t) => '<button class="rz-tabbtn' + (t.key === this.activeTab ? ' is-active' : '') +
-          '" type="button" data-tab="' + t.key + '">' + Ui.escape(t.label) + '</button>').join('') +
+          '" type="button" data-tab="' + t.key + '"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-' + t.icon + '"></use></svg><span>' + Ui.escape(t.label) + '</span></button>').join('') +
         '</nav>' +
         '<dialog class="modal modal-large" id="rzSettingsModal">' +
         '  <form id="rzSettingsForm">' +
