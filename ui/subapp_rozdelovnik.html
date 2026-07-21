@@ -461,6 +461,18 @@
         el.querySelectorAll('.rz-syncfile-delete').forEach((btn) => {
           btn.addEventListener('click', () => this.deleteSyncFile(btn.dataset.id, btn.dataset.name));
         });
+        const selectAllFiles = el.querySelector('#rzSyncFilesSelectAll');
+        if (selectAllFiles) {
+          selectAllFiles.addEventListener('change', () => {
+            el.querySelectorAll('.rz-syncfile-check').forEach((cb) => { cb.checked = selectAllFiles.checked; });
+            this._updateSyncFilesSelectedBtn();
+          });
+        }
+        el.querySelectorAll('.rz-syncfile-check').forEach((cb) => {
+          cb.addEventListener('change', () => this._updateSyncFilesSelectedBtn());
+        });
+        const deleteSelectedFilesBtn = el.querySelector('#rzDeleteSelectedFilesBtn');
+        if (deleteSelectedFilesBtn) deleteSelectedFilesBtn.addEventListener('click', () => this.deleteSyncFilesSelected());
         el.querySelectorAll('.rz-skupina-apply').forEach((btn) => {
           btn.addEventListener('click', () => this.applySkupina(btn.dataset.id));
         });
@@ -616,14 +628,19 @@
           ? '<div class="rz-syncfiles-toolbar">' +
             '<button class="button button-secondary button-small" type="button" id="rzUploadFilesBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>Nahrát soubory</button>' +
             '<input type="file" id="rzUploadFilesInput" multiple accept=".xlsx,.xls,.csv" class="is-hidden">' +
+            '<button class="button button-secondary button-small is-hidden" type="button" id="rzDeleteSelectedFilesBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg>Smazat vybrané (<span id="rzDeleteSelectedCount">0</span>)</button>' +
             '</div>'
           : '') +
         (!syncFiles
           ? '<p class="form-hint">Načítám…</p>'
           : (syncFiles.files.length
             ? '<ul class="rz-syncfiles-list">' +
+              (this.canWrite
+                ? '<li class="rz-syncfiles-selectall"><input type="checkbox" id="rzSyncFilesSelectAll"><span class="rz-syncfile-name">Vybrat vše</span></li>'
+                : '') +
               syncFiles.files.map((f) => (
                 '<li>' +
+                (this.canWrite ? '<input type="checkbox" class="rz-syncfile-check" data-id="' + Ui.escape(f.id) + '">' : '') +
                 '<span class="rz-syncfile-name">' + Ui.escape(f.name) + '</span>' +
                 '<span class="rz-syncfile-date">' + Ui.formatDateTime(f.updatedAt) + '</span>' +
                 (this.canWrite ? '<button type="button" class="icon-action icon-action--danger rz-syncfile-delete" data-id="' + Ui.escape(f.id) + '" data-name="' + Ui.escape(f.name) + '" title="Smazat soubor"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg></button>' : '') +
@@ -742,6 +759,41 @@
         Ui.call('apiRzDeleteSyncFolderFile', id, { silent: true, busy: 'Mažu soubor…' })
           .then(() => {
             Ui.toast('Soubor byl smazán.');
+            this.loadSyncFiles();
+            this.loadImportOverview();
+          })
+          .catch((e) => Ui.toast(e.message, 'error'));
+      });
+    },
+
+    /** Zobrazí/skryje tlačítko "Smazat vybrané" a doplní počet podle aktuálně zaškrtnutých souborů. */
+    _updateSyncFilesSelectedBtn() {
+      const el = this.container.querySelector('#rzTabContent');
+      const btn = el.querySelector('#rzDeleteSelectedFilesBtn');
+      if (!btn) return;
+      const count = el.querySelectorAll('.rz-syncfile-check:checked').length;
+      btn.classList.toggle('is-hidden', count === 0);
+      const countEl = el.querySelector('#rzDeleteSelectedCount');
+      if (countEl) countEl.textContent = count;
+    },
+
+    /** Hromadně smaže (přesune do koše) všechny zaškrtnuté soubory - jedno volání serveru (viz apiRzDeleteSyncFolderFiles). */
+    deleteSyncFilesSelected() {
+      const el = this.container.querySelector('#rzTabContent');
+      const ids = [...el.querySelectorAll('.rz-syncfile-check:checked')].map((cb) => cb.dataset.id);
+      if (!ids.length) return;
+      Ui.confirm({
+        kicker: 'Import dat',
+        title: 'Smazat vybrané soubory?',
+        message: 'Vybraných souborů (' + ids.length + ') se přesune do koše na Disku. Naimportovaná data v appce zůstanou beze změny, dokud znovu nekliknete na Importovat.',
+        confirmLabel: 'Smazat',
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        Ui.call('apiRzDeleteSyncFolderFiles', ids, { silent: true, busy: 'Mažu soubory…' })
+          .then((res) => {
+            const errs = (res && res.errors) || [];
+            Ui.toast('Smazáno souborů: ' + ((res && res.deleted) || 0) + '.' + (errs.length ? ' Nezdařilo se: ' + errs.join('; ') : ''),
+              errs.length ? 'error' : undefined);
             this.loadSyncFiles();
             this.loadImportOverview();
           })
@@ -1508,7 +1560,7 @@
         grid.push(['', s.code, s.name].concat(pad(vals, 0)));
       });
 
-      Ui.call('apiRzExportWb', { grid: grid, filledCount: filled }, { busy: 'Exportuji do listu WB…' })
+      Ui.call('apiRzExportWb', { grid: grid, filledCount: filled }, { silent: true, busy: 'Exportuji do listu WB…' })
         .then((res) => Ui.toast(res && res.exportedToFolder
           ? 'List WB byl aktualizován a export uložen do složky Export.'
           : 'List WB byl aktualizován. Soubor do složky Export se neuložil - zkontrolujte nastavenou složku Export.', 'success'))

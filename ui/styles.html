@@ -1798,6 +1798,8 @@
   /* Správa souborů ve složce se zdrojovými soubory - smazání/nahrání, viz
      renderImportOverviewPanel. Nad seznamem podle vzorů názvů (rz-import-overview-list). */
   .rz-syncfiles-toolbar {
+    display: flex;
+    gap: 8px;
     margin: 8px 0;
   }
 
@@ -1815,6 +1817,21 @@
     font-size: 12px;
     gap: 8px;
     padding: 6px 0;
+  }
+
+  .rz-syncfiles-list input[type="checkbox"],
+  .rz-syncfile-check {
+    accent-color: var(--lidl-blue);
+    flex-shrink: 0;
+    height: 14px;
+    margin: 0;
+    width: 14px;
+  }
+
+  .rz-syncfiles-selectall .rz-syncfile-name {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
   }
 
   .rz-syncfile-name {

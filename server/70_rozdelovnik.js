@@ -209,24 +209,51 @@ function apiRzListSyncFolderFiles() {
   });
 }
 
-/** Smaže (přesune do koše) soubor ve složce se zdrojovými soubory - ověří, že soubor opravdu leží v TÉTO složce, ne že jde jen o libovolné cizí ID z Disku. */
+/** Smaže (přesune do koše) jeden soubor - ověří, že opravdu leží v TÉTO složce, ne že jde jen o libovolné cizí ID z Disku. Sdíleno mezi jedním a hromadným smazáním. */
+function rzDeleteSyncFile_(fileId, folderId) {
+  const file = DriveApp.getFileById(fileId);
+  const parents = file.getParents();
+  let inFolder = false;
+  while (parents.hasNext()) {
+    if (parents.next().getId() === folderId) { inFolder = true; break; }
+  }
+  if (!inFolder) throw new Error('Soubor neleží ve složce se zdrojovými soubory.');
+  const name = file.getName();
+  file.setTrashed(true);
+  audit_('rz_sync_file_delete', name);
+}
+
+/** Smaže (přesune do koše) soubor ve složce se zdrojovými soubory. */
 function apiRzDeleteSyncFolderFile(fileId) {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání souborů.');
     const settings = rzSettingsAll_();
     const folderId = rzExtractFolderId_(settings.syncFolderUrl);
     if (!folderId) throw new Error('Není nastavena složka se zdrojovými soubory (Nastavení).');
-    const file = DriveApp.getFileById(fileId);
-    const parents = file.getParents();
-    let inFolder = false;
-    while (parents.hasNext()) {
-      if (parents.next().getId() === folderId) { inFolder = true; break; }
-    }
-    if (!inFolder) throw new Error('Soubor neleží ve složce se zdrojovými soubory.');
-    const name = file.getName();
-    file.setTrashed(true);
-    audit_('rz_sync_file_delete', name);
+    rzDeleteSyncFile_(fileId, folderId);
     return { ok: true };
+  });
+}
+
+/** Hromadné smazání vybraných souborů (checkboxy v seznamu) - jedno volání serveru místo jednoho na každý zaškrtnutý soubor. Chyba u jednoho souboru nezastaví zbytek. */
+function apiRzDeleteSyncFolderFiles(fileIds) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání souborů.');
+    if (!Array.isArray(fileIds) || !fileIds.length) return { deleted: 0, errors: [] };
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.syncFolderUrl);
+    if (!folderId) throw new Error('Není nastavena složka se zdrojovými soubory (Nastavení).');
+    let deleted = 0;
+    const errors = [];
+    fileIds.forEach((fileId) => {
+      try {
+        rzDeleteSyncFile_(fileId, folderId);
+        deleted++;
+      } catch (e) {
+        errors.push(e.message);
+      }
+    });
+    return { deleted: deleted, errors: errors };
   });
 }
 
