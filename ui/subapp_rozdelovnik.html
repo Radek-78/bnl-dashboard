@@ -254,12 +254,17 @@
         '      <div class="rz-settings-panel is-hidden" data-settings-panel="zobrazeni">' +
         '        <div class="form form-plain">' +
         '          <label><span>Barevná škála sloupce Příděl</span>' +
-        '            <select name="prideliColorScale">' +
-        '              <option value="light-red">Od nejnižší (světlá) po nejvyšší (červená)</option>' +
-        '              <option value="ryg">Od nejnižší (červená) přes žlutou po nejvyšší (zelená)</option>' +
+        '            <select name="prideliScaleMode" id="rzScaleMode">' +
+        '              <option value="2color">Dvoubarevná (nejnižší → nejvyšší)</option>' +
+        '              <option value="3color">Tříbarevná (nejnižší → prostřední → nejvyšší)</option>' +
         '              <option value="none">Bez barevného zvýraznění</option>' +
         '            </select>' +
         '          </label>' +
+        '          <div class="rz-color-row">' +
+        '            <label><span>Nejnižší hodnota</span><input type="color" name="prideliColorLow"></label>' +
+        '            <label id="rzScaleMidRow"><span>Prostřední hodnota</span><input type="color" name="prideliColorMid"></label>' +
+        '            <label><span>Nejvyšší hodnota</span><input type="color" name="prideliColorHigh"></label>' +
+        '          </div>' +
         '          <p class="form-hint">Škála se počítá přes hodnoty Příděl napříč všemi zobrazenými artikly najednou (jako Excel Color Scales).</p>' +
         '        </div>' +
         '      </div>' +
@@ -284,6 +289,7 @@
           this.container.querySelectorAll('.rz-settings-panel').forEach((p) => p.classList.toggle('is-hidden', p.dataset.settingsPanel !== key));
         });
       });
+      this.container.querySelector('#rzScaleMode').addEventListener('change', (e) => this._toggleScaleMidRow(e.target.value));
 
       this.renderTabContent();
       this.fitHeight();
@@ -632,11 +638,10 @@
      *
      * Zaokrouhlit zatím není - algoritmus se domlouvá samostatně.
      *
-     * Dvouprůchodový render: nejdřív se pro všechny artikly spočítá Příděl
-     * (1. průchod), aby šla určit globální min/max hodnota přes VŠECHNY
-     * bloky najednou (barevná škála musí porovnávat napříč artikly, ne jen
-     * uvnitř jednoho bloku) - a teprve pak (2. průchod) se generuje HTML se
-     * správnou barvou v každé buňce.
+     * Barvení sloupce Příděl (viz _recolorAllPrideli) běží NAD hotovým DOM,
+     * ne během generování HTML - stejná funkce se volá po prvním vykreslení
+     * i po každé "online" úpravě (RW/min-max/ruční příděl), takže škála i
+     * pozice čísla jsou vždy stejné, ať se hodnoty změnily jakkoliv.
      */
     renderRozdeleni(el) {
       const artikly = this.artikly.filter((a) => a && a.cislo_artiklu);
@@ -649,13 +654,10 @@
 
       const { byArtikl, byStore } = this._rozdeleniLookup();
       const dis = this.canWrite ? '' : ' disabled';
-      const scaleMode = this.settings.prideliColorScale || 'light-red';
 
       const frozenRows = this.stores.map((s) => '<div class="rzr-hrow rzr-store-cell">' + Ui.escape(s.code) + '</div>').join('');
       const rwToPersist = [];
-      const allPrideli = [];
 
-      // 1. průchod - spočítat RW/Příděl/Rozděleno pro každý artikl a prodejnu.
       const computed = artikly.map((a) => {
         const cislo = a.cislo_artiklu;
         const minMax = byArtikl[cislo] || {};
@@ -691,33 +693,29 @@
           const delta = isEligible ? (this._toNumber(upravy[s.code]) || 0) : 0;
           const efektivni = Math.max(0, base + delta);
           rozdeleno += efektivni;
-          allPrideli.push(efektivni);
           return { store: s, median: vals.median, stav: stav, efektivni: efektivni, delta: delta, eligible: isEligible };
         });
 
         return { a: a, cislo: cislo, minMax: minMax, rw: rw, target: target, rozdeleno: rozdeleno, storeRows: storeRows };
       });
 
-      const scaleMin = allPrideli.length ? Math.min(...allPrideli) : 0;
-      const scaleMax = allPrideli.length ? Math.max(...allPrideli) : 0;
-
-      // 2. průchod - vykreslit HTML s už známou barvou pro každou buňku.
       const blocks = computed.map((c) => {
         const esc = Ui.escape(c.cislo);
         const dataRows = c.storeRows.map((r) => {
-          const bg = this._prideliColor(r.efektivni, scaleMin, scaleMax, scaleMode);
-          const cellStyle = bg ? ' style="background:' + bg + '"' : '';
-          const metroTag = (c.a.metropol && r.eligible) ? '<i class="rzr-metro-dot" title="Metropolitní filiálka"></i>' : '';
+          // Pevně vyhrazený slot na deltu (i prázdný) - hodnota Příděl tak
+          // nikdy nemění pozici podle toho, jestli je nebo není upravená.
+          const isMetroRow = c.a.metropol && r.eligible;
           return '<div class="rzr-hrow rzr-data-row">' +
             '<span>' + (r.median != null ? this._fmtNum(r.median) : '—') + '</span>' +
             '<span>' + (r.stav != null ? this._fmtNum(r.stav) : '—') + '</span>' +
-            '<div class="rzr-prideli-cell' + (r.eligible ? '' : ' is-excluded') + '"' + cellStyle + ' data-cislo="' + esc + '" data-store="' + Ui.escape(r.store.code) + '">' +
-            metroTag +
-            (r.delta ? '<span class="rzr-prideli-delta">' + (r.delta > 0 ? '+' : '') + this._fmtNum(r.delta) + '</span>' : '') +
+            '<div class="rzr-prideli-cell' + (r.eligible ? '' : ' is-excluded') + (isMetroRow ? ' is-metro' : '') + '" data-cislo="' + esc + '" data-store="' + Ui.escape(r.store.code) + '">' +
             '<span class="rzr-prideli-num">' + this._fmtNum(r.efektivni) + '</span>' +
+            '<span class="rzr-prideli-delta">' + (r.delta ? (r.delta > 0 ? '+' : '') + this._fmtNum(r.delta) : '') + '</span>' +
             (this.canWrite && r.eligible ?
+              '<span class="rzr-prideli-btns">' +
               '<button class="rzr-prideli-btn" type="button" data-dir="-1" aria-label="Snížit příděl">−</button>' +
-              '<button class="rzr-prideli-btn" type="button" data-dir="1" aria-label="Zvýšit příděl">+</button>'
+              '<button class="rzr-prideli-btn" type="button" data-dir="1" aria-label="Zvýšit příděl">+</button>' +
+              '</span>'
               : '') +
             '</div>' +
             '</div>';
@@ -795,6 +793,8 @@
       if (headEl && spacerEl && colsEl) {
         spacerEl.style.height = (headEl.offsetHeight - colsEl.offsetHeight) + 'px';
       }
+
+      this._recolorAllPrideli();
 
       // Nově dopočítaná RW (viz výše) se rovnou uloží, ať je od dalšího
       // vykreslení už jen "uživatelova" uložená hodnota, ne odhad počítaný
@@ -1072,19 +1072,13 @@
         const efektivni = Math.max(0, base + delta);
         rozdeleno += efektivni;
         if (cellEl) {
+          // Delta má v HTML vždy svůj pevný slot (viz renderRozdeleni) - jen
+          // se přepisuje text, nikdy se nevkládá/neodebírá element, jinak by
+          // číslo Příděl poskočilo do jiné pozice.
           const numEl = cellEl.querySelector('.rzr-prideli-num');
           if (numEl) numEl.textContent = this._fmtNum(efektivni);
-          let deltaEl = cellEl.querySelector('.rzr-prideli-delta');
-          if (delta) {
-            if (!deltaEl) {
-              deltaEl = document.createElement('span');
-              deltaEl.className = 'rzr-prideli-delta';
-              cellEl.insertBefore(deltaEl, numEl);
-            }
-            deltaEl.textContent = (delta > 0 ? '+' : '') + this._fmtNum(delta);
-          } else if (deltaEl) {
-            deltaEl.remove();
-          }
+          const deltaEl = cellEl.querySelector('.rzr-prideli-delta');
+          if (deltaEl) deltaEl.textContent = delta ? (delta > 0 ? '+' : '') + this._fmtNum(delta) : '';
         }
       });
 
@@ -1093,18 +1087,24 @@
         const target = (a && a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
         progressEl.innerHTML = this._progressHtml(rozdeleno, target);
       }
+
+      // Škála je globální přes všechny artikly - přepočítá se, i když se
+      // změnil jen jeden blok, ať zůstane "online" konzistentní.
+      this._recolorAllPrideli();
     },
 
-    /** Barva pro Příděl podle globální min/max (napříč všemi artikly) - "" když je škála vypnutá nebo všechny hodnoty stejné. */
-    _prideliColor(value, min, max, mode) {
+    /** Barva pro Příděl podle globální min/max a barev/módu z Nastavení - "" když je škála vypnutá nebo všechny hodnoty stejné. */
+    _prideliColor(value, min, max) {
+      const mode = this.settings.prideliScaleMode || '2color';
       if (mode === 'none' || min === max) return '';
+      const low = this._hexToRgb(this.settings.prideliColorLow || '#ffffff');
+      const high = this._hexToRgb(this.settings.prideliColorHigh || '#e24b4a');
       const t = Math.max(0, Math.min(1, (value - min) / (max - min)));
-      if (mode === 'ryg') {
-        return t < 0.5
-          ? this._mixColor([242, 75, 74], [239, 159, 39], t / 0.5)
-          : this._mixColor([239, 159, 39], [99, 153, 34], (t - 0.5) / 0.5);
+      if (mode === '3color') {
+        const mid = this._hexToRgb(this.settings.prideliColorMid || '#ef9f27');
+        return t < 0.5 ? this._mixColor(low, mid, t / 0.5) : this._mixColor(mid, high, (t - 0.5) / 0.5);
       }
-      return this._mixColor([255, 255, 255], [226, 75, 74], t);
+      return this._mixColor(low, high, t);
     },
 
     _mixColor(c1, c2, t) {
@@ -1112,6 +1112,34 @@
       const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
       const b = Math.round(c1[2] + (c2[2] - c1[2]) * t);
       return 'rgb(' + r + ',' + g + ',' + b + ')';
+    },
+
+    _hexToRgb(hex) {
+      const h = String(hex || '').replace('#', '');
+      const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+      const num = parseInt(full || 'ffffff', 16);
+      return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+    },
+
+    /**
+     * Přebarví CELÝ sloupec Příděl přes všechny bloky - volá se po prvním
+     * vykreslení i po každé "online" úpravě jednoho bloku (RW/min-max/ruční
+     * příděl), protože škála musí porovnávat hodnoty napříč VŠEMI artikly,
+     * ne jen uvnitř toho jednoho, který se zrovna měnil. Vyloučené (Metropol)
+     * buňky se do min/max nepočítají a jejich barvu (šedou) i tak přebije
+     * CSS !important, takže se jim inline styl ani nenastavuje.
+     */
+    _recolorAllPrideli() {
+      const el = this.container.querySelector('#rzTabContent');
+      if (!el) return;
+      const cells = [...el.querySelectorAll('.rzr-prideli-cell:not(.is-excluded)')];
+      if (!cells.length) return;
+      const values = cells.map((c) => this._toNumber((c.querySelector('.rzr-prideli-num') || {}).textContent) || 0);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      cells.forEach((c, i) => {
+        c.style.background = this._prideliColor(values[i], min, max) || '';
+      });
     },
 
     saveRozdeleniMinMax(cislo) {
@@ -1671,10 +1699,20 @@
           f.elements.folderInformaceOArtiklech.value = this.settings.folderInformaceOArtiklech || '';
           f.elements.patternInformaceOArtiklech.value = this.settings.patternInformaceOArtiklech || '';
           f.elements.folderExport.value = this.settings.folderExport || '';
-          f.elements.prideliColorScale.value = this.settings.prideliColorScale || 'light-red';
+          f.elements.prideliScaleMode.value = this.settings.prideliScaleMode || '2color';
+          f.elements.prideliColorLow.value = this.settings.prideliColorLow || '#ffffff';
+          f.elements.prideliColorMid.value = this.settings.prideliColorMid || '#ef9f27';
+          f.elements.prideliColorHigh.value = this.settings.prideliColorHigh || '#e24b4a';
+          this._toggleScaleMidRow(f.elements.prideliScaleMode.value);
           Ui.openModal(this.container.querySelector('#rzSettingsModal'));
         })
         .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /** Barva "prostřední hodnoty" dává smysl jen u tříbarevné škály. */
+    _toggleScaleMidRow(mode) {
+      const row = this.container.querySelector('#rzScaleMidRow');
+      if (row) row.classList.toggle('is-hidden', mode !== '3color');
     },
 
     saveSettings(form) {
@@ -1687,7 +1725,10 @@
         folderInformaceOArtiklech: form.elements.folderInformaceOArtiklech.value.trim(),
         patternInformaceOArtiklech: form.elements.patternInformaceOArtiklech.value.trim(),
         folderExport: form.elements.folderExport.value.trim(),
-        prideliColorScale: form.elements.prideliColorScale.value,
+        prideliScaleMode: form.elements.prideliScaleMode.value,
+        prideliColorLow: form.elements.prideliColorLow.value,
+        prideliColorMid: form.elements.prideliColorMid.value,
+        prideliColorHigh: form.elements.prideliColorHigh.value,
       };
       Ui.closeModal(this.container.querySelector('#rzSettingsModal'));
       Ui.call('apiRzSaveSettings', payload, { silent: true, busy: 'Ukládám nastavení…' })

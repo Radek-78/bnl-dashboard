@@ -1845,26 +1845,36 @@
   }
 
   .rz-modal-tabs {
-    border-bottom: 1px solid var(--line);
+    background: var(--page);
+    border-radius: var(--radius);
     display: flex;
-    gap: 4px;
-    margin-bottom: 14px;
+    gap: 2px;
+    margin-bottom: 16px;
+    padding: 3px;
   }
 
   .rz-modal-tabbtn {
     background: transparent;
     border: 0;
-    border-bottom: 2px solid transparent;
+    border-radius: calc(var(--radius) - 2px);
     color: var(--muted);
     cursor: pointer;
-    font-size: 13px;
-    padding: 8px 4px;
+    flex: 1;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 6px;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .rz-modal-tabbtn:hover {
+    background: rgba(0, 80, 170, 0.06);
+    color: var(--lidl-blue);
   }
 
   .rz-modal-tabbtn.is-active {
-    border-bottom-color: var(--lidl-blue);
+    background: var(--white);
+    box-shadow: 0 1px 3px rgba(0, 36, 102, 0.16);
     color: var(--lidl-blue);
-    font-weight: 700;
   }
 
   /* ── Rozdělovník: záložka Rozdělení ──────────────── */
@@ -2146,7 +2156,13 @@
     text-align: center;
   }
 
-  /* Buňka Příděl: delta (pokud upravená) a číslo vlevo, tlačítka -/+ napravo. */
+  /*
+   * Buňka Příděl - pořadí prvků je num / delta / tlačítka, VŠECHNY se stálou
+   * (i prázdnou) šířkou/flexem, takže se číslo Příděl nikdy neposune podle
+   * toho, jestli je zrovna vyplněná delta nebo ne (num má pevnou pozici
+   * hned na začátku, delta jako flex:1 vždy zabere stejně velký zbylý
+   * prostor bez ohledu na obsah, tlačítka jsou přišpendlená napravo).
+   */
   .rzr-prideli-cell {
     align-items: center;
     box-sizing: border-box;
@@ -2154,7 +2170,7 @@
     flex: 1;
     gap: 2px;
     height: 100%;
-    padding: 0 2px;
+    padding: 0 4px;
   }
 
   .rzr-prideli-cell.is-excluded {
@@ -2162,17 +2178,33 @@
     opacity: 0.55;
   }
 
+  /* Metropol filiálka v Metropol artiklu - odliší "0 protože vyloučeno z výpočtu" od "0 protože tak vyšel vzorec". Výrazný levý pruh místo drobné tečky. */
+  .rzr-prideli-cell.is-metro {
+    border-left: 3px solid var(--lidl-yellow);
+    padding-left: 2px;
+  }
+
   .rzr-prideli-num {
     color: var(--lidl-blue);
-    flex: 1;
+    flex: 0 0 auto;
     font-weight: 700;
+    min-width: 15px;
     text-align: left;
   }
 
   .rzr-prideli-delta {
     color: var(--muted);
+    flex: 1;
     font-size: 9px;
+    overflow: hidden;
+    text-align: left;
     white-space: nowrap;
+  }
+
+  .rzr-prideli-btns {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 2px;
   }
 
   .rzr-prideli-btn {
@@ -2205,13 +2237,26 @@
     padding: 2px 5px;
   }
 
-  /* Malá tečka u Metropol filiálek v Metropol artiklu - odliší "0 protože vyloučeno z výpočtu" od "0 protože tak vyšel vzorec". */
-  .rzr-metro-dot {
-    background: var(--lidl-yellow);
-    border-radius: 50%;
-    flex: 0 0 5px;
-    height: 5px;
-    width: 5px;
+  /* Řádek tří barevných polí v Nastavení (nejnižší/prostřední/nejvyšší hodnota). */
+  .rz-color-row {
+    display: flex;
+    gap: 12px;
+  }
+
+  .rz-color-row label {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    gap: 8px;
+    justify-content: space-between;
+  }
+
+  .rz-color-row input[type="color"] {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    height: 30px;
+    padding: 2px;
+    width: 46px;
   }
 
   /* ── Panel body ──────────────────────────────────── */
