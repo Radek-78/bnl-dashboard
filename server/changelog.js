@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.124', date: '21.7.2026', message: 'Historie změn: hlavička modalu podstatně vyšší (ikona 72px, nadpis 27px, odsazení 44px) - výrazně prostornější než předchozí pokus.' },
   { version: 'v3.1.123', date: '21.7.2026', message: 'Historie změn: hlavička modalu ještě výrazněji zvětšena (větší ikona, víc odsazení), aby se kicker/nadpis/podnadpis pohodlně vešly s rezervou, ne namačkané na spodní hranu. Samotné okno modalu je naopak o něco nižší než běžný velký modal appky.' },
   { version: 'v3.1.122', date: '21.7.2026', message: 'Historie změn: hlavička modalu zvětšena (větší ikona, větší nadpis, víc odsazení) a doplněna o podnadpis "Přehled verzí, novinek a oprav" - dřív působila nahusto ve srovnání se širším oknem a prostornými kartami pod ní. Ostatní modaly appky beze změny.' },
   { version: 'v3.1.121', date: '21.7.2026', message: 'Historie změn: modal zvětšen na 860px (modal-large), záznamy teď každý jako vlastní karta s modrým akcentem vlevo (nejnovější žlutým) místo textu odděleného jen čárou. Oprava skutečné příčiny nesjednocené výšky hlaviček panelů v Rozdělovníku: malé primary tlačítko (Importovat) si drželo výšku běžného tlačítka (36px) místo výšky malého (28px) jako sekundární tlačítka vedle sebe - třída button-small teď platí pro všechny barevné varianty, ne jen secondary, takže Import dat má stejnou výšku hlavičky jako ostatní 3 panely.' },
