@@ -2864,7 +2864,16 @@ _sfState: {},
       const { lc, vt, rm } = this._sfFilters;
       const cs = this._sfCs;
 
-      const allLcs  = [...new Set(stores.map((s) => s.lc_code).filter(Boolean))].sort((a, b) => cs.compare(a, b));
+      // Řazeno podle čísla LC (viz apiListLogistics), ne podle abecedy
+      // zkratky - lc_code na filiálce je zkratka (např. "BNL"), číslo LC se
+      // dohledá v this.logistics. Chybí-li zkratka v seznamu LC, spadne na
+      // konec (Infinity) a rozhodne abecední pořadí jako záloha.
+      const lcCodeOf = (abbr) => {
+        const found = (this.logistics || []).find((l) => String(l.abbreviation).toUpperCase() === String(abbr).toUpperCase());
+        const num = found ? Number(found.code) : NaN;
+        return isNaN(num) ? Infinity : num;
+      };
+      const allLcs  = [...new Set(stores.map((s) => s.lc_code).filter(Boolean))].sort((a, b) => lcCodeOf(a) - lcCodeOf(b) || cs.compare(a, b));
       const lcMatch = lc.size ? stores.filter((s) => lc.has(s.lc_code)) : stores;
 
       const allVts     = [...new Set(stores.map((s) => s.area_manager).filter(Boolean))].sort((a, b) => cs.compare(a, b));

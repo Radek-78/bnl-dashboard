@@ -457,7 +457,12 @@ function apiSaveStoreTempRanges(payload) {
 
 function apiListLogistics() {
   return guard_(ROLES.USER, (user) => {
-    const allLogistics = dbGetAll_(SHEETS.LOGISTICS);
+    // Vždy seřazeno podle čísla LC vzestupně - číselně, ne jako text (jinak
+    // by "11" vyšlo před "5"). Kliknutí na hlavičku sloupce v Log. centrech
+    // pořadí přebije (viz sortFilter), tohle je jen výchozí pořadí.
+    const allLogistics = dbGetAll_(SHEETS.LOGISTICS)
+      .slice()
+      .sort((a, b) => (Number(a.code) || 0) - (Number(b.code) || 0));
     const userLoc = String(user.location || 'HQ').toUpperCase();
     if (userLoc === 'HQ' || userLoc === 'CENTRÁLA' || userLoc === 'CENTRAL' || user.role === 'SUPERADMIN') {
       return allLogistics;
