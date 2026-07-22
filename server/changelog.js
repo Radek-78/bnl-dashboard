@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.125', date: '21.7.2026', message: 'Rozdělovník 20 artiklů: panel Skupiny artiklů má teď kompaktnější odsazení a mezery mezi řádky. Oprava: modal Nová/Upravit skupinu při ukládání zůstával otevřený a překrýval spinner appky (otevřený <dialog> je vždy nad ostatním obsahem) - uživatel tak neviděl, že se skupina vůbec ukládá. Modal se teď zavře hned po kliknutí na Uložit a spinner s textem "Ukládám skupinu…" je vidět.' },
   { version: 'v3.1.124', date: '21.7.2026', message: 'Historie změn: hlavička modalu podstatně vyšší (ikona 72px, nadpis 27px, odsazení 44px) - výrazně prostornější než předchozí pokus.' },
   { version: 'v3.1.123', date: '21.7.2026', message: 'Historie změn: hlavička modalu ještě výrazněji zvětšena (větší ikona, víc odsazení), aby se kicker/nadpis/podnadpis pohodlně vešly s rezervou, ne namačkané na spodní hranu. Samotné okno modalu je naopak o něco nižší než běžný velký modal appky.' },
   { version: 'v3.1.122', date: '21.7.2026', message: 'Historie změn: hlavička modalu zvětšena (větší ikona, větší nadpis, víc odsazení) a doplněna o podnadpis "Přehled verzí, novinek a oprav" - dřív působila nahusto ve srovnání se širším oknem a prostornými kartami pod ní. Ostatní modaly appky beze změny.' },

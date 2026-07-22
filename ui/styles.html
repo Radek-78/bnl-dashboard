@@ -2104,19 +2104,25 @@
     color: var(--muted);
   }
 
-  /* Skupiny artiklů - panel pod tabulkou Artikly (viz renderSkupinyPanel). */
+  /* Skupiny artiklů - panel pod tabulkou Artikly (viz renderSkupinyPanel).
+     Kompaktnější než výchozí .panel-body/mezery - seznam skupin je čistě
+     informativní (název + počet + tlačítka), nepotřebuje tolik vzduchu. */
+  .rz-skupiny-panel .panel-body {
+    padding: 10px 14px;
+  }
+
   .rz-skupiny-list {
     display: flex;
     flex-direction: column;
-    margin-bottom: 10px;
+    margin-bottom: 4px;
   }
 
   .rz-skupina-row {
     align-items: center;
     border-bottom: 1px solid var(--line-soft);
     display: flex;
-    gap: 8px;
-    padding: 6px 0;
+    gap: 6px;
+    padding: 3px 0;
   }
 
   .rz-skupina-row:last-child {

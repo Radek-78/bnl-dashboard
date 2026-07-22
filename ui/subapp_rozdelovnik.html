@@ -559,9 +559,12 @@
       if (!nazev) { Ui.toast('Vyplňte název skupiny.', 'error'); return; }
       const cisla = this._parseSkupinaCisla(form.elements.cisla.value);
       if (!cisla.length) { Ui.toast('Vyplňte aspoň jedno číslo artiklu.', 'error'); return; }
+      // Modal se zavře hned - otevřený <dialog> je vždy nad běžným obsahem
+      // (i nad busy overlay se spinnerem), takže by uživatel při ukládání
+      // neviděl vůbec nic, dokud se modal až po dokončení sám nezavře.
+      Ui.closeModal(this.container.querySelector('#rzSkupinaModal'));
       Ui.call('apiRzSaveSkupina', { id: id || undefined, nazev: nazev, cisla: cisla }, { silent: true, busy: 'Ukládám skupinu…' })
         .then(() => {
-          Ui.closeModal(this.container.querySelector('#rzSkupinaModal'));
           Ui.toast('Skupina „' + nazev + '" byla uložena.');
           return this.loadSkupiny();
         })
