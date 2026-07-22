@@ -13,6 +13,9 @@ const RZ_ARTIKLY_ROWS = 20;
 
 const RZ_SCHEMA = {
   '_settings': ['id', 'key', 'value', 'updated_at', 'updated_by'],
+  // pocet_dni se v appce nikde nepoužívá a UI ho už nezobrazuje/needituje -
+  // sloupec zůstává v poli kvůli pozičnímu čtení (viz poznámka u "rozdeleni"
+  // níže), jen se do něj od teď nic nezapisuje.
   'artikly': ['id', 'poradi', 'cislo_artiklu', 'nazev', 'obsah', 'k_rozdeleni', 'pocet_dni', 'metropol', 'created_at', 'created_by', 'updated_at'],
   // Řádek s prázdnou prodejna = úroveň artiklu (min/max/rw); řádek s vyplněnou prodejna = úroveň konkrétní prodejny (uprava).
   // Pozor: nové sloupce se přidávají VŽDY na konec pole - řádky uložené podle
@@ -376,7 +379,6 @@ function apiRzSaveArtikly(rows) {
           nazev: String((row && row.nazev) || '').trim(),
           obsah: String((row && row.obsah) || '').trim(),
           k_rozdeleni: (row && row.k_rozdeleni !== '' && row.k_rozdeleni != null) ? Number(row.k_rozdeleni) || 0 : '',
-          pocet_dni: (row && row.pocet_dni !== '' && row.pocet_dni != null) ? Number(row.pocet_dni) || 0 : '',
           metropol: !!(row && row.metropol),
         };
         const rowIdx = existingValues.findIndex((r) => Number(r[poradiCol]) === poradi);

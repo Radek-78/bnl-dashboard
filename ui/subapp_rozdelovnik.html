@@ -423,14 +423,13 @@
         this._panelPill(filledCount + ' / ' + RZ_ARTIKLY_ROWS + ' vyplněno') + '</div>' +
         (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzResetArtiklyBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg>Resetovat tabulku</button>' : '') +
         '</div>' +
-        '  <div class="table-wrap rz-no-scroll"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>Obsah</th><th>K rozdělení</th><th>Počet dnů</th><th>Metropol</th></tr></thead><tbody>' +
+        '  <div class="table-wrap rz-no-scroll"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>Obsah</th><th>K rozdělení</th><th>Metropol</th></tr></thead><tbody>' +
         rows.map((r, i) =>
           '<tr>' +
           '<td><input type="text" data-i="' + i + '" data-f="cislo_artiklu" value="' + Ui.escape(r.cislo_artiklu || '') + '" ' + dis + '></td>' +
           '<td><input type="text" data-i="' + i + '" data-f="nazev" value="' + Ui.escape(r.nazev || '') + '" ' + dis + '></td>' +
           '<td><input type="text" data-i="' + i + '" data-f="obsah" value="' + Ui.escape(r.obsah || '') + '" ' + dis + '></td>' +
           '<td><input type="number" data-i="' + i + '" data-f="k_rozdeleni" value="' + (r.k_rozdeleni != null ? r.k_rozdeleni : '') + '" ' + dis + '></td>' +
-          '<td><input type="number" data-i="' + i + '" data-f="pocet_dni" value="' + (r.pocet_dni != null ? r.pocet_dni : '') + '" ' + dis + '></td>' +
           '<td style="text-align:center"><input type="checkbox" data-i="' + i + '" data-f="metropol" ' + (r.metropol ? 'checked' : '') + ' ' + dis + '></td>' +
           '</tr>').join('') +
         '  </tbody></table></div>' +
@@ -979,7 +978,6 @@
           nazev: get('nazev').value.trim(),
           obsah: get('obsah').value.trim(),
           k_rozdeleni: get('k_rozdeleni').value,
-          pocet_dni: get('pocet_dni').value,
           metropol: get('metropol').checked,
         });
       }
