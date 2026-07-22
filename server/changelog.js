@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.127', date: '22.7.2026', message: 'Oprava: uživatel bez přístupu do appky (nebo bez oprávnění pro konkrétní subaplikaci) viděl u přímého odkazu na subaplikaci (?app=...) navěky "Načítám subaplikaci…" místo hlášky o odepřeném přístupu. Příčina: hláška se zapisovala do #appLoader, který je na této stránce (na rozdíl od hlavní appky) skrytý - viditelný je #subappContent, kam se hláška teď zapisuje správně.' },
   { version: 'v3.1.126', date: '21.7.2026', message: 'Rozdělovník 20 artiklů, tabulka Artikly: sloupec Počet dnů odstraněn - v appce se nikde nepoužíval. Sloupec v databázi zůstává (kvůli pozičnímu čtení starších řádků), jen se do něj od teď nic nezapisuje ani nezobrazuje.' },
   { version: 'v3.1.125', date: '21.7.2026', message: 'Rozdělovník 20 artiklů: panel Skupiny artiklů má teď kompaktnější odsazení a mezery mezi řádky. Oprava: modal Nová/Upravit skupinu při ukládání zůstával otevřený a překrýval spinner appky (otevřený <dialog> je vždy nad ostatním obsahem) - uživatel tak neviděl, že se skupina vůbec ukládá. Modal se teď zavře hned po kliknutí na Uložit a spinner s textem "Ukládám skupinu…" je vidět.' },
   { version: 'v3.1.124', date: '21.7.2026', message: 'Historie změn: hlavička modalu podstatně vyšší (ikona 72px, nadpis 27px, odsazení 44px) - výrazně prostornější než předchozí pokus.' },

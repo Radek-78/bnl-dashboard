@@ -80,10 +80,21 @@
       }
     },
 
+    /**
+     * #appLoader je na téhle stránce (na rozdíl od hlavní appky) skrytý -
+     * viditelný obsah je #subappContent, proto se zpráva o odepření přístupu
+     * musí zapsat sem, jinak zůstane viset "Načítám subaplikaci…" navěky a
+     * uživatel se nedozví, že je přístup odepřený.
+     */
     onDenied(message) {
-      const loader = document.querySelector('#appLoader');
-      loader.innerHTML = '<div class="loader-inner"><strong>Přístup odepřen</strong><span>' +
-        (message || 'Nemáte přístup do aplikace.') + '</span></div>';
+      const content = document.querySelector('#subappContent');
+      if (!content) return;
+      content.innerHTML =
+        '<div class="subapp-placeholder">' +
+        '<div class="subapp-icon"><svg width="48" height="48" viewBox="0 0 24 24"><use href="#i-lock"></use></svg></div>' +
+        '<h2>Přístup odepřen</h2>' +
+        '<p>' + Ui.escape(message || 'Nemáte přístup do aplikace.') + '</p>' +
+        '</div>';
     },
   };
 </script>
