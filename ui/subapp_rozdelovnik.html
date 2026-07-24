@@ -31,6 +31,7 @@
     importData: {},
     importOverview: null,
     syncFiles: null,
+    vyrazeneSyncFiles: null,
     rozdeleni: null,
     _artiklyDirty: false,
     _artiklySaveReqId: 0,
@@ -80,6 +81,7 @@
       this.loadSkupiny();
       this.loadImportOverview();
       this.loadSyncFiles();
+      this.loadVyrazeneSyncFiles();
       this.loadRozdeleni();
       // Data importovaných souborů se natáhnou rovnou po startu, ne až po
       // kliknutí na záložku - u větších souborů by pak čekání bylo znát.
@@ -241,6 +243,13 @@
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
+    /** Jako loadSyncFiles, ale pro vlastní složku souboru Vyřazené artikly (viz apiRzListVyrazeneFolderFiles). */
+    loadVyrazeneSyncFiles() {
+      return Ui.call('apiRzListVyrazeneFolderFiles', null, { silent: true })
+        .then((res) => { this.vyrazeneSyncFiles = res || { folderName: '', files: [] }; if (this.activeTab === 'artikly') this.renderTabContent(); })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
     render() {
       this.container.style.padding = '0';
 
@@ -312,7 +321,7 @@
         '        <div class="form form-plain">' +
         '          <label><span>Složka s vyřazenými artikly (URL nebo ID)</span><input name="folderVyrazeneArtikly" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
         '          <label><span>Výraz v názvu souboru</span><input name="patternVyrazeneArtikly" type="text" placeholder="např. vyrazene_artikly"></label>' +
-        '          <p class="form-hint">Jeden soubor pro všechny filiálky (sloupce Short Article a Store, ostatní appka nepoužívá). Přehled a smazání/nahrání souboru je na záložce Artikly - appka ho čte přímo (výsledek se jen krátce cachuje, změna se projeví do pár minut), žádné tlačítko Importovat pro něj není potřeba. Artikl, který je pro danou filiálku v souboru uvedený, se na ni při rozdělování vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek.</p>' +
+        '          <p class="form-hint">Jeden soubor pro všechny filiálky (sloupce Short Article a Store, ostatní appka nepoužívá). Přehled, smazání a nahrání souboru je na záložce Artikly - stejně jako ostatní soubory se po nahrání musí ještě naimportovat (tlačítko Importovat), teprve pak appka vyřazení skutečně použije. Artikl, který je pro danou filiálku v souboru uvedený, se na ni při rozdělování vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek.</p>' +
         '        </div>' +
         '      </div>' +
         '      <div class="rz-settings-panel is-hidden" data-settings-panel="export">' +
@@ -461,14 +470,12 @@
         this._panelPill(filledCount + ' / ' + RZ_ARTIKLY_ROWS + ' vyplněno') + '</div>' +
         (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzResetArtiklyBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg>Resetovat tabulku</button>' : '') +
         '</div>' +
-        '  <div class="table-wrap rz-no-scroll"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>Obsah</th><th>UWG</th><th>Kontejner</th><th>K rozdělení</th><th>Metropol</th></tr></thead><tbody>' +
+        '  <div class="table-wrap rz-no-scroll"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>Obsah</th><th>K rozdělení</th><th>Metropol</th></tr></thead><tbody>' +
         rows.map((r, i) =>
           '<tr>' +
           '<td><input type="text" data-i="' + i + '" data-f="cislo_artiklu" value="' + Ui.escape(r.cislo_artiklu || '') + '" ' + dis + '></td>' +
           '<td><input type="text" data-i="' + i + '" data-f="nazev" value="' + Ui.escape(r.nazev || '') + '" ' + dis + '></td>' +
           '<td><input type="text" data-i="' + i + '" data-f="obsah" value="' + Ui.escape(r.obsah || '') + '" ' + dis + '></td>' +
-          '<td><input type="text" data-i="' + i + '" data-f="uwg" value="' + Ui.escape(r.uwg || '') + '" ' + dis + '></td>' +
-          '<td><input type="text" data-i="' + i + '" data-f="kontejner" value="' + Ui.escape(r.kontejner || '') + '" ' + dis + '></td>' +
           '<td><input type="number" data-i="' + i + '" data-f="k_rozdeleni" value="' + (r.k_rozdeleni != null ? r.k_rozdeleni : '') + '" ' + dis + '></td>' +
           '<td style="text-align:center"><input type="checkbox" data-i="' + i + '" data-f="metropol" ' + (r.metropol ? 'checked' : '') + ' ' + dis + '></td>' +
           '</tr>').join('') +
@@ -525,18 +532,30 @@
         });
         const deleteSelectedFilesBtn = el.querySelector('#rzDeleteSelectedFilesBtn');
         if (deleteSelectedFilesBtn) deleteSelectedFilesBtn.addEventListener('click', () => this.deleteSyncFilesSelected());
-        const deleteVyrazeneBtn = el.querySelector('#rzDeleteVyrazeneBtn');
-        if (deleteVyrazeneBtn) deleteVyrazeneBtn.addEventListener('click', () => this.deleteVyrazeneFile(deleteVyrazeneBtn.dataset.id, deleteVyrazeneBtn.dataset.name));
-        const uploadVyrazeneInput = el.querySelector('#rzUploadVyrazeneInput');
-        const uploadVyrazeneBtn = el.querySelector('#rzUploadVyrazeneBtn');
-        if (uploadVyrazeneBtn && uploadVyrazeneInput) {
-          uploadVyrazeneBtn.addEventListener('click', () => uploadVyrazeneInput.click());
-          uploadVyrazeneInput.addEventListener('change', () => {
-            const file = uploadVyrazeneInput.files[0];
-            uploadVyrazeneInput.value = '';
-            if (file) this.uploadVyrazeneFile(file);
+        const uploadVyrazeneFilesInput = el.querySelector('#rzUploadVyrazeneFilesInput');
+        const uploadVyrazeneFilesBtn = el.querySelector('#rzUploadVyrazeneFilesBtn');
+        if (uploadVyrazeneFilesBtn && uploadVyrazeneFilesInput) {
+          uploadVyrazeneFilesBtn.addEventListener('click', () => uploadVyrazeneFilesInput.click());
+          uploadVyrazeneFilesInput.addEventListener('change', () => {
+            this.uploadVyrazeneFiles(uploadVyrazeneFilesInput.files);
+            uploadVyrazeneFilesInput.value = '';
           });
         }
+        el.querySelectorAll('.rz-vyrazenefile-delete').forEach((btn) => {
+          btn.addEventListener('click', () => this.deleteVyrazeneFile(btn.dataset.id, btn.dataset.name));
+        });
+        const selectAllVyrazeneFiles = el.querySelector('#rzVyrazeneFilesSelectAll');
+        if (selectAllVyrazeneFiles) {
+          selectAllVyrazeneFiles.addEventListener('change', () => {
+            el.querySelectorAll('.rz-vyrazenefile-check').forEach((cb) => { cb.checked = selectAllVyrazeneFiles.checked; });
+            this._updateVyrazeneFilesSelectedBtn();
+          });
+        }
+        el.querySelectorAll('.rz-vyrazenefile-check').forEach((cb) => {
+          cb.addEventListener('change', () => this._updateVyrazeneFilesSelectedBtn());
+        });
+        const deleteSelectedVyrazeneFilesBtn = el.querySelector('#rzDeleteSelectedVyrazeneFilesBtn');
+        if (deleteSelectedVyrazeneFilesBtn) deleteSelectedVyrazeneFilesBtn.addEventListener('click', () => this.deleteVyrazeneFilesSelected());
         el.querySelectorAll('.rz-skupina-apply').forEach((btn) => {
           btn.addEventListener('click', () => this.applySkupina(btn.dataset.id));
         });
@@ -681,6 +700,7 @@
     renderImportOverviewPanel() {
       const overview = this.importOverview;
       const syncFiles = this.syncFiles;
+      const vyrazeneSyncFiles = this.vyrazeneSyncFiles;
       return (
         '<section class="panel rz-compact rz-import-panel">' +
         '  <div class="panel-header panel-header--compact"><div class="rzr-panel-title">' + this._panelIcon('sync') + '<h2>Import dat</h2>' +
@@ -718,6 +738,31 @@
               )).join('') +
               '</ul>'
             : '<p class="form-hint">Ve složce nejsou žádné soubory.</p>')) +
+        '    <p class="form-hint rz-vyrazene-folder-hint">Vyřazené artikly — složka: ' + (vyrazeneSyncFiles && vyrazeneSyncFiles.folderName ? Ui.escape(vyrazeneSyncFiles.folderName) : 'nenastavena — viz Nastavení') + '</p>' +
+        (this.canWrite
+          ? '<div class="rz-syncfiles-toolbar">' +
+            '<button class="button button-secondary button-small" type="button" id="rzUploadVyrazeneFilesBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>Nahrát soubory</button>' +
+            '<input type="file" id="rzUploadVyrazeneFilesInput" multiple accept=".xlsx,.xls,.csv" class="is-hidden">' +
+            '<button class="button button-secondary button-small is-hidden" type="button" id="rzDeleteSelectedVyrazeneFilesBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg>Smazat vybrané (<span id="rzDeleteSelectedVyrazeneCount">0</span>)</button>' +
+            '</div>'
+          : '') +
+        (!vyrazeneSyncFiles
+          ? '<p class="form-hint">Načítám…</p>'
+          : (vyrazeneSyncFiles.files.length
+            ? '<ul class="rz-syncfiles-list">' +
+              (this.canWrite
+                ? '<li class="rz-syncfiles-selectall"><input type="checkbox" id="rzVyrazeneFilesSelectAll"><span class="rz-syncfile-name">Vybrat vše</span></li>'
+                : '') +
+              vyrazeneSyncFiles.files.map((f) => (
+                '<li>' +
+                (this.canWrite ? '<input type="checkbox" class="rz-vyrazenefile-check" data-id="' + Ui.escape(f.id) + '">' : '') +
+                '<span class="rz-syncfile-name">' + Ui.escape(f.name) + '</span>' +
+                '<span class="rz-syncfile-date">' + Ui.formatDateTime(f.updatedAt) + '</span>' +
+                (this.canWrite ? '<button type="button" class="icon-action icon-action--danger rz-vyrazenefile-delete" data-id="' + Ui.escape(f.id) + '" data-name="' + Ui.escape(f.name) + '" title="Smazat soubor"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg></button>' : '') +
+                '</li>'
+              )).join('') +
+              '</ul>'
+            : '<p class="form-hint">Ve složce nejsou žádné soubory.</p>')) +
         (!overview
           ? '<p class="form-hint">Načítám…</p>'
           : '<ul class="rz-import-overview-list">' +
@@ -741,13 +786,11 @@
     },
 
     /**
-     * Řádek souboru Vyřazené artikly v přehledu Import dat - podobný tvar
-     * jako ostatní 4 (nalezeno/soubor/datum), ale bez "naimportováno" pilulky
-     * - appka ho žádnou interní tabulku nekopíruje, čte se přímo ze
-     * zdrojového souboru (viz apiRzGetVyrazeneStores). Navíc vlastní
-     * smazání/nahrání (leží ve vlastní složce, ne ve sdílené syncFolderUrl)
-     * a upozornění, když je soubor ve složce starší než týden (isStale,
-     * viz apiRzGetImportOverview).
+     * Řádek souboru Vyřazené artikly v přehledu Import dat - jen název a
+     * stáří souboru (na rozdíl od ostatních 4 bez pilulky "naimportováno" -
+     * u tohoto souboru appka počet řádků nezobrazuje). Smazání/nahrání řeší
+     * samostatný seznam souborů výš v panelu (vlastní složka, ne sdílená
+     * syncFolderUrl - viz vyrazeneSyncFiles).
      */
     _renderVyrazeneOverviewRow(item) {
       return (
@@ -760,13 +803,6 @@
         '</span>' +
         (item.found && item.isStale
           ? '<span class="rz-import-status-pill is-missing" title="Soubor ve složce se dlouho neaktualizoval - zkontrolujte, jestli existuje novější verze.">⚠ starší než týden</span>'
-          : '') +
-        (this.canWrite && item.found
-          ? '<button type="button" class="icon-action icon-action--danger" id="rzDeleteVyrazeneBtn" data-id="' + Ui.escape(item.fileId) + '" data-name="' + Ui.escape(item.fileName) + '" title="Smazat soubor"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg></button>'
-          : '') +
-        (this.canWrite
-          ? '<button type="button" class="button button-secondary button-small" id="rzUploadVyrazeneBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>Nahrát</button>' +
-            '<input type="file" id="rzUploadVyrazeneInput" accept=".xlsx,.xls,.csv" class="is-hidden">'
           : '') +
         '</div>' +
         '</li>'
@@ -784,6 +820,12 @@
           this._sfState = {};
           this._sfViewCache = {};
           this._colWidths = {};
+          // Vyřazené artikly se čte z vlastního naimportovaného listu (viz
+          // apiRzGetVyrazeneStores) - bez vynuceného obnovení signature by
+          // loadVyrazene po importu nic neudělal (sada čísel artiklů se
+          // importem nezměnila) a appka by dál pracovala se starým vyřazením.
+          this._vyrazeneSig = '';
+          this.loadVyrazene();
           // Bez tohoto by v this.importData zůstala stará data až do chvíle,
           // kdy uživatel ručně proklikal jednotlivé záložky (loadImportTable se
           // jinak volá jen líně při otevření té které záložky) - MEDIAN/stav v
@@ -800,7 +842,7 @@
       Ui.confirm({
         kicker: 'Import dat',
         title: 'Vymazat naimportovaná data?',
-        message: 'Smaže se obsah všech 4 naimportovaných tabulek (Odprodej, Teoretické stavy, Vyskladňovací listy, Přidělení po artiklech). Zdrojové soubory ve složce ani Artikly se nezmění. Tuto akci nelze vrátit.',
+        message: 'Smaže se obsah všech naimportovaných tabulek (Odprodej, Teoretické stavy, Vyskladňovací listy, Přidělení po artiklech, Vyřazené artikly). Zdrojové soubory ve složkách ani Artikly se nezmění. Tuto akci nelze vrátit.',
         confirmLabel: 'Vymazat',
       }).then((confirmed) => {
         if (!confirmed) return;
@@ -811,6 +853,8 @@
             this._sfViewCache = {};
             this._colWidths = {};
             this._medianCache = {};
+            this.vyrazene = {};
+            this._vyrazeneSig = '';
             Ui.toast('Naimportovaná data byla vymazána.');
             if (this.activeTab === 'rozdeleni' || RZ_IMPORT_TABS.indexOf(this.activeTab) !== -1) this.renderTabContent();
             return this.loadImportOverview();
@@ -870,17 +914,26 @@
       });
     },
 
-    /** Nahraje nový soubor Vyřazené artikly do jeho vlastní složky (viz apiRzUploadVyrazeneFile) - naimportuje se až kliknutím na Importovat. */
-    uploadVyrazeneFile(file) {
-      this._readFileAsBase64(file)
-        .then((base64Data) => Ui.call('apiRzUploadVyrazeneFile',
-          { name: file.name, mimeType: file.type || 'application/octet-stream', base64Data: base64Data },
-          { silent: true, busy: 'Nahrávám ' + file.name + '…' }))
-        .then(() => {
-          Ui.toast('Soubor nahrán.');
+    /** Nahraje soubory do složky Vyřazené artikly, jeden po druhém - stejný princip jako uploadSyncFiles, jen jiná (vlastní) složka a apiRzUploadVyrazeneFile. Naimportuje se až kliknutím na Importovat. */
+    uploadVyrazeneFiles(fileList) {
+      const files = [...(fileList || [])];
+      if (!files.length) return;
+      const uploadNext = (i) => {
+        if (i >= files.length) {
+          Ui.toast('Nahráno souborů: ' + files.length + '.');
+          this.loadVyrazeneSyncFiles();
           this.loadImportOverview();
-        })
-        .catch((e) => Ui.toast('Nahrání souboru „' + file.name + '" selhalo: ' + e.message, 'error'));
+          return;
+        }
+        const file = files[i];
+        this._readFileAsBase64(file)
+          .then((base64Data) => Ui.call('apiRzUploadVyrazeneFile',
+            { name: file.name, mimeType: file.type || 'application/octet-stream', base64Data: base64Data },
+            { silent: true, busy: 'Nahrávám ' + file.name + '…' }))
+          .catch((e) => { Ui.toast('Nahrání souboru „' + file.name + '" selhalo: ' + e.message, 'error'); })
+          .then(() => uploadNext(i + 1));
+      };
+      uploadNext(0);
     },
 
     /** Přesune soubor ve složce Vyřazené artikly do koše na Disku - naimportovaná data zůstávají, dokud se znovu neklikne na Importovat. */
@@ -895,6 +948,31 @@
         Ui.call('apiRzDeleteVyrazeneFile', id, { silent: true, busy: 'Mažu soubor…' })
           .then(() => {
             Ui.toast('Soubor byl smazán.');
+            this.loadVyrazeneSyncFiles();
+            this.loadImportOverview();
+          })
+          .catch((e) => Ui.toast(e.message, 'error'));
+      });
+    },
+
+    /** Hromadně smaže (přesune do koše) všechny zaškrtnuté soubory ve složce Vyřazené artikly - jedno volání serveru (viz apiRzDeleteVyrazeneFiles). */
+    deleteVyrazeneFilesSelected() {
+      const el = this.container.querySelector('#rzTabContent');
+      const ids = [...el.querySelectorAll('.rz-vyrazenefile-check:checked')].map((cb) => cb.dataset.id);
+      if (!ids.length) return;
+      Ui.confirm({
+        kicker: 'Import dat',
+        title: 'Smazat vybrané soubory?',
+        message: 'Vybraných souborů (' + ids.length + ') se přesune do koše na Disku. Naimportovaná data v appce zůstanou beze změny, dokud znovu nekliknete na Importovat.',
+        confirmLabel: 'Smazat',
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        Ui.call('apiRzDeleteVyrazeneFiles', ids, { silent: true, busy: 'Mažu soubory…' })
+          .then((res) => {
+            const errs = (res && res.errors) || [];
+            Ui.toast('Smazáno souborů: ' + ((res && res.deleted) || 0) + '.' + (errs.length ? ' Nezdařilo se: ' + errs.join('; ') : ''),
+              errs.length ? 'error' : undefined);
+            this.loadVyrazeneSyncFiles();
             this.loadImportOverview();
           })
           .catch((e) => Ui.toast(e.message, 'error'));
@@ -909,6 +987,17 @@
       const count = el.querySelectorAll('.rz-syncfile-check:checked').length;
       btn.classList.toggle('is-hidden', count === 0);
       const countEl = el.querySelector('#rzDeleteSelectedCount');
+      if (countEl) countEl.textContent = count;
+    },
+
+    /** Jako _updateSyncFilesSelectedBtn, ale pro seznam souborů Vyřazené artikly. */
+    _updateVyrazeneFilesSelectedBtn() {
+      const el = this.container.querySelector('#rzTabContent');
+      const btn = el.querySelector('#rzDeleteSelectedVyrazeneFilesBtn');
+      if (!btn) return;
+      const count = el.querySelectorAll('.rz-vyrazenefile-check:checked').length;
+      btn.classList.toggle('is-hidden', count === 0);
+      const countEl = el.querySelector('#rzDeleteSelectedVyrazeneCount');
       if (countEl) countEl.textContent = count;
     },
 
@@ -1008,7 +1097,7 @@
           pending.forEach((b) => {
             const info = found[b.cislo];
             if (info && (info.nazev || info.obsah)) {
-              this._applyLookupResult(b.rowIndex, info.nazev || '', info.obsah || '', info.uwg || '', info.kontejner || '');
+              this._applyLookupResult(b.rowIndex, info.nazev || '', info.obsah || '');
             } else {
               missing.push(b);
             }
@@ -1018,10 +1107,7 @@
             setTimeout(() => this._runLookupBatch(missing, retryDelaysMs.slice(1)), retryDelaysMs[0]);
             return;
           }
-          missing.forEach((b) => {
-            const cur = this.artikly[b.rowIndex] || {};
-            this._applyLookupResult(b.rowIndex, 'Nenalezeno — zadejte ručně', cur.obsah || '', cur.uwg || '', cur.kontejner || '');
-          });
+          missing.forEach((b) => this._applyLookupResult(b.rowIndex, 'Nenalezeno — zadejte ručně', (this.artikly[b.rowIndex] || {}).obsah || ''));
         })
         .catch((e) => {
           pending.forEach((b) => this._setLookupLoading(b.rowIndex, false));
@@ -1034,7 +1120,7 @@
       if (this.activeTab !== 'artikly') return;
       const el = this.container.querySelector('#rzTabContent');
       if (!el) return;
-      ['nazev', 'obsah', 'uwg', 'kontejner'].forEach((f) => {
+      ['nazev', 'obsah'].forEach((f) => {
         const input = el.querySelector('[data-i="' + rowIndex + '"][data-f="' + f + '"]');
         if (!input) return;
         input.classList.toggle('is-loading', isLoading);
@@ -1043,21 +1129,17 @@
     },
 
     /** Zapíše výsledek vyhledání do this.artikly a uloží na server - funguje i když uživatel mezitím přepnul na jinou záložku. Je-li Artikly zrovna vykreslené, promítne se rovnou i do živých polí. */
-    _applyLookupResult(rowIndex, nazev, obsah, uwg, kontejner) {
+    _applyLookupResult(rowIndex, nazev, obsah) {
       if (!this.artikly[rowIndex]) return;
-      this.artikly[rowIndex] = Object.assign({}, this.artikly[rowIndex], { nazev: nazev, obsah: obsah, uwg: uwg || '', kontejner: kontejner || '' });
+      this.artikly[rowIndex] = Object.assign({}, this.artikly[rowIndex], { nazev: nazev, obsah: obsah });
       this._persistArtikly(this.artikly.slice());
       this._setLookupLoading(rowIndex, false);
       if (this.activeTab === 'artikly') {
         const el = this.container.querySelector('#rzTabContent');
         const nazevInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="nazev"]');
         const obsahInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="obsah"]');
-        const uwgInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="uwg"]');
-        const kontejnerInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="kontejner"]');
         if (nazevInput) nazevInput.value = nazev;
         if (obsahInput) obsahInput.value = obsah;
-        if (uwgInput) uwgInput.value = uwg || '';
-        if (kontejnerInput) kontejnerInput.value = kontejner || '';
       }
     },
 
@@ -1102,8 +1184,6 @@
           cislo_artiklu: get('cislo_artiklu').value.trim(),
           nazev: get('nazev').value.trim(),
           obsah: get('obsah').value.trim(),
-          uwg: get('uwg').value.trim(),
-          kontejner: get('kontejner').value.trim(),
           k_rozdeleni: get('k_rozdeleni').value,
           metropol: get('metropol').checked,
         });

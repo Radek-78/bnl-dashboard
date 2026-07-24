@@ -13,11 +13,9 @@ const RZ_ARTIKLY_ROWS = 20;
 
 const RZ_SCHEMA = {
   '_settings': ['id', 'key', 'value', 'updated_at', 'updated_by'],
-  // pocet_dni se v appce nikde nepoužívá a UI ho už nezobrazuje/needituje -
-  // sloupec zůstává v poli kvůli pozičnímu čtení (viz poznámka u "rozdeleni"
-  // níže), jen se do něj od teď nic nezapisuje.
-  // uwg (skupina artiklu, číslo) a kontejner (text) se dohledávají spolu s
-  // Název/Obsah ze souboru Informace o artiklech - viz rzFindArtiklInSheet_.
+  // pocet_dni, uwg a kontejner se v appce nepoužívají a UI je už
+  // nezobrazuje/needituje - sloupce zůstávají v poli kvůli pozičnímu čtení
+  // (viz poznámka u "rozdeleni" níže), jen se do nich od teď nic nezapisuje.
   'artikly': ['id', 'poradi', 'cislo_artiklu', 'nazev', 'obsah', 'k_rozdeleni', 'pocet_dni', 'metropol', 'created_at', 'created_by', 'updated_at', 'uwg', 'kontejner'],
   // Řádek s prázdnou prodejna = úroveň artiklu (min/max/rw); řádek s vyplněnou prodejna = úroveň konkrétní prodejny (uprava).
   // Pozor: nové sloupce se přidávají VŽDY na konec pole - řádky uložené podle
@@ -211,15 +209,14 @@ function apiRzGetImportOverview() {
 /**
  * Přehledový řádek souboru Vyřazené artikly pro apiRzGetImportOverview -
  * odděleně od RZ_IMPORT_TABLES, protože soubor leží ve VLASTNÍ složce
- * (folderVyrazeneArtikly), ne ve sdílené syncFolderUrl. Na rozdíl od
- * ostatních 4 souborů se nikam needituje/needituje se z něj interní tabulka -
- * appka ho čte přímo (viz apiRzGetVyrazeneStores), proto tu není
- * importedRowCount. isStale = soubor ve složce je starší než týden - appka na
- * to jen upozorní, nijak to nevynucuje.
+ * (folderVyrazeneArtikly), ne ve sdílené syncFolderUrl. Zobrazuje se jen
+ * jméno/datum a isStale (soubor ve složce starší než týden) - smazání/nahrání
+ * řeší samostatný seznam souborů (viz apiRzListVyrazeneFolderFiles), stejně
+ * jako u ostatních 4 souborů.
  */
 const RZ_VYRAZENE_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 function rzVyrazeneOverviewItem_(settings) {
-  const empty = { found: false, fileName: '', updatedAt: '', fileId: '', isStale: false };
+  const empty = { found: false, fileName: '', updatedAt: '', isStale: false };
   const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
   const pattern = settings.patternVyrazeneArtikly || '';
   if (!folderId || !pattern) return empty;
@@ -235,7 +232,6 @@ function rzVyrazeneOverviewItem_(settings) {
     found: true,
     fileName: file.getName(),
     updatedAt: updatedAt.toISOString(),
-    fileId: file.getId(),
     isStale: (Date.now() - updatedAt.getTime()) > RZ_VYRAZENE_STALE_MS,
   };
 }
@@ -245,6 +241,20 @@ function apiRzListSyncFolderFiles() {
   return rzGuard_(() => {
     const settings = rzSettingsAll_();
     const folderId = rzExtractFolderId_(settings.syncFolderUrl);
+    if (!folderId) return { folderName: '', files: [] };
+    try {
+      return rzListFolderFiles_(folderId);
+    } catch (e) {
+      throw new Error('Složku se nepodařilo otevřít: ' + e.message);
+    }
+  });
+}
+
+/** Jako apiRzListSyncFolderFiles, ale pro vlastní složku souboru Vyřazené artikly (folderVyrazeneArtikly). */
+function apiRzListVyrazeneFolderFiles() {
+  return rzGuard_(() => {
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
     if (!folderId) return { folderName: '', files: [] };
     try {
       return rzListFolderFiles_(folderId);
@@ -333,6 +343,28 @@ function apiRzDeleteVyrazeneFile(fileId) {
   });
 }
 
+/** Hromadné smazání vybraných souborů ve složce Vyřazené artikly - stejný princip jako apiRzDeleteSyncFolderFiles, jen jiná (vlastní) složka. */
+function apiRzDeleteVyrazeneFiles(fileIds) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání souborů.');
+    if (!Array.isArray(fileIds) || !fileIds.length) return { deleted: 0, errors: [] };
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
+    if (!folderId) throw new Error('Není nastavena složka pro Vyřazené artikly (Nastavení).');
+    let deleted = 0;
+    const errors = [];
+    fileIds.forEach((fileId) => {
+      try {
+        rzDeleteSyncFile_(fileId, folderId);
+        deleted++;
+      } catch (e) {
+        errors.push(e.message);
+      }
+    });
+    return { deleted: deleted, errors: errors };
+  });
+}
+
 /** Nahraje nový soubor Vyřazené artikly - stejný princip jako apiRzUploadSyncFolderFile, jen jiná (vlastní) složka. */
 function apiRzUploadVyrazeneFile(payload) {
   return rzGuard_((user) => {
@@ -352,17 +384,35 @@ function apiRzUploadVyrazeneFile(payload) {
   });
 }
 
-/** Vymaže obsah všech 4 listů s naimportovanými daty (hlavička i řádky) — nesahá na zdrojové soubory ani Artikly. Vyřazené artikly appka čte přímo ze zdrojového souboru (viz apiRzGetVyrazeneStores), žádnou interní tabulku k mazání nemá. */
+/** Vymaže obsah všech naimportovaných dat (4 tabulky + Vyřazené artikly) — nesahá na zdrojové soubory ani Artikly. */
 function apiRzClearImports() {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání.');
-    RZ_IMPORT_TABLES.forEach((key) => rzWriteGrid_(key, [], []));
-    audit_('rz_import_clear', 'Vymazán obsah naimportovaných dat (' + RZ_IMPORT_TABLES.length + ' listů).');
+    RZ_IMPORT_TABLES.concat(['vyrazene_artikly']).forEach((key) => rzWriteGrid_(key, [], []));
+    audit_('rz_import_clear', 'Vymazán obsah naimportovaných dat (' + (RZ_IMPORT_TABLES.length + 1) + ' listů).');
     return { ok: true };
   });
 }
 
-/** Naimportuje najednou všechny nalezené soubory (jedno tlačítko na záložce Artikly). */
+/** Naimportuje soubor Vyřazené artikly - stejný princip jako import ostatních 4 souborů, jen ve vlastní složce (folderVyrazeneArtikly, viz rzVyrazeneOverviewItem_). */
+function rzImportVyrazeneArtikly_(settings) {
+  const label = 'Vyřazené artikly';
+  const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
+  const pattern = settings.patternVyrazeneArtikly || '';
+  if (!folderId) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Není nastavena složka.' };
+  if (!pattern) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Není nastaven výraz v názvu.' };
+  try {
+    const file = rzFindFileInFolderByName_(folderId, pattern);
+    if (!file) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Soubor nenalezen.' };
+    const { headers, rows } = rzReadSourceFile_(file);
+    rzWriteGrid_('vyrazene_artikly', headers, rows);
+    return { key: 'vyrazene_artikly', label: label, ok: true, fileName: file.getName(), rowCount: rows.length };
+  } catch (e) {
+    return { key: 'vyrazene_artikly', label: label, ok: false, message: e.message };
+  }
+}
+
+/** Naimportuje najednou všechny nalezené soubory (jedno tlačítko na záložce Artikly) - 4 soubory ze sdílené složky plus Vyřazené artikly z vlastní. */
 function apiRzImportAll() {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k importu.');
@@ -383,9 +433,10 @@ function apiRzImportAll() {
         return { key: key, label: RZ_IMPORT_LABELS[key], ok: false, message: e.message };
       }
     });
+    results.push(rzImportVyrazeneArtikly_(settings));
 
     const okCount = results.filter((r) => r.ok).length;
-    audit_('rz_import_all', okCount + '/' + RZ_IMPORT_TABLES.length + ' souborů naimportováno');
+    audit_('rz_import_all', okCount + '/' + results.length + ' souborů naimportováno');
     return results;
   });
 }
@@ -453,8 +504,6 @@ function apiRzSaveArtikly(rows) {
           obsah: String((row && row.obsah) || '').trim(),
           k_rozdeleni: (row && row.k_rozdeleni !== '' && row.k_rozdeleni != null) ? Number(row.k_rozdeleni) || 0 : '',
           metropol: !!(row && row.metropol),
-          uwg: String((row && row.uwg) || '').trim(),
-          kontejner: String((row && row.kontejner) || '').trim(),
         };
         const rowIdx = existingValues.findIndex((r) => Number(r[poradiCol]) === poradi);
         if (rowIdx !== -1) {
@@ -745,7 +794,7 @@ function rzOpenInfoArtiklechSheet_(file) {
   return SpreadsheetApp.openById(copy.id).getSheets()[0];
 }
 
-/** V listu najde řádek s daným číslem artiklu ve sloupci ARTIKL (TextFinder) a vrátí Název/Obsah/UWG/Kontejner. */
+/** V listu najde řádek s daným číslem artiklu ve sloupci ARTIKL (TextFinder) a vrátí Název/Obsah. */
 function rzFindArtiklInSheet_(sheet, cisloArtiklu) {
   const lastCol = sheet.getLastColumn();
   const lastRow = sheet.getLastRow();
@@ -755,8 +804,6 @@ function rzFindArtiklInSheet_(sheet, cisloArtiklu) {
   const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
   const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
   const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
-  const idxUwg = headers.findIndex((h) => norm(h) === 'UWG');
-  const idxKontejner = headers.findIndex((h) => norm(h) === 'KONTEJNER');
   if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
 
   const artiklCol = sheet.getRange(2, idxArtikl + 1, lastRow - 1, 1);
@@ -767,8 +814,6 @@ function rzFindArtiklInSheet_(sheet, cisloArtiklu) {
   return {
     nazev: idxNazev !== -1 ? String(rowVals[idxNazev] || '').trim() : '',
     obsah: idxObsah !== -1 ? String(rowVals[idxObsah] || '').trim() : '',
-    uwg: idxUwg !== -1 ? String(rowVals[idxUwg] || '').trim() : '',
-    kontejner: idxKontejner !== -1 ? String(rowVals[idxKontejner] || '').trim() : '',
   };
 }
 
@@ -798,16 +843,12 @@ function apiRzLookupArtikl(cisloArtiklu) {
       const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
       const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
       const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
-      const idxUwg = headers.findIndex((h) => norm(h) === 'UWG');
-      const idxKontejner = headers.findIndex((h) => norm(h) === 'KONTEJNER');
       if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
       const row = data.slice(1).find((r) => String(r[idxArtikl] || '').trim() === cislo);
       if (!row) return null;
       return {
         nazev: idxNazev !== -1 ? String(row[idxNazev] || '').trim() : '',
         obsah: idxObsah !== -1 ? String(row[idxObsah] || '').trim() : '',
-        uwg: idxUwg !== -1 ? String(row[idxUwg] || '').trim() : '',
-        kontejner: idxKontejner !== -1 ? String(row[idxKontejner] || '').trim() : '',
       };
     }
 
@@ -852,8 +893,6 @@ function apiRzLookupArtiklBatch(cisla) {
       const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
       const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
       const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
-      const idxUwg = headers.findIndex((h) => norm(h) === 'UWG');
-      const idxKontejner = headers.findIndex((h) => norm(h) === 'KONTEJNER');
       if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
       // Jeden průchod souborem pro všechna hledaná čísla, ne jeden průchod na číslo.
       for (let i = 1; i < data.length; i++) {
@@ -863,8 +902,6 @@ function apiRzLookupArtiklBatch(cisla) {
         result[hit] = {
           nazev: idxNazev !== -1 ? String(data[i][idxNazev] || '').trim() : '',
           obsah: idxObsah !== -1 ? String(data[i][idxObsah] || '').trim() : '',
-          uwg: idxUwg !== -1 ? String(data[i][idxUwg] || '').trim() : '',
-          kontejner: idxKontejner !== -1 ? String(data[i][idxKontejner] || '').trim() : '',
         };
         delete remaining[hit];
         if (!Object.keys(remaining).length) break;
@@ -899,18 +936,18 @@ function apiRzListStores() {
 
 /**
  * Pro zadaná čísla artiklů vrátí, na kterých filiálkách je artikl vyřazený
- * (nezalistovaný) - podle národního souboru Vyřazené artikly (sloupce
- * "Short Article" a "Store", ostatní sloupce appka nepoužívá). Appka takový
- * artikl na danou filiálku vůbec nepřidělí - stejné tvrdé pravidlo jako
- * u Metropol filiálek (viz eligible/_isEligible v subapp_rozdelovnik.html).
+ * (nezalistovaný) - podle naimportovaného souboru Vyřazené artikly (sloupce
+ * "Short Article" a "Store", ostatní sloupce appka nepoužívá; import viz
+ * rzImportVyrazeneArtikly_/apiRzImportAll - stejný princip jako u ostatních
+ * 4 souborů). Appka takový artikl na danou filiálku vůbec nepřidělí - stejné
+ * tvrdé pravidlo jako u Metropol filiálek (viz eligible/_isEligible
+ * v subapp_rozdelovnik.html).
  * Vrací { "<cislo>": ["<store>", ...], ... }; artikly bez vyřazení chybí.
  *
- * Soubor má desítky tisíc řádků a nikam se needituje (na rozdíl od ostatních
- * 4 souborů appka žádnou interní kopii nedrží) - čte se přímo ze zdrojového
- * souboru při každém volání, výsledek se jen krátce cachuje podle zadané
- * sady čísel, stejný princip jako DB_CACHE_TTL_ v 20_db.js. Složka/vzor
- * v Nastavení jsou nepovinné - dokud nejsou vyplněné, appka žádné vyřazení
- * nevynucuje.
+ * Soubor má desítky tisíc řádků, proto se čte celý najednou (ne po řádku na
+ * artikl) a výsledek se krátce cachuje podle zadané sady čísel - stejný
+ * princip jako DB_CACHE_TTL_ v 20_db.js. Dokud soubor nebyl naimportovaný,
+ * appka žádné vyřazení nevynucuje.
  */
 function apiRzGetVyrazeneStores(cisla) {
   return rzGuard_(() => {
@@ -924,14 +961,8 @@ function apiRzGetVyrazeneStores(cisla) {
       if (hit) return JSON.parse(hit);
     } catch (e) { /* cache je jen optimalizace */ }
 
-    const settings = rzSettingsAll_();
-    const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
-    const pattern = settings.patternVyrazeneArtikly || '';
-    if (!folderId || !pattern) return {};
-    const file = rzFindFileInFolderByName_(folderId, pattern);
-    if (!file) return {};
-
-    const { headers, rows } = rzReadSourceFile_(file);
+    const { headers, rows } = rzReadGrid_('vyrazene_artikly');
+    if (!headers.length) return {};
     const norm = (h) => String(h || '').trim().toUpperCase();
     const idxArtikl = headers.findIndex((h) => norm(h) === 'SHORT ARTICLE');
     const idxStore = headers.findIndex((h) => norm(h) === 'STORE');
