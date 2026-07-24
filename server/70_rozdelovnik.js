@@ -389,12 +389,20 @@ function apiRzClearImports() {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání.');
     RZ_IMPORT_TABLES.concat(['vyrazene_artikly']).forEach((key) => rzWriteGrid_(key, [], []));
+    rzSettingsSet_('vyrazeneImportedAt', nowIso_());
     audit_('rz_import_clear', 'Vymazán obsah naimportovaných dat (' + (RZ_IMPORT_TABLES.length + 1) + ' listů).');
     return { ok: true };
   });
 }
 
-/** Naimportuje soubor Vyřazené artikly - stejný princip jako import ostatních 4 souborů, jen ve vlastní složce (folderVyrazeneArtikly, viz rzVyrazeneOverviewItem_). */
+/**
+ * Naimportuje soubor Vyřazené artikly - stejný princip jako import ostatních
+ * 4 souborů, jen ve vlastní složce (folderVyrazeneArtikly, viz
+ * rzVyrazeneOverviewItem_). Při úspěchu si poznamená čas importu
+ * (vyrazeneImportedAt) - apiRzGetVyrazeneStores ho zahrnuje do cache klíče,
+ * jinak by po importu ještě až 5 minut vracel starý (třeba prázdný) výsledek
+ * nacachovaný z doby PŘED importem pro stejnou sadu čísel artiklů.
+ */
 function rzImportVyrazeneArtikly_(settings) {
   const label = 'Vyřazené artikly';
   const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
@@ -406,6 +414,7 @@ function rzImportVyrazeneArtikly_(settings) {
     if (!file) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Soubor nenalezen.' };
     const { headers, rows } = rzReadSourceFile_(file);
     rzWriteGrid_('vyrazene_artikly', headers, rows);
+    rzSettingsSet_('vyrazeneImportedAt', nowIso_());
     return { key: 'vyrazene_artikly', label: label, ok: true, fileName: file.getName(), rowCount: rows.length };
   } catch (e) {
     return { key: 'vyrazene_artikly', label: label, ok: false, message: e.message };
@@ -955,7 +964,8 @@ function apiRzGetVyrazeneStores(cisla) {
     const wanted = cisla.map((c) => String(c || '').trim()).filter((c) => c);
     if (!wanted.length) return {};
 
-    const cacheKey = 'rz_vyrazene_' + wanted.slice().sort().join(',');
+    const importedAt = rzSettingsAll_().vyrazeneImportedAt || '';
+    const cacheKey = 'rz_vyrazene_' + importedAt + '_' + wanted.slice().sort().join(',');
     try {
       const hit = CacheService.getScriptCache().get(cacheKey);
       if (hit) return JSON.parse(hit);
