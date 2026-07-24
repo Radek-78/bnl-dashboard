@@ -168,6 +168,7 @@ function apiRzGetImportOverview() {
   return rzGuard_(() => {
     const settings = rzSettingsAll_();
     const folderId = rzExtractFolderId_(settings.syncFolderUrl);
+    const vyrazeneItem = rzVyrazeneOverviewItem_(settings);
     if (!folderId) {
       return {
         folderName: '',
@@ -175,6 +176,7 @@ function apiRzGetImportOverview() {
           key: key, label: RZ_IMPORT_LABELS[key], found: false, fileName: '', updatedAt: '',
           importedRowCount: rzImportedRowCount_(key),
         })),
+        vyrazeneItem: vyrazeneItem,
       };
     }
 
@@ -199,8 +201,39 @@ function apiRzGetImportOverview() {
       };
     });
 
-    return { folderName: listing.folderName, items: items };
+    return { folderName: listing.folderName, items: items, vyrazeneItem: vyrazeneItem };
   });
+}
+
+/**
+ * Přehledový řádek souboru Vyřazené artikly pro apiRzGetImportOverview -
+ * odděleně od RZ_IMPORT_TABLES, protože soubor leží ve VLASTNÍ složce
+ * (folderVyrazeneArtikly), ne ve sdílené syncFolderUrl. isStale = soubor ve
+ * složce je starší než týden - appka na to jen upozorní, nijak to nevynucuje.
+ */
+const RZ_VYRAZENE_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+function rzVyrazeneOverviewItem_(settings) {
+  const importedRowCount = rzImportedRowCount_('vyrazene_artikly');
+  const empty = { found: false, fileName: '', updatedAt: '', fileId: '', isStale: false, importedRowCount: importedRowCount };
+  const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
+  const pattern = settings.patternVyrazeneArtikly || '';
+  if (!folderId || !pattern) return empty;
+  let file;
+  try {
+    file = rzFindFileInFolderByName_(folderId, pattern);
+  } catch (e) {
+    return empty;
+  }
+  if (!file) return empty;
+  const updatedAt = file.getLastUpdated();
+  return {
+    found: true,
+    fileName: file.getName(),
+    updatedAt: updatedAt.toISOString(),
+    fileId: file.getId(),
+    isStale: (Date.now() - updatedAt.getTime()) > RZ_VYRAZENE_STALE_MS,
+    importedRowCount: importedRowCount,
+  };
 }
 
 /** Vrátí surový seznam souborů ve složce se zdrojovými soubory - na rozdíl od apiRzGetImportOverview (co se podle vzoru názvu k čemu přiřadí) tady jde jen o správu obsahu složky (smazání/nahrání). */
@@ -284,17 +317,66 @@ function apiRzUploadSyncFolderFile(payload) {
   });
 }
 
-/** Vymaže obsah všech 4 listů s naimportovanými daty (hlavička i řádky) — nesahá na zdrojové soubory ani Artikly. */
-function apiRzClearImports() {
+/** Smaže (přesune do koše) soubor ve složce Vyřazené artikly - stejný princip jako apiRzDeleteSyncFolderFile, jen jiná (vlastní) složka. */
+function apiRzDeleteVyrazeneFile(fileId) {
   return rzGuard_((user) => {
-    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání.');
-    RZ_IMPORT_TABLES.forEach((key) => rzWriteGrid_(key, [], []));
-    audit_('rz_import_clear', 'Vymazán obsah naimportovaných dat (' + RZ_IMPORT_TABLES.length + ' listů).');
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání souborů.');
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
+    if (!folderId) throw new Error('Není nastavena složka pro Vyřazené artikly (Nastavení).');
+    rzDeleteSyncFile_(fileId, folderId);
     return { ok: true };
   });
 }
 
-/** Naimportuje najednou všechny nalezené soubory (jedno tlačítko na záložce Artikly). */
+/** Nahraje nový soubor Vyřazené artikly - stejný princip jako apiRzUploadSyncFolderFile, jen jiná (vlastní) složka. */
+function apiRzUploadVyrazeneFile(payload) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k nahrávání souborů.');
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
+    if (!folderId) throw new Error('Není nastavena složka pro Vyřazené artikly (Nastavení).');
+    const name = String((payload && payload.name) || '').trim();
+    const base64Data = payload && payload.base64Data;
+    if (!name || !base64Data) throw new Error('Chybí soubor k nahrání.');
+    const mimeType = String((payload && payload.mimeType) || '') || MimeType.MICROSOFT_EXCEL;
+    const folder = DriveApp.getFolderById(folderId);
+    const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, name);
+    const file = folder.createFile(blob);
+    audit_('rz_vyrazene_file_upload', name);
+    return { id: file.getId(), name: file.getName(), updatedAt: file.getLastUpdated().toISOString() };
+  });
+}
+
+/** Vymaže obsah všech naimportovaných dat (4 tabulky + Vyřazené artikly) — nesahá na zdrojové soubory ani Artikly. */
+function apiRzClearImports() {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání.');
+    RZ_IMPORT_TABLES.concat(['vyrazene_artikly']).forEach((key) => rzWriteGrid_(key, [], []));
+    audit_('rz_import_clear', 'Vymazán obsah naimportovaných dat (' + (RZ_IMPORT_TABLES.length + 1) + ' listů).');
+    return { ok: true };
+  });
+}
+
+/** Naimportuje soubor Vyřazené artikly - stejný princip jako import ostatních 4 souborů, jen ve vlastní složce (folderVyrazeneArtikly, viz rzVyrazeneOverviewItem_). */
+function rzImportVyrazeneArtikly_(settings) {
+  const label = 'Vyřazené artikly';
+  const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
+  const pattern = settings.patternVyrazeneArtikly || '';
+  if (!folderId) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Není nastavena složka.' };
+  if (!pattern) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Není nastaven výraz v názvu.' };
+  try {
+    const file = rzFindFileInFolderByName_(folderId, pattern);
+    if (!file) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Soubor nenalezen.' };
+    const { headers, rows } = rzReadSourceFile_(file);
+    rzWriteGrid_('vyrazene_artikly', headers, rows);
+    return { key: 'vyrazene_artikly', label: label, ok: true, fileName: file.getName(), rowCount: rows.length };
+  } catch (e) {
+    return { key: 'vyrazene_artikly', label: label, ok: false, message: e.message };
+  }
+}
+
+/** Naimportuje najednou všechny nalezené soubory (jedno tlačítko na záložce Artikly) - 4 soubory ze sdílené složky plus Vyřazené artikly z vlastní. */
 function apiRzImportAll() {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k importu.');
@@ -315,9 +397,10 @@ function apiRzImportAll() {
         return { key: key, label: RZ_IMPORT_LABELS[key], ok: false, message: e.message };
       }
     });
+    results.push(rzImportVyrazeneArtikly_(settings));
 
     const okCount = results.filter((r) => r.ok).length;
-    audit_('rz_import_all', okCount + '/' + RZ_IMPORT_TABLES.length + ' souborů naimportováno');
+    audit_('rz_import_all', okCount + '/' + results.length + ' souborů naimportováno');
     return results;
   });
 }
@@ -821,16 +904,17 @@ function apiRzListStores() {
 
 /**
  * Pro zadaná čísla artiklů vrátí, na kterých filiálkách je artikl vyřazený
- * (nezalistovaný) - podle národního souboru Vyřazené artikly (sloupce
- * "Short Article" a "Store", ostatní sloupce appka nepoužívá). Appka takový
- * artikl na danou filiálku vůbec nepřidělí - stejné tvrdé pravidlo jako
- * u Metropol filiálek (viz eligible/_isEligible v subapp_rozdelovnik.html).
+ * (nezalistovaný) - podle naimportovaného souboru Vyřazené artikly (sloupce
+ * "Short Article" a "Store", ostatní sloupce appka nepoužívá; import viz
+ * rzImportVyrazeneArtikly_/apiRzImportAll). Appka takový artikl na danou
+ * filiálku vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek
+ * (viz eligible/_isEligible v subapp_rozdelovnik.html).
  * Vrací { "<cislo>": ["<store>", ...], ... }; artikly bez vyřazení chybí.
  *
- * Soubor má desítky tisíc řádků, proto se čte celý najednou (ne po řádku
- * na artikl) a výsledek se krátce cachuje podle zadané sady čísel - stejný
- * princip jako DB_CACHE_TTL_ v 20_db.js. Složka/vzor v Nastavení jsou
- * nepovinné - dokud nejsou vyplněné, appka žádné vyřazení nevynucuje.
+ * Soubor má desítky tisíc řádků, proto se čte celý najednou (ne po řádku na
+ * artikl) a výsledek se krátce cachuje podle zadané sady čísel - stejný
+ * princip jako DB_CACHE_TTL_ v 20_db.js. Dokud soubor nebyl naimportovaný,
+ * appka žádné vyřazení nevynucuje.
  */
 function apiRzGetVyrazeneStores(cisla) {
   return rzGuard_(() => {
@@ -844,14 +928,8 @@ function apiRzGetVyrazeneStores(cisla) {
       if (hit) return JSON.parse(hit);
     } catch (e) { /* cache je jen optimalizace */ }
 
-    const settings = rzSettingsAll_();
-    const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
-    const pattern = settings.patternVyrazeneArtikly || '';
-    if (!folderId || !pattern) return {};
-    const file = rzFindFileInFolderByName_(folderId, pattern);
-    if (!file) return {};
-
-    const { headers, rows } = rzReadSourceFile_(file);
+    const { headers, rows } = rzReadGrid_('vyrazene_artikly');
+    if (!headers.length) return {};
     const norm = (h) => String(h || '').trim().toUpperCase();
     const idxArtikl = headers.findIndex((h) => norm(h) === 'SHORT ARTICLE');
     const idxStore = headers.findIndex((h) => norm(h) === 'STORE');

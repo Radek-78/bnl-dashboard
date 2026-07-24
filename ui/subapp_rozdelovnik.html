@@ -307,7 +307,7 @@
         '        <div class="form form-plain">' +
         '          <label><span>Složka s vyřazenými artikly (URL nebo ID)</span><input name="folderVyrazeneArtikly" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
         '          <label><span>Výraz v názvu souboru</span><input name="patternVyrazeneArtikly" type="text" placeholder="např. vyrazene_artikly"></label>' +
-        '          <p class="form-hint">Jeden soubor pro všechny filiálky (sloupce Short Article a Store, ostatní appka nepoužívá). Artikl, který je pro danou filiálku v souboru uvedený, se na ni při rozdělování vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek.</p>' +
+        '          <p class="form-hint">Jeden soubor pro všechny filiálky (sloupce Short Article a Store, ostatní appka nepoužívá). Přehled a smazání/nahrání souboru je na záložce Artikly - stejně jako ostatní soubory se musí po nahrání ještě naimportovat (tlačítko Importovat), teprve pak appka vyřazení skutečně použije. Artikl, který je pro danou filiálku v souboru uvedený, se na ni při rozdělování vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek.</p>' +
         '        </div>' +
         '      </div>' +
         '      <div class="rz-settings-panel is-hidden" data-settings-panel="export">' +
@@ -520,6 +520,18 @@
         });
         const deleteSelectedFilesBtn = el.querySelector('#rzDeleteSelectedFilesBtn');
         if (deleteSelectedFilesBtn) deleteSelectedFilesBtn.addEventListener('click', () => this.deleteSyncFilesSelected());
+        const deleteVyrazeneBtn = el.querySelector('#rzDeleteVyrazeneBtn');
+        if (deleteVyrazeneBtn) deleteVyrazeneBtn.addEventListener('click', () => this.deleteVyrazeneFile(deleteVyrazeneBtn.dataset.id, deleteVyrazeneBtn.dataset.name));
+        const uploadVyrazeneInput = el.querySelector('#rzUploadVyrazeneInput');
+        const uploadVyrazeneBtn = el.querySelector('#rzUploadVyrazeneBtn');
+        if (uploadVyrazeneBtn && uploadVyrazeneInput) {
+          uploadVyrazeneBtn.addEventListener('click', () => uploadVyrazeneInput.click());
+          uploadVyrazeneInput.addEventListener('change', () => {
+            const file = uploadVyrazeneInput.files[0];
+            uploadVyrazeneInput.value = '';
+            if (file) this.uploadVyrazeneFile(file);
+          });
+        }
         el.querySelectorAll('.rz-skupina-apply').forEach((btn) => {
           btn.addEventListener('click', () => this.applySkupina(btn.dataset.id));
         });
@@ -716,9 +728,41 @@
               '</div>' +
               '</li>'
             )).join('') +
+            (overview.vyrazeneItem ? this._renderVyrazeneOverviewRow(overview.vyrazeneItem) : '') +
             '</ul>') +
         '  </div>' +
         '</section>'
+      );
+    },
+
+    /**
+     * Řádek souboru Vyřazené artikly v přehledu Import dat - stejný tvar jako
+     * ostatní 4 (nalezeno/naimportováno), navíc vlastní smazání/nahrání (leží
+     * ve vlastní složce, ne ve sdílené syncFolderUrl) a upozornění, když je
+     * soubor ve složce starší než týden (isStale, viz apiRzGetImportOverview).
+     */
+    _renderVyrazeneOverviewRow(item) {
+      return (
+        '<li>' +
+        '<strong>Vyřazené artikly</strong>' +
+        '<div class="rz-import-row">' +
+        '<span class="' + (item.found ? 'is-found' : 'is-missing') + '">' + (item.found
+          ? '✓ ' + Ui.escape(item.fileName) + ' <small>(' + Ui.formatDateTime(item.updatedAt) + ')</small>'
+          : '✗ soubor ve složce nenalezen') +
+        '</span>' +
+        '<span class="rz-import-status-pill ' + (item.importedRowCount > 0 ? 'is-found' : 'is-missing') + '">' + (item.importedRowCount > 0 ? 'naimportováno: ' + item.importedRowCount + ' řádků' : 'zatím nenaimportováno') + '</span>' +
+        (item.found && item.isStale
+          ? '<span class="rz-import-status-pill is-missing" title="Soubor ve složce se dlouho neaktualizoval - zkontrolujte, jestli existuje novější verze.">⚠ starší než týden</span>'
+          : '') +
+        (this.canWrite && item.found
+          ? '<button type="button" class="icon-action icon-action--danger" id="rzDeleteVyrazeneBtn" data-id="' + Ui.escape(item.fileId) + '" data-name="' + Ui.escape(item.fileName) + '" title="Smazat soubor"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg></button>'
+          : '') +
+        (this.canWrite
+          ? '<button type="button" class="button button-secondary button-small" id="rzUploadVyrazeneBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-plus"></use></svg>Nahrát</button>' +
+            '<input type="file" id="rzUploadVyrazeneInput" accept=".xlsx,.xls,.csv" class="is-hidden">'
+          : '') +
+        '</div>' +
+        '</li>'
       );
     },
 
@@ -733,6 +777,12 @@
           this._sfState = {};
           this._sfViewCache = {};
           this._colWidths = {};
+          // Vyřazené artikly se čte z vlastního naimportovaného listu (viz
+          // apiRzGetVyrazeneStores) - bez vynuceného obnovení signature by
+          // loadVyrazene po importu nic neudělal (sada čísel artiklů se
+          // importem nezměnila) a appka by dál pracovala se starým vyřazením.
+          this._vyrazeneSig = '';
+          this.loadVyrazene();
           // Bez tohoto by v this.importData zůstala stará data až do chvíle,
           // kdy uživatel ručně proklikal jednotlivé záložky (loadImportTable se
           // jinak volá jen líně při otevření té které záložky) - MEDIAN/stav v
@@ -749,7 +799,7 @@
       Ui.confirm({
         kicker: 'Import dat',
         title: 'Vymazat naimportovaná data?',
-        message: 'Smaže se obsah všech 4 naimportovaných tabulek (Odprodej, Teoretické stavy, Vyskladňovací listy, Přidělení po artiklech). Zdrojové soubory ve složce ani Artikly se nezmění. Tuto akci nelze vrátit.',
+        message: 'Smaže se obsah všech naimportovaných tabulek (Odprodej, Teoretické stavy, Vyskladňovací listy, Přidělení po artiklech, Vyřazené artikly). Zdrojové soubory ve složkách ani Artikly se nezmění. Tuto akci nelze vrátit.',
         confirmLabel: 'Vymazat',
       }).then((confirmed) => {
         if (!confirmed) return;
@@ -760,6 +810,8 @@
             this._sfViewCache = {};
             this._colWidths = {};
             this._medianCache = {};
+            this.vyrazene = {};
+            this._vyrazeneSig = '';
             Ui.toast('Naimportovaná data byla vymazána.');
             if (this.activeTab === 'rozdeleni' || RZ_IMPORT_TABS.indexOf(this.activeTab) !== -1) this.renderTabContent();
             return this.loadImportOverview();
@@ -813,6 +865,37 @@
           .then(() => {
             Ui.toast('Soubor byl smazán.');
             this.loadSyncFiles();
+            this.loadImportOverview();
+          })
+          .catch((e) => Ui.toast(e.message, 'error'));
+      });
+    },
+
+    /** Nahraje nový soubor Vyřazené artikly do jeho vlastní složky (viz apiRzUploadVyrazeneFile) - naimportuje se až kliknutím na Importovat. */
+    uploadVyrazeneFile(file) {
+      this._readFileAsBase64(file)
+        .then((base64Data) => Ui.call('apiRzUploadVyrazeneFile',
+          { name: file.name, mimeType: file.type || 'application/octet-stream', base64Data: base64Data },
+          { silent: true, busy: 'Nahrávám ' + file.name + '…' }))
+        .then(() => {
+          Ui.toast('Soubor nahrán.');
+          this.loadImportOverview();
+        })
+        .catch((e) => Ui.toast('Nahrání souboru „' + file.name + '" selhalo: ' + e.message, 'error'));
+    },
+
+    /** Přesune soubor ve složce Vyřazené artikly do koše na Disku - naimportovaná data zůstávají, dokud se znovu neklikne na Importovat. */
+    deleteVyrazeneFile(id, name) {
+      Ui.confirm({
+        kicker: 'Import dat',
+        title: 'Smazat soubor?',
+        message: 'Soubor „' + name + '" se přesune do koše na Disku. Naimportovaná data v appce zůstanou beze změny, dokud znovu nekliknete na Importovat.',
+        confirmLabel: 'Smazat',
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        Ui.call('apiRzDeleteVyrazeneFile', id, { silent: true, busy: 'Mažu soubor…' })
+          .then(() => {
+            Ui.toast('Soubor byl smazán.');
             this.loadImportOverview();
           })
           .catch((e) => Ui.toast(e.message, 'error'));
