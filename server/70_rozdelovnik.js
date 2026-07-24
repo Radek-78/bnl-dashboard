@@ -23,7 +23,10 @@ const RZ_SCHEMA = {
   // Pozor: nové sloupce se přidávají VŽDY na konec pole - řádky uložené podle
   // staršího schématu mají data pozičně svázaná se starým pořadím sloupců,
   // vložení doprostřed by je při čtení posunulo a rozbilo (viz updated_at/rw).
-  'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw', 'zaokrouhlit'],
+  // ignorovat_vyrazeni (jen na úrovni artiklu, prodejna '') - checkbox u
+  // Příděl v Rozdělení, dočasně povolí přidělení i na filiálky vyřazené
+  // (nezalistované) pro tento artikl; Metropol pravidlo tím není dotčené.
+  'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw', 'zaokrouhlit', 'ignorovat_vyrazeni'],
   // cisla - čísla artiklů skupiny spojená čárkou (jen čísla, ne název/obsah/
   // množství - ty se dohledávají/zadávají znovu při každém vložení skupiny).
   'skupiny': ['id', 'nazev', 'cisla', 'created_at', 'created_by', 'updated_at'],
@@ -640,6 +643,16 @@ function apiRzSaveRozdeleniRw(payload) {
     if (!cislo) throw new Error('Chybí číslo artiklu.');
     const rw = (payload && payload.rw !== '' && payload.rw != null) ? Number(payload.rw) || 0 : '';
     return rzUpsertRozdeleni_(cislo, '', { rw: rw });
+  });
+}
+
+/** Checkbox u Příděl v Rozdělení - dočasně povolí přidělení tohoto artiklu i na filiálky vyřazené (nezalistované) pro něj (viz apiRzGetVyrazeneStores). Metropol pravidlo tím není dotčené - to řídí checkbox Metropol v Artiklech. */
+function apiRzSaveRozdeleniIgnorovatVyrazeni(payload) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k zápisu.');
+    const cislo = String((payload && payload.cislo_artiklu) || '').trim();
+    if (!cislo) throw new Error('Chybí číslo artiklu.');
+    return rzUpsertRozdeleni_(cislo, '', { ignorovat_vyrazeni: !!(payload && payload.ignorovat_vyrazeni) });
   });
 }
 

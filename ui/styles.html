@@ -2262,6 +2262,25 @@
     white-space: nowrap;
   }
 
+  /* Checkbox "rozdělit i na vyřazené" u Příděl (per artikl) a u Prodejna
+     (globálně, viz renderRozdeleni) - drobný, ať nekonkuruje hlavnímu textu. */
+  .rzr-ignore-check {
+    align-items: center;
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 9px;
+    gap: 3px;
+    margin-left: 5px;
+    text-transform: none;
+    vertical-align: middle;
+  }
+
+  .rzr-ignore-check input[type="checkbox"] {
+    height: 11px;
+    margin: 0;
+    width: 11px;
+  }
+
   .rzr-block {
     border-right: 2px solid var(--line);
     flex-shrink: 0;

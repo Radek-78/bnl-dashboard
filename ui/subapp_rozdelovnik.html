@@ -22,6 +22,10 @@
     stores: [],
     vyrazene: {},
     _vyrazeneSig: '',
+    // Dočasný přepínač "rozdělit i na vyřazené filiálky" pro VŠECHNY artikly
+    // najednou (checkbox u Prodejna v Rozdělení) - schválně jen pro tuto
+    // relaci prohlížeče, neukládá se (bezpečnější výchozí stav při reloadu).
+    _ignoreVyrazeniGlobal: false,
     settings: {},
     importData: {},
     importOverview: null,
@@ -1148,9 +1152,9 @@
         const target = (a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
 
         // Metropol artikl se rozděluje jen na Metropol filiálky a vyřazené
-        // (nezalistované) filiálky jsou vyloučené vždy - ostatní jsou z
-        // výpočtu (i z cílového součtu ve _solveRw) úplně vyloučené.
-        const eligible = (s) => this._isEligible(a, s);
+        // (nezalistované) filiálky jsou vyloučené, pokud pro tento artikl
+        // nebo úplně globálně není zapnuté "rozdělit i na vyřazené".
+        const eligible = (s) => this._isEligible(a, s, minMax.ignorovat_vyrazeni);
 
         // Stav = Teo. stav + Dodáno (Vyskladňovací listy) + Karton (Přidělení
         // po artiklech) - zobrazuje se rovnou tahle kombinovaná hodnota, ať
@@ -1225,7 +1229,9 @@
           (this.canWrite ? '<button class="rzr-step" type="button" data-cislo="' + esc + '" data-step="0.1" aria-label="Zvýšit RW">+</button>' : '') +
           (this.canWrite ? '<button class="rzr-rw-recalc" type="button" data-cislo="' + esc + '" title="Přepočítat RW podle aktuálního vzorce" aria-label="Přepočítat RW">⟲</button>' : '') +
           '    </div>' +
-          '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Příděl</span>' + (c.a.metropol ? '<span class="rzr-metro-col-head"></span>' : '') + '</div>' +
+          '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Příděl' +
+          '<label class="rzr-ignore-check" title="Rozdělit tento artikl i na filiálky vyřazené (nezalistované) pro něj"><input type="checkbox" class="rzr-ignore-vyrazeni" data-cislo="' + esc + '"' + (c.minMax.ignorovat_vyrazeni ? ' checked' : '') + dis + '><span>vše</span></label>' +
+          '</span>' + (c.a.metropol ? '<span class="rzr-metro-col-head"></span>' : '') + '</div>' +
           '  </div>' +
           '  <div class="rzr-block-body">' + dataRows + '</div>' +
           '</div>'
@@ -1237,7 +1243,9 @@
         '  <div class="rzr-frozen">' +
         '    <div class="rzr-frozen-head">' +
         '      <div class="rzr-frozen-spacer"></div>' +
-        '      <div class="rzr-hrow rzr-cols-row"><span>Prodejna</span></div>' +
+        '      <div class="rzr-hrow rzr-cols-row"><span>Prodejna' +
+        '<label class="rzr-ignore-check" title="Dočasně rozdělit VŠECHNY artikly i na vyřazené (nezalistované) filiálky - jen pro tuto relaci prohlížeče, po znovunačtení stránky se vypne."><input type="checkbox" id="rzIgnoreVyrazeniAllCheck"' + (this._ignoreVyrazeniGlobal ? ' checked' : '') + '><span>vše</span></label>' +
+        '</span></div>' +
         '    </div>' +
         '    <div class="rzr-frozen-body">' + frozenRows + '</div>' +
         '  </div>' +
@@ -1265,6 +1273,19 @@
             const cell = btn.closest('.rzr-prideli-cell');
             this.adjustPrideli(cell.dataset.cislo, cell.dataset.store, Number(btn.dataset.dir));
           });
+        });
+        el.querySelectorAll('.rzr-ignore-vyrazeni').forEach((cb) => {
+          cb.addEventListener('change', () => this.toggleIgnorovatVyrazeni(cb.dataset.cislo, cb.checked));
+        });
+      }
+
+      // Globální přepínač nezávisí na canWrite - nic neukládá, jen mění
+      // pohled na aktuálně dopočítané hodnoty (viz _ignoreVyrazeniGlobal).
+      const ignoreAllCheck = el.querySelector('#rzIgnoreVyrazeniAllCheck');
+      if (ignoreAllCheck) {
+        ignoreAllCheck.addEventListener('change', () => {
+          this._ignoreVyrazeniGlobal = ignoreAllCheck.checked;
+          this.renderTabContent();
         });
       }
 
@@ -1340,7 +1361,7 @@
       const byStore = {};
       (this.rozdeleni || []).forEach((r) => {
         if (!r.prodejna) {
-          byArtikl[r.cislo_artiklu] = { min: r.min, max: r.max, rw: r.rw, zaokrouhlit: r.zaokrouhlit };
+          byArtikl[r.cislo_artiklu] = { min: r.min, max: r.max, rw: r.rw, zaokrouhlit: r.zaokrouhlit, ignorovat_vyrazeni: !!r.ignorovat_vyrazeni };
         } else {
           if (!byStore[r.cislo_artiklu]) byStore[r.cislo_artiklu] = {};
           byStore[r.cislo_artiklu][r.prodejna] = r.uprava;
@@ -1359,13 +1380,16 @@
     },
 
     /**
-     * Smí se artikl a přidělit na filiálku s? Tvrdé pravidlo, stejné pro obě
-     * podmínky: Metropol artikl jen na Metropol filiálky, a k tomu filiálky
-     * u kterých je artikl v souboru Vyřazené artikly (this.vyrazene, viz
-     * loadVyrazene) - na ty se artikl nepřidělí vůbec, bez ohledu na Metropol.
+     * Smí se artikl a přidělit na filiálku s? Metropol artikl jen na Metropol
+     * filiálky - to tvrdé pravidlo platí vždy, řídí ho checkbox Metropol
+     * v Artiklech. Vyřazení (nezalistování) pro danou filiálku se navíc dá
+     * dočasně přeskočit - buď per artikl (ignorovatVyrazeni, checkbox
+     * u Příděl v Rozdělení, ukládá se), nebo pro všechny najednou
+     * (this._ignoreVyrazeniGlobal, checkbox u Prodejna, jen pro tuto relaci).
      */
-    _isEligible(a, s) {
+    _isEligible(a, s, ignorovatVyrazeni) {
       if (a.metropol && !s.metropolitni) return false;
+      if (ignorovatVyrazeni || this._ignoreVyrazeniGlobal) return true;
       const excl = this.vyrazene[a.cislo_artiklu];
       if (excl && excl.some((v) => this._artiklMatches(v, s.code))) return false;
       return true;
@@ -1648,13 +1672,14 @@
       const zaokrouhlit = zaokrRaw === '' ? '' : this._toNumber(zaokrRaw);
       const perStore = this._computeMedianTeo(cislo);
       const a = this.artikly.find((x) => this._artiklMatches(x.cislo_artiklu, cislo));
-      const { byStore } = this._rozdeleniLookup();
+      const { byArtikl, byStore } = this._rozdeleniLookup();
       const upravy = byStore[cislo] || {};
+      const ignorovatVyrazeni = (byArtikl[cislo] || {}).ignorovat_vyrazeni;
 
       let rozdeleno = 0;
       this.stores.forEach((s) => {
         const cellEl = el.querySelector('.rzr-prideli-cell[data-cislo="' + CSS.escape(cislo) + '"][data-store="' + CSS.escape(s.code) + '"]');
-        const eligible = !a || this._isEligible(a, s);
+        const eligible = !a || this._isEligible(a, s, ignorovatVyrazeni);
         const vals = perStore[s.code] || {};
         const stav = (vals.teo || 0) + (vals.dodano || 0) + (vals.prideleno || 0);
         const base = eligible ? this._clampPrideli(rw, vals.median || 0, stav, min, max, zaokrouhlit) : 0;
@@ -1830,6 +1855,14 @@
         'rw:' + cislo);
     },
 
+    /** Checkbox u Příděl (jen tento artikl) - povolí/zakáže přidělení i na jeho vyřazené (nezalistované) filiálky. Mění eligibilitu a vzhled víc buněk najednou, proto plné překreslení - ne jen _recomputeBlockLive. */
+    toggleIgnorovatVyrazeni(cislo, checked) {
+      this._upsertRozdeleniLocal(cislo, '', { ignorovat_vyrazeni: checked });
+      this.renderTabContent();
+      Ui.call('apiRzSaveRozdeleniIgnorovatVyrazeni', { cislo_artiklu: cislo, ignorovat_vyrazeni: checked }, { silent: true })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
     /**
      * Ruční přepočet RW podle aktuálního vzorce, bez ohledu na to, jestli už
      * nějaká hodnota je uložená - jinak by RW zůstalo napořád "zamrzlé" na
@@ -1852,7 +1885,7 @@
       const target = (a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
       // Metropol/vyřazené filiálky se z výpočtu vylučují - stejné pravidlo jako v renderRozdeleni.
       const storeData = this.stores
-        .filter((s) => this._isEligible(a, s))
+        .filter((s) => this._isEligible(a, s, minMax.ignorovat_vyrazeni))
         .map((s) => ({
           median: (perStore[s.code] || {}).median || 0,
           stav: ((perStore[s.code] || {}).teo || 0) + ((perStore[s.code] || {}).dodano || 0) + ((perStore[s.code] || {}).prideleno || 0),
