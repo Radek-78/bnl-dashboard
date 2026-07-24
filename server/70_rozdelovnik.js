@@ -52,7 +52,10 @@ const RZ_IMPORT_LABELS = {
 // folderExport - cílová složka, kam se ukládá vyexportované rozdělení
 // (.xlsx + Google Sheet). Samotný export se dodělá, až bude domluvený přesný
 // formát listu; složka jde nastavit už teď.
-const RZ_EXTRA_SETTING_KEYS = ['folderInformaceOArtiklech', 'patternInformaceOArtiklech', 'folderExport', 'prideliScaleMode', 'prideliColorLow', 'prideliColorMid', 'prideliColorHigh'];
+// folderVyrazeneArtikly/patternVyrazeneArtikly - jeden národní soubor (jako
+// Odprodej apod., ne per LC) se seznamem kombinací artikl+filiálka, které
+// artikl nemá mít zalistovaný - viz apiRzGetVyrazeneStores.
+const RZ_EXTRA_SETTING_KEYS = ['folderInformaceOArtiklech', 'patternInformaceOArtiklech', 'folderVyrazeneArtikly', 'patternVyrazeneArtikly', 'folderExport', 'prideliScaleMode', 'prideliColorLow', 'prideliColorMid', 'prideliColorHigh'];
 
 function rzApp_() {
   const app = dbGetAll_(SHEETS.APPS).find((a) => a.slug === RZ_SLUG);
@@ -813,6 +816,61 @@ function apiRzListStores() {
       .filter((s) => s.active === true && String(s.lc_code).trim().toUpperCase() === defaultLcCode)
       .map((s) => ({ code: s.code, name: s.name, metropolitni: !!s.metropolitni }))
       .sort((a, b) => String(a.code).localeCompare(String(b.code)));
+  });
+}
+
+/**
+ * Pro zadaná čísla artiklů vrátí, na kterých filiálkách je artikl vyřazený
+ * (nezalistovaný) - podle národního souboru Vyřazené artikly (sloupce
+ * "Short Article" a "Store", ostatní sloupce appka nepoužívá). Appka takový
+ * artikl na danou filiálku vůbec nepřidělí - stejné tvrdé pravidlo jako
+ * u Metropol filiálek (viz eligible/_isEligible v subapp_rozdelovnik.html).
+ * Vrací { "<cislo>": ["<store>", ...], ... }; artikly bez vyřazení chybí.
+ *
+ * Soubor má desítky tisíc řádků, proto se čte celý najednou (ne po řádku
+ * na artikl) a výsledek se krátce cachuje podle zadané sady čísel - stejný
+ * princip jako DB_CACHE_TTL_ v 20_db.js. Složka/vzor v Nastavení jsou
+ * nepovinné - dokud nejsou vyplněné, appka žádné vyřazení nevynucuje.
+ */
+function apiRzGetVyrazeneStores(cisla) {
+  return rzGuard_(() => {
+    if (!Array.isArray(cisla) || !cisla.length) return {};
+    const wanted = cisla.map((c) => String(c || '').trim()).filter((c) => c);
+    if (!wanted.length) return {};
+
+    const cacheKey = 'rz_vyrazene_' + wanted.slice().sort().join(',');
+    try {
+      const hit = CacheService.getScriptCache().get(cacheKey);
+      if (hit) return JSON.parse(hit);
+    } catch (e) { /* cache je jen optimalizace */ }
+
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
+    const pattern = settings.patternVyrazeneArtikly || '';
+    if (!folderId || !pattern) return {};
+    const file = rzFindFileInFolderByName_(folderId, pattern);
+    if (!file) return {};
+
+    const { headers, rows } = rzReadSourceFile_(file);
+    const norm = (h) => String(h || '').trim().toUpperCase();
+    const idxArtikl = headers.findIndex((h) => norm(h) === 'SHORT ARTICLE');
+    const idxStore = headers.findIndex((h) => norm(h) === 'STORE');
+    if (idxArtikl === -1 || idxStore === -1) return {};
+
+    const result = {};
+    rows.forEach((row) => {
+      const match = wanted.find((c) => rzArtiklMatches_(row[idxArtikl], c));
+      if (!match) return;
+      const store = String(row[idxStore] == null ? '' : row[idxStore]).trim();
+      if (!store) return;
+      if (!result[match]) result[match] = [];
+      if (result[match].indexOf(store) === -1) result[match].push(store);
+    });
+
+    try {
+      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 300);
+    } catch (e) { /* příliš velká data se prostě necachují */ }
+    return result;
   });
 }
 

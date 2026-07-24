@@ -20,6 +20,8 @@
     artikly: [],
     skupiny: [],
     stores: [],
+    vyrazene: {},
+    _vyrazeneSig: '',
     settings: {},
     importData: {},
     importOverview: null,
@@ -63,6 +65,7 @@
           // by čerstvě uložená data starým stavem - proto se po prvním uložení ignoruje.
           if (this._artiklyDirty) return;
           this.artikly = rows;
+          this.loadVyrazene();
           if (this.activeTab === 'artikly' || this.activeTab === 'rozdeleni') this.renderTabContent();
         })
         .catch((e) => Ui.toast(e.message, 'error'));
@@ -92,6 +95,28 @@
           this.rozdeleni = rows;
           if (this.activeTab === 'rozdeleni') this.renderTabContent();
         })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /**
+     * Dohledá, na kterých filiálkách jsou aktuálně vyplněné artikly vyřazené
+     * (viz apiRzGetVyrazeneStores) - podle sady čísel artiklů, ne podle
+     * jednotlivého řádku, proto se volá jen když se sada čísel skutečně mění
+     * (signature), ne po každém uložení Artiklů (to by zbytečně volalo server
+     * i při editaci polí, která čísla artiklů vůbec nemění).
+     */
+    loadVyrazene() {
+      const cisla = [...new Set(this.artikly.map((a) => a && a.cislo_artiklu).filter((c) => c))];
+      const sig = cisla.slice().sort().join(',');
+      if (sig === this._vyrazeneSig) return;
+      this._vyrazeneSig = sig;
+      if (!cisla.length) {
+        this.vyrazene = {};
+        if (this.activeTab === 'rozdeleni') this.renderTabContent();
+        return;
+      }
+      Ui.call('apiRzGetVyrazeneStores', cisla, { silent: true })
+        .then((map) => { this.vyrazene = map || {}; if (this.activeTab === 'rozdeleni') this.renderTabContent(); })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 
@@ -257,6 +282,7 @@
         '      <div class="rz-modal-tabs">' +
         '        <button class="rz-modal-tabbtn is-active" type="button" data-settings-tab="soubory">Zdrojové soubory</button>' +
         '        <button class="rz-modal-tabbtn" type="button" data-settings-tab="informace">Informace o artiklech</button>' +
+        '        <button class="rz-modal-tabbtn" type="button" data-settings-tab="vyrazene">Vyřazené artikly</button>' +
         '        <button class="rz-modal-tabbtn" type="button" data-settings-tab="export">Export</button>' +
         '        <button class="rz-modal-tabbtn" type="button" data-settings-tab="zobrazeni">Zobrazení</button>' +
         '      </div>' +
@@ -275,6 +301,13 @@
         '          <label><span>Složka s informacemi o artiklech (URL nebo ID)</span><input name="folderInformaceOArtiklech" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
         '          <label><span>Výraz v názvu souboru</span><input name="patternInformaceOArtiklech" type="text" placeholder="např. informace_o_artiklech"></label>' +
         '          <p class="form-hint">Hledá se soubor, jehož název obsahuje zadaný výraz a zároveň číslo výchozího LC.</p>' +
+        '        </div>' +
+        '      </div>' +
+        '      <div class="rz-settings-panel is-hidden" data-settings-panel="vyrazene">' +
+        '        <div class="form form-plain">' +
+        '          <label><span>Složka s vyřazenými artikly (URL nebo ID)</span><input name="folderVyrazeneArtikly" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
+        '          <label><span>Výraz v názvu souboru</span><input name="patternVyrazeneArtikly" type="text" placeholder="např. vyrazene_artikly"></label>' +
+        '          <p class="form-hint">Jeden soubor pro všechny filiálky (sloupce Short Article a Store, ostatní appka nepoužívá). Artikl, který je pro danou filiálku v souboru uvedený, se na ni při rozdělování vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek.</p>' +
         '        </div>' +
         '      </div>' +
         '      <div class="rz-settings-panel is-hidden" data-settings-panel="export">' +
@@ -955,6 +988,7 @@
      */
     _persistArtikly(rows) {
       this.artikly = rows;
+      this.loadVyrazene();
       this._artiklyDirty = true;
       const reqId = ++this._artiklySaveReqId;
       // Odloženo a slučováno pod jedním klíčem: payload je vždy kompletní stav
@@ -1030,9 +1064,10 @@
         const perStore = this._computeMedianTeo(cislo);
         const target = (a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
 
-        // Metropol artikl se rozděluje jen na Metropol filiálky - ostatní jsou
-        // z výpočtu (i z cílového součtu ve _solveRw) úplně vyloučené.
-        const eligible = (s) => !a.metropol || !!s.metropolitni;
+        // Metropol artikl se rozděluje jen na Metropol filiálky a vyřazené
+        // (nezalistované) filiálky jsou vyloučené vždy - ostatní jsou z
+        // výpočtu (i z cílového součtu ve _solveRw) úplně vyloučené.
+        const eligible = (s) => this._isEligible(a, s);
 
         // Stav = Teo. stav + Dodáno (Vyskladňovací listy) + Karton (Přidělení
         // po artiklech) - zobrazuje se rovnou tahle kombinovaná hodnota, ať
@@ -1059,7 +1094,8 @@
           const delta = isEligible ? (this._toNumber(upravy[s.code]) || 0) : 0;
           const efektivni = Math.max(0, base + delta);
           rozdeleno += efektivni;
-          return { store: s, median: vals.median, stav: stav, efektivni: efektivni, delta: delta, eligible: isEligible, vals: vals };
+          const excludedReason = isEligible ? '' : (a.metropol && !s.metropolitni ? 'Rozděluje se jen na Metropolitní filiálky' : 'Artikl je na této filiálce vyřazený (nezalistovaný)');
+          return { store: s, median: vals.median, stav: stav, efektivni: efektivni, delta: delta, eligible: isEligible, excludedReason: excludedReason, vals: vals };
         });
 
         return { a: a, cislo: cislo, minMax: minMax, rw: rw, target: target, rozdeleno: rozdeleno, storeRows: storeRows };
@@ -1073,7 +1109,7 @@
           return '<div class="rzr-hrow rzr-data-row">' +
             '<span title="' + Ui.escape(this._medianTooltip(r.vals)) + '">' + (r.median != null ? this._fmtNum(r.median) : '—') + '</span>' +
             '<span title="' + Ui.escape(this._stavTooltip(r.vals)) + '">' + (r.stav != null ? this._fmtNum(r.stav) : '—') + '</span>' +
-            '<div class="rzr-prideli-cell' + (r.eligible ? '' : ' is-excluded') + '" data-cislo="' + esc + '" data-store="' + Ui.escape(r.store.code) + '">' +
+            '<div class="rzr-prideli-cell' + (r.eligible ? '' : ' is-excluded') + '" data-cislo="' + esc + '" data-store="' + Ui.escape(r.store.code) + '"' + (r.eligible ? '' : ' title="' + Ui.escape(r.excludedReason) + '"') + '>' +
             '<span class="rzr-prideli-num">' + this._fmtNum(r.efektivni) + '</span>' +
             '<span class="rzr-prideli-delta' + this._deltaClass(r.delta) + '">' + (r.delta ? '<b>' + (r.delta > 0 ? '+' : '') + this._fmtNum(r.delta) + '</b>' : '') + '</span>' +
             (this.canWrite && r.eligible ?
@@ -1237,6 +1273,19 @@
       if (a === b) return true;
       const na = Number(a), nb = Number(b);
       return !isNaN(na) && !isNaN(nb) && na === nb;
+    },
+
+    /**
+     * Smí se artikl a přidělit na filiálku s? Tvrdé pravidlo, stejné pro obě
+     * podmínky: Metropol artikl jen na Metropol filiálky, a k tomu filiálky
+     * u kterých je artikl v souboru Vyřazené artikly (this.vyrazene, viz
+     * loadVyrazene) - na ty se artikl nepřidělí vůbec, bez ohledu na Metropol.
+     */
+    _isEligible(a, s) {
+      if (a.metropol && !s.metropolitni) return false;
+      const excl = this.vyrazene[a.cislo_artiklu];
+      if (excl && excl.some((v) => this._artiklMatches(v, s.code))) return false;
+      return true;
     },
 
     /** Najde index sloupce podle kousku názvu (bez diakritiky) - hlavičky Odprodeje/Teo. stavů odpovídají přesně zdrojovému souboru, proto se nedá spoléhat na pevný název. */
@@ -1522,7 +1571,7 @@
       let rozdeleno = 0;
       this.stores.forEach((s) => {
         const cellEl = el.querySelector('.rzr-prideli-cell[data-cislo="' + CSS.escape(cislo) + '"][data-store="' + CSS.escape(s.code) + '"]');
-        const eligible = !a || !a.metropol || !!s.metropolitni;
+        const eligible = !a || this._isEligible(a, s);
         const vals = perStore[s.code] || {};
         const stav = (vals.teo || 0) + (vals.dodano || 0) + (vals.prideleno || 0);
         const base = eligible ? this._clampPrideli(rw, vals.median || 0, stav, min, max, zaokrouhlit) : 0;
@@ -1718,9 +1767,9 @@
       const minMax = byArtikl[cislo] || {};
       const perStore = this._computeMedianTeo(cislo);
       const target = (a.k_rozdeleni !== '' && a.k_rozdeleni != null) ? Number(a.k_rozdeleni) || 0 : 0;
-      // Metropol artikl se rozděluje jen na Metropol filiálky - stejné pravidlo jako v renderRozdeleni.
+      // Metropol/vyřazené filiálky se z výpočtu vylučují - stejné pravidlo jako v renderRozdeleni.
       const storeData = this.stores
-        .filter((s) => !a.metropol || !!s.metropolitni)
+        .filter((s) => this._isEligible(a, s))
         .map((s) => ({
           median: (perStore[s.code] || {}).median || 0,
           stav: ((perStore[s.code] || {}).teo || 0) + ((perStore[s.code] || {}).dodano || 0) + ((perStore[s.code] || {}).prideleno || 0),
@@ -2241,6 +2290,8 @@
           f.elements.patternPrideleniPoArtiklech.value = this.settings.patternPrideleniPoArtiklech || '';
           f.elements.folderInformaceOArtiklech.value = this.settings.folderInformaceOArtiklech || '';
           f.elements.patternInformaceOArtiklech.value = this.settings.patternInformaceOArtiklech || '';
+          f.elements.folderVyrazeneArtikly.value = this.settings.folderVyrazeneArtikly || '';
+          f.elements.patternVyrazeneArtikly.value = this.settings.patternVyrazeneArtikly || '';
           f.elements.folderExport.value = this.settings.folderExport || '';
           f.elements.prideliScaleMode.value = this.settings.prideliScaleMode || '2color';
           f.elements.prideliColorLow.value = this.settings.prideliColorLow || '#ffffff';
@@ -2298,6 +2349,8 @@
         patternPrideleniPoArtiklech: form.elements.patternPrideleniPoArtiklech.value.trim(),
         folderInformaceOArtiklech: form.elements.folderInformaceOArtiklech.value.trim(),
         patternInformaceOArtiklech: form.elements.patternInformaceOArtiklech.value.trim(),
+        folderVyrazeneArtikly: form.elements.folderVyrazeneArtikly.value.trim(),
+        patternVyrazeneArtikly: form.elements.patternVyrazeneArtikly.value.trim(),
         folderExport: form.elements.folderExport.value.trim(),
         prideliScaleMode: form.elements.prideliScaleMode.value,
         prideliColorLow: form.elements.prideliColorLow.value,
@@ -2309,6 +2362,8 @@
         .then((s) => {
           this.settings = s;
           Ui.toast('Nastavení uloženo.');
+          this._vyrazeneSig = '';
+          this.loadVyrazene();
           if (this.activeTab === 'rozdeleni') this.renderTabContent();
           return this.loadImportOverview();
         })
