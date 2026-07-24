@@ -23,9 +23,9 @@ const RZ_SCHEMA = {
   // Pozor: nové sloupce se přidávají VŽDY na konec pole - řádky uložené podle
   // staršího schématu mají data pozičně svázaná se starým pořadím sloupců,
   // vložení doprostřed by je při čtení posunulo a rozbilo (viz updated_at/rw).
-  // ignorovat_vyrazeni (jen na úrovni artiklu, prodejna '') - checkbox u
-  // Příděl v Rozdělení, dočasně povolí přidělení i na filiálky vyřazené
-  // (nezalistované) pro tento artikl; Metropol pravidlo tím není dotčené.
+  // ignorovat_vyrazeni (jen na úrovni artiklu, prodejna '') - checkbox "vše"
+  // u Příděl v Rozdělení, dočasně povolí přidělení tohoto artiklu na VŠECHNY
+  // filiálky - vyřazené (nezalistované) i Metropol.
   'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw', 'zaokrouhlit', 'ignorovat_vyrazeni'],
   // cisla - čísla artiklů skupiny spojená čárkou (jen čísla, ne název/obsah/
   // množství - ty se dohledávají/zadávají znovu při každém vložení skupiny).
@@ -211,13 +211,15 @@ function apiRzGetImportOverview() {
 /**
  * Přehledový řádek souboru Vyřazené artikly pro apiRzGetImportOverview -
  * odděleně od RZ_IMPORT_TABLES, protože soubor leží ve VLASTNÍ složce
- * (folderVyrazeneArtikly), ne ve sdílené syncFolderUrl. isStale = soubor ve
- * složce je starší než týden - appka na to jen upozorní, nijak to nevynucuje.
+ * (folderVyrazeneArtikly), ne ve sdílené syncFolderUrl. Na rozdíl od
+ * ostatních 4 souborů se nikam needituje/needituje se z něj interní tabulka -
+ * appka ho čte přímo (viz apiRzGetVyrazeneStores), proto tu není
+ * importedRowCount. isStale = soubor ve složce je starší než týden - appka na
+ * to jen upozorní, nijak to nevynucuje.
  */
 const RZ_VYRAZENE_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 function rzVyrazeneOverviewItem_(settings) {
-  const importedRowCount = rzImportedRowCount_('vyrazene_artikly');
-  const empty = { found: false, fileName: '', updatedAt: '', fileId: '', isStale: false, importedRowCount: importedRowCount };
+  const empty = { found: false, fileName: '', updatedAt: '', fileId: '', isStale: false };
   const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
   const pattern = settings.patternVyrazeneArtikly || '';
   if (!folderId || !pattern) return empty;
@@ -235,7 +237,6 @@ function rzVyrazeneOverviewItem_(settings) {
     updatedAt: updatedAt.toISOString(),
     fileId: file.getId(),
     isStale: (Date.now() - updatedAt.getTime()) > RZ_VYRAZENE_STALE_MS,
-    importedRowCount: importedRowCount,
   };
 }
 
@@ -351,35 +352,17 @@ function apiRzUploadVyrazeneFile(payload) {
   });
 }
 
-/** Vymaže obsah všech naimportovaných dat (4 tabulky + Vyřazené artikly) — nesahá na zdrojové soubory ani Artikly. */
+/** Vymaže obsah všech 4 listů s naimportovanými daty (hlavička i řádky) — nesahá na zdrojové soubory ani Artikly. Vyřazené artikly appka čte přímo ze zdrojového souboru (viz apiRzGetVyrazeneStores), žádnou interní tabulku k mazání nemá. */
 function apiRzClearImports() {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání.');
-    RZ_IMPORT_TABLES.concat(['vyrazene_artikly']).forEach((key) => rzWriteGrid_(key, [], []));
-    audit_('rz_import_clear', 'Vymazán obsah naimportovaných dat (' + (RZ_IMPORT_TABLES.length + 1) + ' listů).');
+    RZ_IMPORT_TABLES.forEach((key) => rzWriteGrid_(key, [], []));
+    audit_('rz_import_clear', 'Vymazán obsah naimportovaných dat (' + RZ_IMPORT_TABLES.length + ' listů).');
     return { ok: true };
   });
 }
 
-/** Naimportuje soubor Vyřazené artikly - stejný princip jako import ostatních 4 souborů, jen ve vlastní složce (folderVyrazeneArtikly, viz rzVyrazeneOverviewItem_). */
-function rzImportVyrazeneArtikly_(settings) {
-  const label = 'Vyřazené artikly';
-  const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
-  const pattern = settings.patternVyrazeneArtikly || '';
-  if (!folderId) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Není nastavena složka.' };
-  if (!pattern) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Není nastaven výraz v názvu.' };
-  try {
-    const file = rzFindFileInFolderByName_(folderId, pattern);
-    if (!file) return { key: 'vyrazene_artikly', label: label, ok: false, message: 'Soubor nenalezen.' };
-    const { headers, rows } = rzReadSourceFile_(file);
-    rzWriteGrid_('vyrazene_artikly', headers, rows);
-    return { key: 'vyrazene_artikly', label: label, ok: true, fileName: file.getName(), rowCount: rows.length };
-  } catch (e) {
-    return { key: 'vyrazene_artikly', label: label, ok: false, message: e.message };
-  }
-}
-
-/** Naimportuje najednou všechny nalezené soubory (jedno tlačítko na záložce Artikly) - 4 soubory ze sdílené složky plus Vyřazené artikly z vlastní. */
+/** Naimportuje najednou všechny nalezené soubory (jedno tlačítko na záložce Artikly). */
 function apiRzImportAll() {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k importu.');
@@ -400,10 +383,9 @@ function apiRzImportAll() {
         return { key: key, label: RZ_IMPORT_LABELS[key], ok: false, message: e.message };
       }
     });
-    results.push(rzImportVyrazeneArtikly_(settings));
 
     const okCount = results.filter((r) => r.ok).length;
-    audit_('rz_import_all', okCount + '/' + results.length + ' souborů naimportováno');
+    audit_('rz_import_all', okCount + '/' + RZ_IMPORT_TABLES.length + ' souborů naimportováno');
     return results;
   });
 }
@@ -646,7 +628,7 @@ function apiRzSaveRozdeleniRw(payload) {
   });
 }
 
-/** Checkbox u Příděl v Rozdělení - dočasně povolí přidělení tohoto artiklu i na filiálky vyřazené (nezalistované) pro něj (viz apiRzGetVyrazeneStores). Metropol pravidlo tím není dotčené - to řídí checkbox Metropol v Artiklech. */
+/** Checkbox "vše" u Příděl v Rozdělení - dočasně povolí přidělení tohoto artiklu na všechny filiálky, i vyřazené (nezalistované, viz apiRzGetVyrazeneStores) i Metropol. */
 function apiRzSaveRozdeleniIgnorovatVyrazeni(payload) {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k zápisu.');
@@ -917,17 +899,18 @@ function apiRzListStores() {
 
 /**
  * Pro zadaná čísla artiklů vrátí, na kterých filiálkách je artikl vyřazený
- * (nezalistovaný) - podle naimportovaného souboru Vyřazené artikly (sloupce
- * "Short Article" a "Store", ostatní sloupce appka nepoužívá; import viz
- * rzImportVyrazeneArtikly_/apiRzImportAll). Appka takový artikl na danou
- * filiálku vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek
- * (viz eligible/_isEligible v subapp_rozdelovnik.html).
+ * (nezalistovaný) - podle národního souboru Vyřazené artikly (sloupce
+ * "Short Article" a "Store", ostatní sloupce appka nepoužívá). Appka takový
+ * artikl na danou filiálku vůbec nepřidělí - stejné tvrdé pravidlo jako
+ * u Metropol filiálek (viz eligible/_isEligible v subapp_rozdelovnik.html).
  * Vrací { "<cislo>": ["<store>", ...], ... }; artikly bez vyřazení chybí.
  *
- * Soubor má desítky tisíc řádků, proto se čte celý najednou (ne po řádku na
- * artikl) a výsledek se krátce cachuje podle zadané sady čísel - stejný
- * princip jako DB_CACHE_TTL_ v 20_db.js. Dokud soubor nebyl naimportovaný,
- * appka žádné vyřazení nevynucuje.
+ * Soubor má desítky tisíc řádků a nikam se needituje (na rozdíl od ostatních
+ * 4 souborů appka žádnou interní kopii nedrží) - čte se přímo ze zdrojového
+ * souboru při každém volání, výsledek se jen krátce cachuje podle zadané
+ * sady čísel, stejný princip jako DB_CACHE_TTL_ v 20_db.js. Složka/vzor
+ * v Nastavení jsou nepovinné - dokud nejsou vyplněné, appka žádné vyřazení
+ * nevynucuje.
  */
 function apiRzGetVyrazeneStores(cisla) {
   return rzGuard_(() => {
@@ -941,8 +924,14 @@ function apiRzGetVyrazeneStores(cisla) {
       if (hit) return JSON.parse(hit);
     } catch (e) { /* cache je jen optimalizace */ }
 
-    const { headers, rows } = rzReadGrid_('vyrazene_artikly');
-    if (!headers.length) return {};
+    const settings = rzSettingsAll_();
+    const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
+    const pattern = settings.patternVyrazeneArtikly || '';
+    if (!folderId || !pattern) return {};
+    const file = rzFindFileInFolderByName_(folderId, pattern);
+    if (!file) return {};
+
+    const { headers, rows } = rzReadSourceFile_(file);
     const norm = (h) => String(h || '').trim().toUpperCase();
     const idxArtikl = headers.findIndex((h) => norm(h) === 'SHORT ARTICLE');
     const idxStore = headers.findIndex((h) => norm(h) === 'STORE');

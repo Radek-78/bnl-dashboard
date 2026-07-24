@@ -22,9 +22,10 @@
     stores: [],
     vyrazene: {},
     _vyrazeneSig: '',
-    // Dočasný přepínač "rozdělit i na vyřazené filiálky" pro VŠECHNY artikly
-    // najednou (checkbox u Prodejna v Rozdělení) - schválně jen pro tuto
-    // relaci prohlížeče, neukládá se (bezpečnější výchozí stav při reloadu).
+    // Dočasný přepínač "rozdělit na všechny filiálky" (i vyřazené, i Metropol)
+    // pro VŠECHNY artikly najednou (checkbox u Prodejna v Rozdělení) -
+    // schválně jen pro tuto relaci prohlížeče, neukládá se (bezpečnější
+    // výchozí stav při reloadu).
     _ignoreVyrazeniGlobal: false,
     settings: {},
     importData: {},
@@ -311,7 +312,7 @@
         '        <div class="form form-plain">' +
         '          <label><span>Složka s vyřazenými artikly (URL nebo ID)</span><input name="folderVyrazeneArtikly" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
         '          <label><span>Výraz v názvu souboru</span><input name="patternVyrazeneArtikly" type="text" placeholder="např. vyrazene_artikly"></label>' +
-        '          <p class="form-hint">Jeden soubor pro všechny filiálky (sloupce Short Article a Store, ostatní appka nepoužívá). Přehled a smazání/nahrání souboru je na záložce Artikly - stejně jako ostatní soubory se musí po nahrání ještě naimportovat (tlačítko Importovat), teprve pak appka vyřazení skutečně použije. Artikl, který je pro danou filiálku v souboru uvedený, se na ni při rozdělování vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek.</p>' +
+        '          <p class="form-hint">Jeden soubor pro všechny filiálky (sloupce Short Article a Store, ostatní appka nepoužívá). Přehled a smazání/nahrání souboru je na záložce Artikly - appka ho čte přímo (výsledek se jen krátce cachuje, změna se projeví do pár minut), žádné tlačítko Importovat pro něj není potřeba. Artikl, který je pro danou filiálku v souboru uvedený, se na ni při rozdělování vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek.</p>' +
         '        </div>' +
         '      </div>' +
         '      <div class="rz-settings-panel is-hidden" data-settings-panel="export">' +
@@ -740,10 +741,13 @@
     },
 
     /**
-     * Řádek souboru Vyřazené artikly v přehledu Import dat - stejný tvar jako
-     * ostatní 4 (nalezeno/naimportováno), navíc vlastní smazání/nahrání (leží
-     * ve vlastní složce, ne ve sdílené syncFolderUrl) a upozornění, když je
-     * soubor ve složce starší než týden (isStale, viz apiRzGetImportOverview).
+     * Řádek souboru Vyřazené artikly v přehledu Import dat - podobný tvar
+     * jako ostatní 4 (nalezeno/soubor/datum), ale bez "naimportováno" pilulky
+     * - appka ho žádnou interní tabulku nekopíruje, čte se přímo ze
+     * zdrojového souboru (viz apiRzGetVyrazeneStores). Navíc vlastní
+     * smazání/nahrání (leží ve vlastní složce, ne ve sdílené syncFolderUrl)
+     * a upozornění, když je soubor ve složce starší než týden (isStale,
+     * viz apiRzGetImportOverview).
      */
     _renderVyrazeneOverviewRow(item) {
       return (
@@ -754,7 +758,6 @@
           ? '✓ ' + Ui.escape(item.fileName) + ' <small>(' + Ui.formatDateTime(item.updatedAt) + ')</small>'
           : '✗ soubor ve složce nenalezen') +
         '</span>' +
-        '<span class="rz-import-status-pill ' + (item.importedRowCount > 0 ? 'is-found' : 'is-missing') + '">' + (item.importedRowCount > 0 ? 'naimportováno: ' + item.importedRowCount + ' řádků' : 'zatím nenaimportováno') + '</span>' +
         (item.found && item.isStale
           ? '<span class="rz-import-status-pill is-missing" title="Soubor ve složce se dlouho neaktualizoval - zkontrolujte, jestli existuje novější verze.">⚠ starší než týden</span>'
           : '') +
@@ -781,12 +784,6 @@
           this._sfState = {};
           this._sfViewCache = {};
           this._colWidths = {};
-          // Vyřazené artikly se čte z vlastního naimportovaného listu (viz
-          // apiRzGetVyrazeneStores) - bez vynuceného obnovení signature by
-          // loadVyrazene po importu nic neudělal (sada čísel artiklů se
-          // importem nezměnila) a appka by dál pracovala se starým vyřazením.
-          this._vyrazeneSig = '';
-          this.loadVyrazene();
           // Bez tohoto by v this.importData zůstala stará data až do chvíle,
           // kdy uživatel ručně proklikal jednotlivé záložky (loadImportTable se
           // jinak volá jen líně při otevření té které záložky) - MEDIAN/stav v
@@ -803,7 +800,7 @@
       Ui.confirm({
         kicker: 'Import dat',
         title: 'Vymazat naimportovaná data?',
-        message: 'Smaže se obsah všech naimportovaných tabulek (Odprodej, Teoretické stavy, Vyskladňovací listy, Přidělení po artiklech, Vyřazené artikly). Zdrojové soubory ve složkách ani Artikly se nezmění. Tuto akci nelze vrátit.',
+        message: 'Smaže se obsah všech 4 naimportovaných tabulek (Odprodej, Teoretické stavy, Vyskladňovací listy, Přidělení po artiklech). Zdrojové soubory ve složce ani Artikly se nezmění. Tuto akci nelze vrátit.',
         confirmLabel: 'Vymazat',
       }).then((confirmed) => {
         if (!confirmed) return;
@@ -814,8 +811,6 @@
             this._sfViewCache = {};
             this._colWidths = {};
             this._medianCache = {};
-            this.vyrazene = {};
-            this._vyrazeneSig = '';
             Ui.toast('Naimportovaná data byla vymazána.');
             if (this.activeTab === 'rozdeleni' || RZ_IMPORT_TABS.indexOf(this.activeTab) !== -1) this.renderTabContent();
             return this.loadImportOverview();
@@ -1206,7 +1201,7 @@
               '</span>'
               : '') +
             '</div>' +
-            (c.a.metropol ? '<div class="rzr-metro-col">' + (r.eligible ? '<span class="rzr-metro-tag">M</span>' : '') + '</div>' : '') +
+            (c.a.metropol ? '<div class="rzr-metro-col">' + (r.store.metropolitni ? '<span class="rzr-metro-tag">M</span>' : '') + '</div>' : '') +
             '</div>';
         }).join('');
 
@@ -1230,7 +1225,7 @@
           (this.canWrite ? '<button class="rzr-rw-recalc" type="button" data-cislo="' + esc + '" title="Přepočítat RW podle aktuálního vzorce" aria-label="Přepočítat RW">⟲</button>' : '') +
           '    </div>' +
           '    <div class="rzr-hrow rzr-cols-row"><span>MEDIAN</span><span>Teo. stav</span><span>Příděl' +
-          '<label class="rzr-ignore-check" title="Rozdělit tento artikl i na filiálky vyřazené (nezalistované) pro něj"><input type="checkbox" class="rzr-ignore-vyrazeni" data-cislo="' + esc + '"' + (c.minMax.ignorovat_vyrazeni ? ' checked' : '') + dis + '><span>vše</span></label>' +
+          '<label class="rzr-ignore-check" title="Rozdělit tento artikl na všechny filiálky - i vyřazené (nezalistované) pro něj, i Metropol"><input type="checkbox" class="rzr-ignore-vyrazeni" data-cislo="' + esc + '"' + (c.minMax.ignorovat_vyrazeni ? ' checked' : '') + dis + '><span>vše</span></label>' +
           '</span>' + (c.a.metropol ? '<span class="rzr-metro-col-head"></span>' : '') + '</div>' +
           '  </div>' +
           '  <div class="rzr-block-body">' + dataRows + '</div>' +
@@ -1244,7 +1239,7 @@
         '    <div class="rzr-frozen-head">' +
         '      <div class="rzr-frozen-spacer"></div>' +
         '      <div class="rzr-hrow rzr-cols-row"><span>Prodejna' +
-        '<label class="rzr-ignore-check" title="Dočasně rozdělit VŠECHNY artikly i na vyřazené (nezalistované) filiálky - jen pro tuto relaci prohlížeče, po znovunačtení stránky se vypne."><input type="checkbox" id="rzIgnoreVyrazeniAllCheck"' + (this._ignoreVyrazeniGlobal ? ' checked' : '') + '><span>vše</span></label>' +
+        '<label class="rzr-ignore-check" title="Dočasně rozdělit VŠECHNY artikly na všechny filiálky - i vyřazené (nezalistované), i Metropol. Jen pro tuto relaci prohlížeče, po znovunačtení stránky se vypne."><input type="checkbox" id="rzIgnoreVyrazeniAllCheck"' + (this._ignoreVyrazeniGlobal ? ' checked' : '') + '><span>vše</span></label>' +
         '</span></div>' +
         '    </div>' +
         '    <div class="rzr-frozen-body">' + frozenRows + '</div>' +
@@ -1380,16 +1375,17 @@
     },
 
     /**
-     * Smí se artikl a přidělit na filiálku s? Metropol artikl jen na Metropol
-     * filiálky - to tvrdé pravidlo platí vždy, řídí ho checkbox Metropol
-     * v Artiklech. Vyřazení (nezalistování) pro danou filiálku se navíc dá
-     * dočasně přeskočit - buď per artikl (ignorovatVyrazeni, checkbox
-     * u Příděl v Rozdělení, ukládá se), nebo pro všechny najednou
-     * (this._ignoreVyrazeniGlobal, checkbox u Prodejna, jen pro tuto relaci).
+     * Smí se artikl a přidělit na filiálku s? Základní pravidlo: Metropol
+     * artikl jen na Metropol filiálky (checkbox Metropol v Artiklech) a
+     * filiálky vyřazené (nezalistované) pro tento artikl vůbec (viz
+     * this.vyrazene/loadVyrazene). Checkbox "vše" - buď per artikl
+     * (ignorovatVyrazeni, u Příděl v Rozdělení, ukládá se), nebo pro všechny
+     * artikly najednou (this._ignoreVyrazeniGlobal, u Prodejna, jen pro tuto
+     * relaci) - obojí OBĚ tato omezení zcela vypne, i Metropol.
      */
     _isEligible(a, s, ignorovatVyrazeni) {
-      if (a.metropol && !s.metropolitni) return false;
       if (ignorovatVyrazeni || this._ignoreVyrazeniGlobal) return true;
+      if (a.metropol && !s.metropolitni) return false;
       const excl = this.vyrazene[a.cislo_artiklu];
       if (excl && excl.some((v) => this._artiklMatches(v, s.code))) return false;
       return true;
@@ -1855,7 +1851,7 @@
         'rw:' + cislo);
     },
 
-    /** Checkbox u Příděl (jen tento artikl) - povolí/zakáže přidělení i na jeho vyřazené (nezalistované) filiálky. Mění eligibilitu a vzhled víc buněk najednou, proto plné překreslení - ne jen _recomputeBlockLive. */
+/** Checkbox "vše" u Příděl (jen tento artikl) - povolí/zakáže přidělení na všechny jeho filiálky (vyřazené i Metropol). Mění eligibilitu a vzhled víc buněk najednou, proto plné překreslení - ne jen _recomputeBlockLive. */
     toggleIgnorovatVyrazeni(cislo, checked) {
       this._upsertRozdeleniLocal(cislo, '', { ignorovat_vyrazeni: checked });
       this.renderTabContent();
