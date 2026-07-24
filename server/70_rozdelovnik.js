@@ -16,7 +16,9 @@ const RZ_SCHEMA = {
   // pocet_dni se v appce nikde nepoužívá a UI ho už nezobrazuje/needituje -
   // sloupec zůstává v poli kvůli pozičnímu čtení (viz poznámka u "rozdeleni"
   // níže), jen se do něj od teď nic nezapisuje.
-  'artikly': ['id', 'poradi', 'cislo_artiklu', 'nazev', 'obsah', 'k_rozdeleni', 'pocet_dni', 'metropol', 'created_at', 'created_by', 'updated_at'],
+  // uwg (skupina artiklu, číslo) a kontejner (text) se dohledávají spolu s
+  // Název/Obsah ze souboru Informace o artiklech - viz rzFindArtiklInSheet_.
+  'artikly': ['id', 'poradi', 'cislo_artiklu', 'nazev', 'obsah', 'k_rozdeleni', 'pocet_dni', 'metropol', 'created_at', 'created_by', 'updated_at', 'uwg', 'kontejner'],
   // Řádek s prázdnou prodejna = úroveň artiklu (min/max/rw); řádek s vyplněnou prodejna = úroveň konkrétní prodejny (uprava).
   // Pozor: nové sloupce se přidávají VŽDY na konec pole - řádky uložené podle
   // staršího schématu mají data pozičně svázaná se starým pořadím sloupců,
@@ -380,6 +382,8 @@ function apiRzSaveArtikly(rows) {
           obsah: String((row && row.obsah) || '').trim(),
           k_rozdeleni: (row && row.k_rozdeleni !== '' && row.k_rozdeleni != null) ? Number(row.k_rozdeleni) || 0 : '',
           metropol: !!(row && row.metropol),
+          uwg: String((row && row.uwg) || '').trim(),
+          kontejner: String((row && row.kontejner) || '').trim(),
         };
         const rowIdx = existingValues.findIndex((r) => Number(r[poradiCol]) === poradi);
         if (rowIdx !== -1) {
@@ -660,7 +664,7 @@ function rzOpenInfoArtiklechSheet_(file) {
   return SpreadsheetApp.openById(copy.id).getSheets()[0];
 }
 
-/** V listu najde řádek s daným číslem artiklu ve sloupci ARTIKL (TextFinder) a vrátí Název/Obsah. */
+/** V listu najde řádek s daným číslem artiklu ve sloupci ARTIKL (TextFinder) a vrátí Název/Obsah/UWG/Kontejner. */
 function rzFindArtiklInSheet_(sheet, cisloArtiklu) {
   const lastCol = sheet.getLastColumn();
   const lastRow = sheet.getLastRow();
@@ -670,6 +674,8 @@ function rzFindArtiklInSheet_(sheet, cisloArtiklu) {
   const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
   const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
   const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
+  const idxUwg = headers.findIndex((h) => norm(h) === 'UWG');
+  const idxKontejner = headers.findIndex((h) => norm(h) === 'KONTEJNER');
   if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
 
   const artiklCol = sheet.getRange(2, idxArtikl + 1, lastRow - 1, 1);
@@ -680,6 +686,8 @@ function rzFindArtiklInSheet_(sheet, cisloArtiklu) {
   return {
     nazev: idxNazev !== -1 ? String(rowVals[idxNazev] || '').trim() : '',
     obsah: idxObsah !== -1 ? String(rowVals[idxObsah] || '').trim() : '',
+    uwg: idxUwg !== -1 ? String(rowVals[idxUwg] || '').trim() : '',
+    kontejner: idxKontejner !== -1 ? String(rowVals[idxKontejner] || '').trim() : '',
   };
 }
 
@@ -709,12 +717,16 @@ function apiRzLookupArtikl(cisloArtiklu) {
       const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
       const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
       const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
+      const idxUwg = headers.findIndex((h) => norm(h) === 'UWG');
+      const idxKontejner = headers.findIndex((h) => norm(h) === 'KONTEJNER');
       if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
       const row = data.slice(1).find((r) => String(r[idxArtikl] || '').trim() === cislo);
       if (!row) return null;
       return {
         nazev: idxNazev !== -1 ? String(row[idxNazev] || '').trim() : '',
         obsah: idxObsah !== -1 ? String(row[idxObsah] || '').trim() : '',
+        uwg: idxUwg !== -1 ? String(row[idxUwg] || '').trim() : '',
+        kontejner: idxKontejner !== -1 ? String(row[idxKontejner] || '').trim() : '',
       };
     }
 
@@ -759,6 +771,8 @@ function apiRzLookupArtiklBatch(cisla) {
       const idxArtikl = headers.findIndex((h) => norm(h) === 'ARTIKL');
       const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
       const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
+      const idxUwg = headers.findIndex((h) => norm(h) === 'UWG');
+      const idxKontejner = headers.findIndex((h) => norm(h) === 'KONTEJNER');
       if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
       // Jeden průchod souborem pro všechna hledaná čísla, ne jeden průchod na číslo.
       for (let i = 1; i < data.length; i++) {
@@ -768,6 +782,8 @@ function apiRzLookupArtiklBatch(cisla) {
         result[hit] = {
           nazev: idxNazev !== -1 ? String(data[i][idxNazev] || '').trim() : '',
           obsah: idxObsah !== -1 ? String(data[i][idxObsah] || '').trim() : '',
+          uwg: idxUwg !== -1 ? String(data[i][idxUwg] || '').trim() : '',
+          kontejner: idxKontejner !== -1 ? String(data[i][idxKontejner] || '').trim() : '',
         };
         delete remaining[hit];
         if (!Object.keys(remaining).length) break;

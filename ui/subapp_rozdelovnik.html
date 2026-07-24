@@ -423,12 +423,14 @@
         this._panelPill(filledCount + ' / ' + RZ_ARTIKLY_ROWS + ' vyplněno') + '</div>' +
         (this.canWrite ? '<button class="button button-secondary button-small" type="button" id="rzResetArtiklyBtn"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-trash"></use></svg>Resetovat tabulku</button>' : '') +
         '</div>' +
-        '  <div class="table-wrap rz-no-scroll"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>Obsah</th><th>K rozdělení</th><th>Metropol</th></tr></thead><tbody>' +
+        '  <div class="table-wrap rz-no-scroll"><table class="rz-artikly-table"><thead><tr><th>Artikl</th><th>Název</th><th>Obsah</th><th>UWG</th><th>Kontejner</th><th>K rozdělení</th><th>Metropol</th></tr></thead><tbody>' +
         rows.map((r, i) =>
           '<tr>' +
           '<td><input type="text" data-i="' + i + '" data-f="cislo_artiklu" value="' + Ui.escape(r.cislo_artiklu || '') + '" ' + dis + '></td>' +
           '<td><input type="text" data-i="' + i + '" data-f="nazev" value="' + Ui.escape(r.nazev || '') + '" ' + dis + '></td>' +
           '<td><input type="text" data-i="' + i + '" data-f="obsah" value="' + Ui.escape(r.obsah || '') + '" ' + dis + '></td>' +
+          '<td><input type="text" data-i="' + i + '" data-f="uwg" value="' + Ui.escape(r.uwg || '') + '" ' + dis + '></td>' +
+          '<td><input type="text" data-i="' + i + '" data-f="kontejner" value="' + Ui.escape(r.kontejner || '') + '" ' + dis + '></td>' +
           '<td><input type="number" data-i="' + i + '" data-f="k_rozdeleni" value="' + (r.k_rozdeleni != null ? r.k_rozdeleni : '') + '" ' + dis + '></td>' +
           '<td style="text-align:center"><input type="checkbox" data-i="' + i + '" data-f="metropol" ' + (r.metropol ? 'checked' : '') + ' ' + dis + '></td>' +
           '</tr>').join('') +
@@ -891,7 +893,7 @@
           pending.forEach((b) => {
             const info = found[b.cislo];
             if (info && (info.nazev || info.obsah)) {
-              this._applyLookupResult(b.rowIndex, info.nazev || '', info.obsah || '');
+              this._applyLookupResult(b.rowIndex, info.nazev || '', info.obsah || '', info.uwg || '', info.kontejner || '');
             } else {
               missing.push(b);
             }
@@ -901,7 +903,10 @@
             setTimeout(() => this._runLookupBatch(missing, retryDelaysMs.slice(1)), retryDelaysMs[0]);
             return;
           }
-          missing.forEach((b) => this._applyLookupResult(b.rowIndex, 'Nenalezeno — zadejte ručně', (this.artikly[b.rowIndex] || {}).obsah || ''));
+          missing.forEach((b) => {
+            const cur = this.artikly[b.rowIndex] || {};
+            this._applyLookupResult(b.rowIndex, 'Nenalezeno — zadejte ručně', cur.obsah || '', cur.uwg || '', cur.kontejner || '');
+          });
         })
         .catch((e) => {
           pending.forEach((b) => this._setLookupLoading(b.rowIndex, false));
@@ -914,7 +919,7 @@
       if (this.activeTab !== 'artikly') return;
       const el = this.container.querySelector('#rzTabContent');
       if (!el) return;
-      ['nazev', 'obsah'].forEach((f) => {
+      ['nazev', 'obsah', 'uwg', 'kontejner'].forEach((f) => {
         const input = el.querySelector('[data-i="' + rowIndex + '"][data-f="' + f + '"]');
         if (!input) return;
         input.classList.toggle('is-loading', isLoading);
@@ -923,17 +928,21 @@
     },
 
     /** Zapíše výsledek vyhledání do this.artikly a uloží na server - funguje i když uživatel mezitím přepnul na jinou záložku. Je-li Artikly zrovna vykreslené, promítne se rovnou i do živých polí. */
-    _applyLookupResult(rowIndex, nazev, obsah) {
+    _applyLookupResult(rowIndex, nazev, obsah, uwg, kontejner) {
       if (!this.artikly[rowIndex]) return;
-      this.artikly[rowIndex] = Object.assign({}, this.artikly[rowIndex], { nazev: nazev, obsah: obsah });
+      this.artikly[rowIndex] = Object.assign({}, this.artikly[rowIndex], { nazev: nazev, obsah: obsah, uwg: uwg || '', kontejner: kontejner || '' });
       this._persistArtikly(this.artikly.slice());
       this._setLookupLoading(rowIndex, false);
       if (this.activeTab === 'artikly') {
         const el = this.container.querySelector('#rzTabContent');
         const nazevInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="nazev"]');
         const obsahInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="obsah"]');
+        const uwgInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="uwg"]');
+        const kontejnerInput = el && el.querySelector('[data-i="' + rowIndex + '"][data-f="kontejner"]');
         if (nazevInput) nazevInput.value = nazev;
         if (obsahInput) obsahInput.value = obsah;
+        if (uwgInput) uwgInput.value = uwg || '';
+        if (kontejnerInput) kontejnerInput.value = kontejner || '';
       }
     },
 
@@ -977,6 +986,8 @@
           cislo_artiklu: get('cislo_artiklu').value.trim(),
           nazev: get('nazev').value.trim(),
           obsah: get('obsah').value.trim(),
+          uwg: get('uwg').value.trim(),
+          kontejner: get('kontejner').value.trim(),
           k_rozdeleni: get('k_rozdeleni').value,
           metropol: get('metropol').checked,
         });
