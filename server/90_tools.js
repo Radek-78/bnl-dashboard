@@ -153,3 +153,31 @@ function TOOLS_debugVyrazene() {
   const stores = matches.map((r) => String(r[idxStore]).trim());
   console.log('Pro artikl ' + ARTIKL + ' nalezeno ' + matches.length + ' řádků, filiálky: ' + JSON.stringify(stores));
 }
+
+/**
+ * Diagnostika Skupin artiklů - pro každý uložený řádek vypíše skutečný JS typ
+ * a formát buňky sloupce "cisla". Použij, když se skupina po uložení tváří
+ * jako jeden artikl - řekne přesně, jestli je uložená hodnota pořád Number
+ * (formát se nestihl/nemohl nastavit) nebo je to už String (formát je OK,
+ * problém je jinde). Spusť ručně z editoru, výsledek je v Zobrazit ▸
+ * Protokoly provádění.
+ */
+function TOOLS_debugSkupiny() {
+  assertToolsOwner_();
+  const sheet = rzRepo_().spreadsheet().getSheetByName('skupiny');
+  if (!sheet) { console.log('CHYBA: list "skupiny" v databázi subaplikace neexistuje.'); return; }
+
+  const headers = RZ_SCHEMA.skupiny;
+  const col = headers.indexOf('cisla') + 1;
+  console.log('Sloupec cisla = ' + col + ' (' + String.fromCharCode(64 + col) + '). Formát buňky C2 (i když je prázdná): ' + sheet.getRange(2, col).getNumberFormat());
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) { console.log('Zatím žádné uložené skupiny.'); return; }
+
+  const values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  values.forEach((row, i) => {
+    const cislaVal = row[col - 1];
+    console.log('Řádek ' + (i + 2) + ': nazev="' + row[headers.indexOf('nazev')] + '" | typ cisla=' + (typeof cislaVal) +
+      ' | hodnota=' + JSON.stringify(cislaVal) + ' | formát buňky=' + sheet.getRange(i + 2, col).getNumberFormat());
+  });
+}
