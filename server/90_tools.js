@@ -111,8 +111,9 @@ function TOOLS_zkontrolujAutoSync() {
 
 /**
  * Diagnostika Vyřazených artiklů (Rozdělovník 20 artiklů) - projde celý
- * řetězec (Nastavení → soubor ve složce → naimportovaná tabulka → hlavičky
- * → řádky pro zadaný artikl) a u každého kroku vypíše, jestli je v pořádku.
+ * řetězec ŽIVÉHO čtení (Nastavení → soubor ve složce → obsah souboru →
+ * hlavičky → řádky pro zadaný artikl, přesně jak to dělá
+ * apiRzGetVyrazeneStores) a u každého kroku vypíše, jestli je v pořádku.
  * Uprav ARTIKL níže a spusť ručně z editoru; výsledek je v Zobrazit ▸
  * Protokoly provádění (View ▸ Execution log).
  */
@@ -123,7 +124,6 @@ function TOOLS_debugVyrazene() {
   const settings = rzSettingsAll_();
   console.log('folderVyrazeneArtikly = ' + (settings.folderVyrazeneArtikly || '(prázdné)'));
   console.log('patternVyrazeneArtikly = ' + (settings.patternVyrazeneArtikly || '(prázdné)'));
-  console.log('vyrazeneImportedAt = ' + (settings.vyrazeneImportedAt || '(nikdy)'));
 
   const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
   if (!folderId) { console.log('CHYBA: složka není nastavená nebo URL/ID nejde rozpoznat.'); return; }
@@ -136,20 +136,20 @@ function TOOLS_debugVyrazene() {
     : 'CHYBA: žádný soubor s výrazem "' + pattern + '" nebyl ve složce nalezen - zkontroluj, jestli výraz odpovídá skutečnému názvu souboru.');
   if (!file) return;
 
-  const grid = rzReadGrid_('vyrazene_artikly');
-  console.log('Naimportovaná tabulka: ' + grid.headers.length + ' sloupců, ' + grid.rows.length + ' řádků. Hlavičky: ' + JSON.stringify(grid.headers));
-  if (!grid.rows.length) { console.log('CHYBA: tabulka je prázdná - zkus znovu kliknout na Importovat v záložce Artikly.'); return; }
+  const { headers, rows } = rzReadVyrazeneSourceFile_(file);
+  console.log('Obsah souboru: ' + headers.length + ' sloupců, ' + rows.length + ' řádků. Hlavičky: ' + JSON.stringify(headers));
+  if (!rows.length) { console.log('CHYBA: soubor je prázdný nebo se nepodařilo přečíst žádná data.'); return; }
 
   const norm = (h) => String(h || '').trim().toUpperCase();
-  const idxArtikl = grid.headers.findIndex((h) => norm(h) === 'SHORT ARTICLE');
-  const idxStore = grid.headers.findIndex((h) => norm(h) === 'STORE');
+  const idxArtikl = headers.findIndex((h) => norm(h) === 'SHORT ARTICLE');
+  const idxStore = headers.findIndex((h) => norm(h) === 'STORE');
   console.log('Index sloupce Short Article: ' + idxArtikl + ', Store: ' + idxStore);
   if (idxArtikl === -1 || idxStore === -1) {
-    console.log('CHYBA: hlavička "Short Article" nebo "Store" nebyla v naimportované tabulce přesně nalezena (kontroluje se bez ohledu na velikost písmen, ale přesně - žádné extra mezery/jiný text).');
+    console.log('CHYBA: hlavička "Short Article" nebo "Store" nebyla v souboru přesně nalezena (kontroluje se bez ohledu na velikost písmen, ale přesně - žádné extra mezery/jiný text).');
     return;
   }
 
-  const matches = grid.rows.filter((r) => rzArtiklMatches_(r[idxArtikl], ARTIKL));
+  const matches = rows.filter((r) => rzArtiklMatches_(r[idxArtikl], ARTIKL));
   const stores = matches.map((r) => String(r[idxStore]).trim());
   console.log('Pro artikl ' + ARTIKL + ' nalezeno ' + matches.length + ' řádků, filiálky: ' + JSON.stringify(stores));
 }
