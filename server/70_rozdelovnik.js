@@ -25,8 +25,9 @@ const RZ_SCHEMA = {
   // u Příděl v Rozdělení, dočasně povolí přidělení tohoto artiklu na VŠECHNY
   // filiálky - vyřazené (nezalistované) i Metropol.
   'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw', 'zaokrouhlit', 'ignorovat_vyrazeni'],
-  // cisla - čísla artiklů skupiny spojená čárkou (jen čísla, ne název/obsah/
-  // množství - ty se dohledávají/zadávají znovu při každém vložení skupiny).
+  // cisla - čísla artiklů skupiny spojená STŘEDNÍKEM, ne čárkou (jen čísla,
+  // ne název/obsah/množství - ty se dohledávají/zadávají znovu při každém
+  // vložení skupiny) - viz apiRzSaveSkupina, proč zrovna středník.
   'skupiny': ['id', 'nazev', 'cisla', 'created_at', 'created_by', 'updated_at'],
 };
 
@@ -545,7 +546,12 @@ function apiRzSaveSkupina(payload) {
     repo.ensureSchema();
     rzForceSkupinyCislaTextFormat_(repo);
     const id = payload && payload.id;
-    const data = { nazev: nazev, cisla: cisla.join(',') };
+    // Středník, ne čárka - "6717079,6718447" by Sheets i přes vynucený
+    // textový formát v3.1.138 přesto někdy převedl na desetinné číslo
+    // (potvrzeno TOOLS_debugSkupiny - formát buňky se u appendRow nedržel
+    // spolehlivě). Středník mezi čísly artiklů Sheets jako číslo nikdy
+    // nerozpozná, takže tenhle problém strukturálně vůbec nemůže nastat.
+    const data = { nazev: nazev, cisla: cisla.join(';') };
     const saved = id ? repo.update('skupiny', id, data) : repo.insert('skupiny', data);
     audit_('rz_skupina_' + (id ? 'update' : 'create'), nazev + ' (' + cisla.length + ' artiklů)');
     return saved;

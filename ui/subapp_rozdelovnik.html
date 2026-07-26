@@ -590,7 +590,7 @@
         (skupiny.length
           ? '<div class="rz-skupiny-list">' +
             skupiny.map((g) => {
-              const count = String(g.cisla || '').split(',').filter(Boolean).length;
+              const count = String(g.cisla || '').split(';').filter(Boolean).length;
               return '<div class="rz-skupina-row">' +
                 '<span class="rz-skupina-name">' + Ui.escape(g.nazev) + '</span>' +
                 '<span class="rz-skupina-count">' + count + ' ' + (count === 1 ? 'artikl' : 'artiklů') + '</span>' +
@@ -618,7 +618,7 @@
       modal.querySelector('#rzSkupinaModalTitle').textContent = skupina ? 'Upravit skupinu' : 'Nová skupina';
       modal.querySelector('#rzSkupinaEditId').value = skupina ? skupina.id : '';
       modal.querySelector('#rzSkupinaName').value = skupina ? (skupina.nazev || '') : '';
-      modal.querySelector('#rzSkupinaCisla').value = skupina ? String(skupina.cisla || '').split(',').filter(Boolean).join('\n') : '';
+      modal.querySelector('#rzSkupinaCisla').value = skupina ? String(skupina.cisla || '').split(';').filter(Boolean).join('\n') : '';
       Ui.openModal(modal);
     },
 
@@ -655,7 +655,7 @@
     applySkupina(id) {
       const skupina = (this.skupiny || []).find((g) => g.id === id);
       if (!skupina) return;
-      const cisla = String(skupina.cisla || '').split(',').filter(Boolean);
+      const cisla = String(skupina.cisla || '').split(';').filter(Boolean);
       const el = this.container.querySelector('#rzTabContent');
       const inputs = [...el.querySelectorAll('.rz-artikly-table input[data-f="cislo_artiklu"]')];
       const emptyInputs = inputs.filter((input) => !input.value.trim());
