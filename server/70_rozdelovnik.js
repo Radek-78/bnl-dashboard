@@ -543,12 +543,29 @@ function apiRzSaveSkupina(payload) {
     if (!cisla.length) throw new Error('Skupina musí obsahovat aspoň jeden artikl.');
     const repo = rzRepo_();
     repo.ensureSchema();
+    rzForceSkupinyCislaTextFormat_(repo);
     const id = payload && payload.id;
     const data = { nazev: nazev, cisla: cisla.join(',') };
     const saved = id ? repo.update('skupiny', id, data) : repo.insert('skupiny', data);
     audit_('rz_skupina_' + (id ? 'update' : 'create'), nazev + ' (' + cisla.length + ' artiklů)');
     return saved;
   });
+}
+
+/**
+ * Sloupec cisla (čísla artiklů spojená čárkou, např. "6717079,6717080") musí
+ * zůstat čistý text - bez vynuceného textového formátu by Sheets takový
+ * řetězec tiše převedl na Number (čárka se v této lokalitě chová jako
+ * desetinný oddělovač), takže by se při dalším čtení vrátil jako desetinné
+ * číslo s tečkou (např. "6717079.671708") - skupina by se pak tvářila jako
+ * jediný artikl. Nastavení formátu je idempotentní (levné zavolat před
+ * každým zápisem, další volání nic nemění).
+ */
+function rzForceSkupinyCislaTextFormat_(repo) {
+  const sheet = repo.spreadsheet().getSheetByName('skupiny');
+  if (!sheet) return;
+  const col = RZ_SCHEMA.skupiny.indexOf('cisla') + 1;
+  sheet.getRange(2, col, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat('@');
 }
 
 function apiRzDeleteSkupina(id) {
