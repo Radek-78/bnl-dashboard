@@ -1208,6 +1208,34 @@ function rzWriteExportGrid_(sheet, grid, filledCount) {
 }
 
 /**
+ * Nově vytvořený exportní soubor sdílí přesně jako jeho cílová složka -
+ * appka běží jako executeAs: USER_DEPLOYING, takže export vlastní ten, kdo
+ * appku nasadil, ne aktuální uživatel. Nový soubor v Drive automaticky
+ * nezdědí oprávnění složky spolehlivě vždy (záleží na výchozím nastavení
+ * sdílení domény) - proto se oprávnění složky (kromě vlastníka) explicitně
+ * zkopírují na soubor, aby ho viděl každý, kdo vidí složku. Selhání
+ * kopírování jednotlivého oprávnění (nebo celé funkce) export nezablokuje -
+ * jen se nesdílí tak široko, jak by mělo.
+ */
+function rzShareLikeFolder_(fileId, folderId) {
+  try {
+    const list = Drive.Permissions.list(folderId, { fields: 'permissions(type,role,emailAddress,domain,allowFileDiscovery)' });
+    (list.permissions || []).forEach((p) => {
+      if (p.role === 'owner') return;
+      const resource = { type: p.type, role: p.role };
+      if (p.emailAddress) resource.emailAddress = p.emailAddress;
+      if (p.domain) resource.domain = p.domain;
+      if (p.type === 'anyone' && p.allowFileDiscovery != null) resource.allowFileDiscovery = p.allowFileDiscovery;
+      try {
+        Drive.Permissions.create(resource, fileId, { sendNotificationEmail: false });
+      } catch (e) { /* jedno oprávnění se nepodařilo zkopírovat - export tím není blokovaný */ }
+    });
+  } catch (e) {
+    console.error('Sdílení exportního souboru podle složky selhalo: ' + e);
+  }
+}
+
+/**
  * Export hotového rozdělení pro oddělení WB:
  *  1) list "WB" přímo v DB spreadsheetu subaplikace (vedle Artikly/Rozdelovnik/
  *     Odprodeje_WAWI atd.) - přepíše/vytvoří se při každém exportu.
@@ -1256,6 +1284,7 @@ function apiRzExportWb(payload) {
         SpreadsheetApp.flush();
         exportFile = DriveApp.getFileById(exportSs.getId());
         exportFile.moveTo(folder);
+        rzShareLikeFolder_(exportFile.getId(), folderId);
         exportedToFolder = true;
       } catch (e) {
         console.error('Export Google Sheetu do složky Export selhal: ' + e);
@@ -1276,7 +1305,8 @@ function apiRzExportWb(payload) {
           });
           if (response.getResponseCode() !== 200) throw new Error('Export URL vrátila HTTP ' + response.getResponseCode());
           const xlsxBlob = response.getBlob().setName(fileName + '.xlsx');
-          DriveApp.getFolderById(folderId).createFile(xlsxBlob);
+          const xlsxFile = DriveApp.getFolderById(folderId).createFile(xlsxBlob);
+          rzShareLikeFolder_(xlsxFile.getId(), folderId);
         } catch (e) {
           console.error('Export .xlsx do složky Export selhal: ' + e);
           xlsxError = e.message;

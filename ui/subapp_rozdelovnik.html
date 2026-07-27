@@ -302,7 +302,7 @@
         '      </div>' +
         '      <div class="rz-settings-panel" data-settings-panel="soubory">' +
         '        <div class="form form-plain">' +
-        '          <label><span>Složka se zdrojovými soubory (URL nebo ID)</span><input name="syncFolderUrl" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
+        this._folderField('syncFolderUrl', 'Složka se zdrojovými soubory (URL nebo ID)') +
         '          <label><span>Soubor Odprodej — výraz v názvu</span><input name="patternOdprodej" type="text" placeholder="např. odprodej"></label>' +
         '          <label><span>Soubor Teoretické stavy — výraz v názvu</span><input name="patternTeoStavy" type="text" placeholder="např. teo_stavy"></label>' +
         '          <label><span>Soubor Vyskladňovací listy — výraz v názvu</span><input name="patternVyskladnovaciListy" type="text" placeholder="např. vyskladnovaci"></label>' +
@@ -312,21 +312,21 @@
         '      </div>' +
         '      <div class="rz-settings-panel is-hidden" data-settings-panel="informace">' +
         '        <div class="form form-plain">' +
-        '          <label><span>Složka s informacemi o artiklech (URL nebo ID)</span><input name="folderInformaceOArtiklech" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
+        this._folderField('folderInformaceOArtiklech', 'Složka s informacemi o artiklech (URL nebo ID)') +
         '          <label><span>Výraz v názvu souboru</span><input name="patternInformaceOArtiklech" type="text" placeholder="např. informace_o_artiklech"></label>' +
         '          <p class="form-hint">Hledá se soubor, jehož název obsahuje zadaný výraz a zároveň číslo výchozího LC.</p>' +
         '        </div>' +
         '      </div>' +
         '      <div class="rz-settings-panel is-hidden" data-settings-panel="vyrazene">' +
         '        <div class="form form-plain">' +
-        '          <label><span>Složka s vyřazenými artikly (URL nebo ID)</span><input name="folderVyrazeneArtikly" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
+        this._folderField('folderVyrazeneArtikly', 'Složka s vyřazenými artikly (URL nebo ID)') +
         '          <label><span>Výraz v názvu souboru</span><input name="patternVyrazeneArtikly" type="text" placeholder="např. vyrazene_artikly"></label>' +
         '          <p class="form-hint">Jeden soubor pro všechny filiálky (sloupce Short Article a Store, ostatní appka nepoužívá). Přehled, smazání a nahrání souboru je na záložce Artikly - appka ho čte přímo (výsledek se jen krátce cachuje, změna se projeví do pár minut), žádné tlačítko Importovat pro něj není potřeba. Artikl, který je pro danou filiálku v souboru uvedený, se na ni při rozdělování vůbec nepřidělí - stejné tvrdé pravidlo jako u Metropol filiálek.</p>' +
         '        </div>' +
         '      </div>' +
         '      <div class="rz-settings-panel is-hidden" data-settings-panel="export">' +
         '        <div class="form form-plain">' +
-        '          <label><span>Složka pro export rozdělení (URL nebo ID)</span><input name="folderExport" type="text" placeholder="https://drive.google.com/drive/folders/..."></label>' +
+        this._folderField('folderExport', 'Složka pro export rozdělení (URL nebo ID)') +
         '          <p class="form-hint">Sem se bude ukládat vyexportované rozdělení jako .xlsx i jako Google Sheet. Samotný export se dokončí, až bude domluvený formát listu.</p>' +
         '        </div>' +
         '      </div>' +
@@ -396,6 +396,9 @@
           this.container.querySelectorAll('.rz-settings-panel').forEach((p) => p.classList.toggle('is-hidden', p.dataset.settingsPanel !== key));
         });
       });
+      this.container.querySelectorAll('.rz-folder-open').forEach((btn) => {
+        btn.addEventListener('click', () => this.openFolderField(btn.dataset.field));
+      });
       this.container.querySelector('#rzScaleMode').addEventListener('change', (e) => {
         this._toggleScaleMidRow(e.target.value);
         this._renderColorPreview();
@@ -454,6 +457,16 @@
     /** Souhrnný štítek vedle názvu panelu (počet vyplněných řádků, skupin apod.) - informace, kterou by jinak musel uživatel spočítat sám pohledem do tabulky. */
     _panelPill(text) {
       return '<span class="rzr-panel-pill">' + Ui.escape(text) + '</span>';
+    },
+
+    /** Pole pro URL/ID složky v Nastavení - vedle inputu ikona, která otevře danou složku na nové kartě (viz openFolderField). */
+    _folderField(name, labelText) {
+      return '<label><span>' + Ui.escape(labelText) + '</span>' +
+        '<div class="rz-folder-field">' +
+        '<input name="' + name + '" type="text" placeholder="https://drive.google.com/drive/folders/...">' +
+        '<button type="button" class="icon-action rz-folder-open" data-field="' + name + '" title="Otevřít složku"><svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-folder"></use></svg></button>' +
+        '</div>' +
+        '</label>';
     },
 
     renderArtikly(el) {
@@ -2460,6 +2473,24 @@
       Ui.call('apiRzSaveImportTable', { fileKey: key, headers: data.headers, rows: data.rows }, { silent: true, busy: 'Ukládám…' })
         .then(() => Ui.toast('Uloženo.'))
         .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /** Jako rzExtractFolderId_ na serveru - podporuje URL i přímo vložené ID složky. */
+    _extractFolderId(input) {
+      const raw = String(input || '').trim();
+      if (!raw) return null;
+      const match = raw.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) return match[1];
+      if (/^[a-zA-Z0-9_-]{10,}$/.test(raw)) return raw;
+      return null;
+    },
+
+    /** Ikona vedle pole URL/ID složky v Nastavení - otevře danou složku na Disku na nové kartě. */
+    openFolderField(fieldName) {
+      const form = this.container.querySelector('#rzSettingsForm');
+      const folderId = this._extractFolderId(form.elements[fieldName].value);
+      if (!folderId) { Ui.toast('Nejdřív vyplňte platnou složku (URL nebo ID).', 'error'); return; }
+      window.open('https://drive.google.com/drive/folders/' + folderId, '_blank');
     },
 
     openSettings() {
