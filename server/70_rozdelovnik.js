@@ -948,10 +948,12 @@ function apiRzListStores() {
  * Schválně BEZ importu do interní tabulky (na rozdíl od ostatních 4 souborů)
  * - čte se přímo ze zdrojového souboru při každém volání, aby uživatel
  * nemusel nic ručně importovat. Soubor má desítky tisíc řádků, proto se čte
- * celý najednou (ne po řádku na artikl) a výsledek se jen krátce cachuje
- * podle zadané sady čísel - stejný princip jako DB_CACHE_TTL_ v 20_db.js.
- * Složka/vzor v Nastavení jsou nepovinné - dokud nejsou vyplněné, appka
- * žádné vyřazení nevynucuje.
+ * celý najednou (ne po řádku na artikl) a výsledek se jen krátce cachuje -
+ * klíč navíc obsahuje čas poslední úpravy souboru (getLastUpdated), takže se
+ * cache sama zneplatní hned, jakmile se soubor změní (nahrání nové verze
+ * i ruční úprava přímo v Disku), ne až po uplynutí 5 minut. Složka/vzor
+ * v Nastavení jsou nepovinné - dokud nejsou vyplněné, appka žádné vyřazení
+ * nevynucuje.
  */
 function apiRzGetVyrazeneStores(cisla) {
   return rzGuard_(() => {
@@ -959,18 +961,22 @@ function apiRzGetVyrazeneStores(cisla) {
     const wanted = cisla.map((c) => String(c || '').trim()).filter((c) => c);
     if (!wanted.length) return {};
 
-    const cacheKey = 'rz_vyrazene_' + wanted.slice().sort().join(',');
-    try {
-      const hit = CacheService.getScriptCache().get(cacheKey);
-      if (hit) return JSON.parse(hit);
-    } catch (e) { /* cache je jen optimalizace */ }
-
     const settings = rzSettingsAll_();
     const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
     const pattern = settings.patternVyrazeneArtikly || '';
     if (!folderId || !pattern) return {};
     const file = rzFindFileInFolderByName_(folderId, pattern);
     if (!file) return {};
+
+    // Najít soubor ve složce je levné (výpis pár souborů) - jen samotné
+    // přečtení obsahu (desítky tisíc řádků) je drahé, proto je v cache klíči
+    // i čas poslední úpravy: pořád se vyhledá aktuální soubor, ale těžké
+    // čtení/parsování se přeskočí, dokud se soubor opravdu nezmění.
+    const cacheKey = 'rz_vyrazene_' + file.getLastUpdated().getTime() + '_' + wanted.slice().sort().join(',');
+    try {
+      const hit = CacheService.getScriptCache().get(cacheKey);
+      if (hit) return JSON.parse(hit);
+    } catch (e) { /* cache je jen optimalizace */ }
 
     const { headers, rows } = rzReadVyrazeneSourceFile_(file);
     const norm = (h) => String(h || '').trim().toUpperCase();
