@@ -626,6 +626,7 @@ function applyAutoSyncTrigger_(enabled, hour) {
 function apiSaveSyncSettings(payload) {
   return guard_(ROLES.ADMIN, () => {
     settingsSet_('syncFolderUrl', String((payload && payload.syncFolderUrl) || '').trim());
+    settingsSet_('syncFileNamePattern', String((payload && payload.syncFileNamePattern) || '').trim());
     settingsSet_('syncStoresSheet', String((payload && payload.syncStoresSheet) || 'VTBZL_export').trim());
     settingsSet_('syncTempClosedPrefix', String((payload && payload.syncTempClosedPrefix) || 'Dočasné zavření').trim());
 

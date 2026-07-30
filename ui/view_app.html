@@ -384,6 +384,11 @@
                   </div>
                   <button class="button button-secondary button-small write-only" type="button" id="useDefaultSyncFolderBtn" style="margin-top:8px;width:fit-content;">Použít výchozí složku filiálek</button>
                 </label>
+                <label>
+                  <span>Výraz v názvu souboru (nepovinné)</span>
+                  <input name="syncFileNamePattern" type="text" placeholder="např. VTBZL">
+                </label>
+                <small class="form-hint">Appka vybere nejnovější soubor ve složce, jehož název tento výraz obsahuje - jinak (prázdné) vezme nejnovější soubor bez ohledu na název. Vyplňte, pokud ve složce občas leží i jiné soubory.</small>
                 <div class="form-row-2">
                   <label>
                     <span>Název listu — filiálky</span>
@@ -3226,6 +3231,7 @@ _sfState: {},
     fillSyncForm(s) {
       const form = document.querySelector('#syncSettingsForm');
       form.elements.syncFolderUrl.value = s.syncFolderUrl || '';
+      form.elements.syncFileNamePattern.value = s.syncFileNamePattern || '';
       form.elements.syncStoresSheet.value = s.syncStoresSheet || '';
       form.elements.syncTempClosedPrefix.value = s.syncTempClosedPrefix || '';
       form.elements.autoSyncEnabled.value = s.autoSyncEnabled ? 'true' : 'false';
@@ -3283,6 +3289,7 @@ _sfState: {},
       Ui.setButtonLoading(button, true);
       Ui.call('apiSaveSyncSettings', {
         syncFolderUrl: form.elements.syncFolderUrl.value,
+        syncFileNamePattern: form.elements.syncFileNamePattern.value,
         syncStoresSheet: form.elements.syncStoresSheet.value,
         syncTempClosedPrefix: form.elements.syncTempClosedPrefix.value,
         autoSyncEnabled: form.elements.autoSyncEnabled.value === 'true',

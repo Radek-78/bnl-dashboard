@@ -1,7 +1,8 @@
 /**
  * Synchronizace dat filiálek a logistických center z externího souboru (.xlsx nebo Google Sheets).
  *
- * Postup: najde nejnovější tabulkový soubor v zadané Drive složce → zkopíruje jako Google Sheet
+ * Postup: najde nejnovější tabulkový soubor v zadané Drive složce (volitelně jen ty, jejichž
+ * název obsahuje nastavený výraz - viz syncFileNamePattern) → zkopíruje jako Google Sheet
  * (u .xlsx tím proběhne konverze, u už existujícího Sheets souboru jde o obyčejnou kopii)
  * → přečte listy dle konfigurace → porovná s DB → provede INSERT/UPDATE/deaktivaci.
  */
@@ -64,8 +65,8 @@ function autoSyncCheck_() {
     const folderId = extractFolderIdFromUrl_(folderUrl);
     if (!folderId) { autoSyncNoteCheck_('z URL složky nelze rozpoznat ID'); return; }
 
-    const file = findSyncFileInFolder_(folderId);
-    if (!file) { autoSyncNoteCheck_('ve složce není žádný soubor .xlsx ani Google Sheets'); return; }
+    const file = findSyncFileInFolder_(folderId, settings.syncFileNamePattern);
+    if (!file) { autoSyncNoteCheck_('ve složce nebyl nalezen žádný odpovídající soubor .xlsx ani Google Sheets'); return; }
 
     const signature = file.getId() + ':' + file.getLastUpdated().getTime();
     if (signature === settings.syncLastFileSignature) {
@@ -122,8 +123,11 @@ function runSyncCore_(settings, isAuto) {
   const folderId = extractFolderIdFromUrl_(folderUrl);
   if (!folderId) throw new Error('Z URL složky se nepodařilo rozpoznat ID. Použijte URL ve tvaru https://drive.google.com/drive/folders/...');
 
-  const xlsxFile = findSyncFileInFolder_(folderId);
-  if (!xlsxFile) throw new Error('Ve složce nebyl nalezen žádný soubor .xlsx ani Google Sheets.');
+  const xlsxFile = findSyncFileInFolder_(folderId, settings.syncFileNamePattern);
+  if (!xlsxFile) {
+    throw new Error('Ve složce nebyl nalezen žádný soubor .xlsx ani Google Sheets'
+      + (settings.syncFileNamePattern ? ' odpovídající výrazu "' + settings.syncFileNamePattern + '".' : '.'));
+  }
 
   let ss;
   let tempSheetId = null;
@@ -353,16 +357,23 @@ function extractFolderIdFromUrl_(url) {
   return match ? match[1] : null;
 }
 
-/** Vrátí nejnovější tabulkový soubor (.xlsx nebo Google Sheets) ve složce nebo null. */
-function findSyncFileInFolder_(folderId) {
+/**
+ * Vrátí nejnovější tabulkový soubor (.xlsx nebo Google Sheets) ve složce nebo
+ * null. Je-li zadaný namePattern, bere v potaz jen soubory, jejichž název ho
+ * obsahuje (bez ohledu na velikost písmen) - jinak (prázdné/nezadané) vybere
+ * nejnovější soubor bez ohledu na název, jak appka fungovala dřív.
+ */
+function findSyncFileInFolder_(folderId, namePattern) {
   try {
     const folder = DriveApp.getFolderById(folderId);
+    const needle = String(namePattern || '').trim().toLowerCase();
     let newest = null;
     let newestDate = null;
     [MimeType.MICROSOFT_EXCEL, MimeType.GOOGLE_SHEETS].forEach((mimeType) => {
       const files = folder.getFilesByType(mimeType);
       while (files.hasNext()) {
         const file = files.next();
+        if (needle && file.getName().toLowerCase().indexOf(needle) === -1) continue;
         const date = file.getLastUpdated();
         if (!newestDate || date > newestDate) { newest = file; newestDate = date; }
       }
