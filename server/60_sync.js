@@ -135,7 +135,10 @@ function runSyncCore_(settings, isAuto) {
     const scriptFolder = scriptFolder_();
     const copyMeta = { name: '__sync_tmp__', mimeType: 'application/vnd.google-apps.spreadsheet' };
     if (scriptFolder) copyMeta.parents = [scriptFolder.getId()];
-    const copy = Drive.Files.copy(copyMeta, xlsxFile.getId());
+    // supportsAllDrives: soubor může ležet ve sdíleném disku (Shared Drive) - bez
+    // tohoto parametru Drive.Files.copy hlásí "File not found", i když DriveApp
+    // stejný soubor bez problémů najde (stejná oprava jako v 70_rozdelovnik.js, v3.1.53).
+    const copy = Drive.Files.copy(copyMeta, xlsxFile.getId(), { supportsAllDrives: true });
     tempSheetId = copy.id;
     ss = SpreadsheetApp.openById(tempSheetId);
   } catch (e) {
