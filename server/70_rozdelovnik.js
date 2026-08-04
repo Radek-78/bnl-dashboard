@@ -785,7 +785,10 @@ function rzOpenInfoArtiklechSheet_(file) {
   // Stará dočasná kopie (pokud existuje) se smaže, ať se nehromadí v Disku.
   // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
   // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
-  if (cachedId) { try { Drive.Files.remove(cachedId, { supportsAllDrives: true }); } catch (e) { /* není kritické */ } }
+  if (cachedId) {
+    try { Drive.Files.remove(cachedId, { supportsAllDrives: true }); }
+    catch (e) { console.error('Smazání dočasné kopie ' + cachedId + ' selhalo: ' + e); }
+  }
 
   const scriptFolder = scriptFolder_();
   const copyMeta = { name: '__rz_lookup_tmp__', mimeType: 'application/vnd.google-apps.spreadsheet' };
@@ -1185,7 +1188,10 @@ function rzReadSourceFile_(file) {
   } finally {
     // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
     // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
-    if (tempSheetId) { try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); } catch (_) { /* dočasný soubor, chyba mazání není kritická */ } }
+    if (tempSheetId) {
+      try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); }
+      catch (e) { console.error('Smazání dočasné kopie ' + tempSheetId + ' selhalo: ' + e); }
+    }
   }
 }
 

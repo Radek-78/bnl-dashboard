@@ -89,7 +89,11 @@ function apiFindMissingLcInFile() {
     } finally {
       // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
       // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
-      if (tempSheetId) { try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); } catch (_) {} }
+      // Chyba se loguje (dřív byla tiše polykaná), ať je při dalším selhání vidět proč.
+      if (tempSheetId) {
+        try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); }
+        catch (e) { console.error('Smazání dočasné kopie ' + tempSheetId + ' selhalo: ' + e); }
+      }
     }
 
     const known = new Set(dbGetAll_(SHEETS.LOGISTICS).map((lc) => String(lc.name || '').trim().toLowerCase()));
@@ -208,8 +212,11 @@ function runSyncCore_(settings, isAuto) {
   } finally {
     // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
     // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
+    // Chyba se loguje (dřív byla tiše polykaná) - dočasný soubor bez úspěšného
+    // smazání by jinak zůstal v Disku a nikde by se nevědělo proč.
     if (tempSheetId) {
-      try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); } catch (_) {}
+      try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); }
+      catch (e) { console.error('Smazání dočasné kopie ' + tempSheetId + ' selhalo: ' + e); }
     }
   }
 
