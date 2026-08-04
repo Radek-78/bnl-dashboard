@@ -1,18 +1,25 @@
 /**
- * Synchronizace dat filiálek a logistických center z externího souboru (.xlsx nebo Google Sheets).
+ * Synchronizace dat filiálek z externího souboru (.xlsx nebo Google Sheets).
  *
  * Postup: najde nejnovější tabulkový soubor v zadané Drive složce (volitelně jen ty, jejichž
  * název obsahuje nastavený výraz - viz syncFileNamePattern) → zkopíruje jako Google Sheet
  * (u .xlsx tím proběhne konverze, u už existujícího Sheets souboru jde o obyčejnou kopii)
- * → přečte listy dle konfigurace → porovná s DB → provede INSERT/UPDATE/deaktivaci.
+ * → přečte list "Organizace_Detail" (filiálky) a "Zavrene_Openings" (dočasná uzavření)
+ * → porovná s DB → provede INSERT/UPDATE/deaktivaci.
+ *
+ * Sloupec LC nese v souboru celý název logistického centra (např. "Brandýs nad Labem"),
+ * ne zkratku — sync ho páruje na existující záznam v Log. centrech podle názvu. Filiálka,
+ * jejíž LC název nejde spárovat, se v daném běhu přeskočí a nahlásí jako chyba (nic se
+ * u ní nezmění).
  */
 
 const STORES_COL_MAP = {
-  'Č.prodejny':       'code',
+  'Číslo':            'code',
   'Název':            'name',
-  'LC':               'lc_code',
+  'LC':               'lc_name',
   'Telefon prodejny': 'phone',
   'VT':               'area_manager',
+  'Telefon VT':       'vt_phone',
   'RM':               'regional_manager',
   'Telefon RM':       'rm_phone',
   'Pondělí otevřeno': 'mon_open',
@@ -41,6 +48,51 @@ function apiRunSync() {
       ' | Filiálky: +' + result.stores.added + ' u' + result.stores.updated + ' d' + result.stores.deactivated
     );
     return result;
+  });
+}
+
+/**
+ * Přečte z aktuálně nakonfigurovaného zdrojového souboru všechny názvy LC ve
+ * sloupci LC a vrátí ty, které zatím nemají záznam v Log. centrech. Používá
+ * tlačítko "Doplnit LC ze souboru" — nic nezapisuje do DB.
+ */
+function apiFindMissingLcInFile() {
+  return guard_(ROLES.ADMIN, () => {
+    const settings = settingsAll_();
+    const folderUrl = settings.syncFolderUrl || '';
+    if (!folderUrl) throw new Error('Není nastavena URL složky. Vyplňte ji v sekci Synchronizace.');
+    const folderId = extractFolderIdFromUrl_(folderUrl);
+    if (!folderId) throw new Error('Z URL složky se nepodařilo rozpoznat ID.');
+
+    const file = findSyncFileInFolder_(folderId, settings.syncFileNamePattern);
+    if (!file) {
+      throw new Error('Ve složce nebyl nalezen žádný soubor .xlsx ani Google Sheets'
+        + (settings.syncFileNamePattern ? ' odpovídající výrazu "' + settings.syncFileNamePattern + '".' : '.'));
+    }
+
+    const storesSheetName = settings.syncStoresSheet || 'Organizace_Detail';
+    let tempSheetId = null;
+    let names = [];
+    try {
+      const scriptFolder = scriptFolder_();
+      const copyMeta = { name: '__sync_lc_tmp__', mimeType: 'application/vnd.google-apps.spreadsheet' };
+      if (scriptFolder) copyMeta.parents = [scriptFolder.getId()];
+      const copy = Drive.Files.copy(copyMeta, file.getId(), { supportsAllDrives: true });
+      tempSheetId = copy.id;
+      const ss = SpreadsheetApp.openById(tempSheetId);
+      const sheet = ss.getSheetByName(storesSheetName);
+      if (!sheet) throw new Error('List "' + storesSheetName + '" nebyl v souboru nalezen.');
+      const rows = parseSheetRows_(sheet, STORES_COL_MAP);
+      const seen = new Set();
+      rows.forEach((r) => { const name = String(r.lc_name || '').trim(); if (name) seen.add(name); });
+      names = [...seen];
+    } finally {
+      if (tempSheetId) { try { Drive.Files.remove(tempSheetId); } catch (_) {} }
+    }
+
+    const known = new Set(dbGetAll_(SHEETS.LOGISTICS).map((lc) => String(lc.name || '').trim().toLowerCase()));
+    const missing = names.filter((n) => !known.has(n.toLowerCase())).sort((a, b) => a.localeCompare(b, 'cs'));
+    return { missing: missing };
   });
 }
 
@@ -167,28 +219,29 @@ function runSyncCore_(settings, isAuto) {
 function syncStores_(ss, settings) {
   dbEnsureSchema_(dbSpreadsheet_());
 
-  const mainSheetName = settings.syncStoresSheet || 'VTBZL_export';
-  const tempPrefix    = settings.syncTempClosedPrefix || 'Dočasné zavření';
+  const mainSheetName = settings.syncStoresSheet || 'Organizace_Detail';
+  const closuresSheetName = settings.syncClosuresSheet || 'Zavrene_Openings';
 
   const sheet1 = ss.getSheetByName(mainSheetName);
   if (!sheet1) throw new Error('List "' + mainSheetName + '" nebyl v souboru nalezen.');
 
-  const sheet2 = ss.getSheets().find((s) => s.getName().startsWith(tempPrefix)) || null;
-
   const mainRows = parseSheetRows_(sheet1, STORES_COL_MAP);
-  const tempRows = sheet2 ? parseSheetRows_(sheet2, STORES_COL_MAP) : [];
-
-  // Mapa: code → data (hlavní list je autoritativní zdroj dat)
   const xlsxMap = new Map(mainRows.map((r) => [r.code, r]));
 
-  // Filiálky jen na listu "Dočasné zavření" (nejsou v hlavním listu)
-  tempRows.forEach((r) => { if (!xlsxMap.has(r.code)) xlsxMap.set(r.code, r); });
+  // Mapa LC: název (malými, trimovaný) → zkratka. Zdroj nese jen celý název LC.
+  const lcByName = {};
+  dbGetAll_(SHEETS.LOGISTICS).forEach((lc) => {
+    const key = String(lc.name || '').trim().toLowerCase();
+    if (key) lcByName[key] = lc.abbreviation;
+  });
+  const resolveLc_ = (xlsxRow) => lcByName[String(xlsxRow.lc_name || '').trim().toLowerCase()] || null;
 
   const currentRecords = dbGetAll_(SHEETS.STORES);
 
   const CHANGES_LIMIT = 50;
   const stats = { added: 0, updated: 0, deactivated: 0, reactivated: 0, unchanged: 0, errors: [],
-                  changes: { added: [], updated: [], deactivated: [], reactivated: [] } };
+                  changes: { added: [], updated: [], deactivated: [], reactivated: [] },
+                  closuresAdded: 0, closuresSheetFound: false };
   const now = nowIso_();
   const newRecords = [];
 
@@ -205,41 +258,55 @@ function syncStores_(ss, settings) {
         newRecords.push(existing);
         stats.unchanged++;
       }
+      return;
+    }
+
+    const xlsxRow = xlsxMap.get(codeKey);
+    xlsxMap.delete(codeKey);
+    const lcAbbr = resolveLc_(xlsxRow);
+    if (!lcAbbr) {
+      stats.errors.push('Filiálka ' + codeKey + ' (' + (xlsxRow.name || existing.name || '') + '): LC "' + (xlsxRow.lc_name || '') + '" nenalezeno v Log. centrech — filiálka nebyla v tomto běhu aktualizována.');
+      newRecords.push(existing); // beze změny, žádné riziko ztráty dat kvůli nerozpoznanému LC
+      stats.unchanged++;
+      return;
+    }
+
+    const patch = buildStorePatch_(xlsxRow, now, existing, lcAbbr);
+
+    if (existing.manually_inactive === true) {
+      // Ručně deaktivovaná filiálka — sync ji neaktivuje zpět
+      newRecords.push(Object.assign({}, existing, patch, { active: false, manually_inactive: true }));
+      stats.unchanged++;
     } else {
-      const xlsxRow = xlsxMap.get(codeKey);
-      const patch = buildStorePatch_(xlsxRow, now, existing);
+      const changedFields = storeChangedFields_(existing, patch);
+      const wasInactive = existing.active !== true;
 
-      if (existing.manually_inactive === true) {
-        // Ručně deaktivovaná filiálka — sync ji neaktivuje zpět
-        newRecords.push(Object.assign({}, existing, patch, { active: false, manually_inactive: true }));
-        stats.unchanged++;
-      } else {
-        const changedFields = storeChangedFields_(existing, patch);
-        const wasInactive = existing.active !== true;
-
-        if (changedFields.length > 0 || wasInactive) {
-          newRecords.push(Object.assign({}, existing, patch));
-          if (wasInactive) {
-            stats.reactivated++;
-            if (stats.changes.reactivated.length < CHANGES_LIMIT)
-              stats.changes.reactivated.push({ code: existing.code, name: patch.name || existing.name });
-          } else {
-            stats.updated++;
-            if (stats.changes.updated.length < CHANGES_LIMIT)
-              stats.changes.updated.push({ code: existing.code, name: patch.name || existing.name, fields: changedFields });
-          }
+      if (changedFields.length > 0 || wasInactive) {
+        newRecords.push(Object.assign({}, existing, patch));
+        if (wasInactive) {
+          stats.reactivated++;
+          if (stats.changes.reactivated.length < CHANGES_LIMIT)
+            stats.changes.reactivated.push({ code: existing.code, name: patch.name || existing.name });
         } else {
-          newRecords.push(existing);
-          stats.unchanged++;
+          stats.updated++;
+          if (stats.changes.updated.length < CHANGES_LIMIT)
+            stats.changes.updated.push({ code: existing.code, name: patch.name || existing.name, fields: changedFields });
         }
+      } else {
+        newRecords.push(existing);
+        stats.unchanged++;
       }
-      xlsxMap.delete(codeKey);
     }
   });
 
   // Nové záznamy z xlsx (nezpracované = nebyly v DB)
   xlsxMap.forEach((xlsxRow, code) => {
-    newRecords.push(Object.assign(buildStorePatch_(xlsxRow, now), {
+    const lcAbbr = resolveLc_(xlsxRow);
+    if (!lcAbbr) {
+      stats.errors.push('Filiálka ' + code + ' (' + (xlsxRow.name || '') + '): LC "' + (xlsxRow.lc_name || '') + '" nenalezeno v Log. centrech — filiálka nebyla založena.');
+      return;
+    }
+    newRecords.push(Object.assign(buildStorePatch_(xlsxRow, now, null, lcAbbr), {
       id: uuid_(),
       created_at: now,
       created_by: currentEmail_() || 'sync',
@@ -249,6 +316,27 @@ function syncStores_(ss, settings) {
     if (stats.changes.added.length < CHANGES_LIMIT)
       stats.changes.added.push({ code, name: xlsxRow.name || '' });
   });
+
+  // Dočasná uzavření z listu Zavrene_Openings — jen doplňují chybějící rozsahy,
+  // ruční zadání v appce se nikdy nemaže ani nepřepisuje.
+  const sheet2 = ss.getSheetByName(closuresSheetName);
+  if (sheet2) {
+    stats.closuresSheetFound = true;
+    const closureRows = parseClosuresRows_(sheet2);
+    const closuresByCode = {};
+    closureRows.forEach((r) => { (closuresByCode[r.code] = closuresByCode[r.code] || []).push({ from: r.from, to: r.to }); });
+
+    newRecords.forEach((rec) => {
+      const ranges = closuresByCode[String(rec.code)];
+      if (!ranges) return;
+      const merged = mergeClosureRanges_(rec.temp_closed_ranges, ranges);
+      if (merged.added > 0) {
+        rec.temp_closed_ranges = JSON.stringify(merged.ranges);
+        rec.temporarily_closed = isTempClosedNow_(rec);
+        stats.closuresAdded += merged.added;
+      }
+    });
+  }
 
   dbBatchReplace_(SHEETS.STORES, newRecords);
   return stats;
@@ -261,11 +349,21 @@ const HOUR_FIELDS_ = [
   'thu_open','thu_close','fri_open','fri_close','sat_open','sat_close','sun_open','sun_close',
 ];
 
-function buildStorePatch_(xlsxRow, now, existing) {
-  const NON_HOUR_FIELDS = ['code','name','lc_code','phone','area_manager','regional_manager','rm_phone'];
-  // temporarily_closed je computed z temp_closed_ranges — sync ho nepřebírá z xlsx
-  const patch = { temporarily_closed: existing ? isTempClosedNow_(existing) : false, active: true, synced_at: now, updated_at: now };
-  NON_HOUR_FIELDS.forEach((f) => { patch[f] = xlsxRow[f] !== undefined ? xlsxRow[f] : ''; });
+/**
+ * Sestaví patch pro jednu filiálku. lcAbbr je už vyřešená zkratka LC (viz
+ * resolveLc_ v syncStores_) — sem přichází vždy platná, jinak se řádek
+ * nezpracovává vůbec. Pokud má některé pole v xlsx řádku prázdnou hodnotu
+ * (např. sloupec chybí nebo je buňka prázdná), sync ho nepřepíše prázdnem —
+ * ponechá se stávající hodnota z DB.
+ */
+function buildStorePatch_(xlsxRow, now, existing, lcAbbr) {
+  const NON_HOUR_FIELDS = ['code', 'name', 'phone', 'area_manager', 'vt_phone', 'regional_manager', 'rm_phone'];
+  const patch = { temporarily_closed: existing ? isTempClosedNow_(existing) : false, active: true, synced_at: now, updated_at: now, lc_code: lcAbbr };
+  NON_HOUR_FIELDS.forEach((f) => {
+    const xlsxVal = xlsxRow[f] !== undefined ? xlsxRow[f] : '';
+    const dbVal = existing ? (existing[f] || '') : '';
+    patch[f] = xlsxVal || dbVal;
+  });
   // Otevírací doby: přepsat jen pokud xlsx má hodnotu NEBO DB ji dosud nemá
   HOUR_FIELDS_.forEach((f) => {
     const xlsxVal = xlsxRow[f] !== undefined ? xlsxRow[f] : '';
@@ -276,14 +374,14 @@ function buildStorePatch_(xlsxRow, now, existing) {
 }
 
 const STORE_DIFF_FIELDS = [
-  'name','lc_code','phone','area_manager','regional_manager','rm_phone',
+  'name','lc_code','phone','area_manager','vt_phone','regional_manager','rm_phone',
   'mon_open','mon_close','tue_open','tue_close','wed_open','wed_close',
   'thu_open','thu_close','fri_open','fri_close','sat_open','sat_close','sun_open','sun_close',
 ];
 
 const STORE_FIELD_LABELS = {
   name: 'Název', lc_code: 'LC', phone: 'Telefon prodejny',
-  area_manager: 'VT', regional_manager: 'RM', rm_phone: 'Telefon RM',
+  area_manager: 'VT', vt_phone: 'Telefon VT', regional_manager: 'RM', rm_phone: 'Telefon RM',
   mon_open: 'Po otevřeno', mon_close: 'Po zavřeno',
   tue_open: 'Út otevřeno', tue_close: 'Út zavřeno',
   wed_open: 'St otevřeno', wed_close: 'St zavřeno',
@@ -304,6 +402,13 @@ function storeChangedFields_(existing, patch) {
   return result;
 }
 
+/** Vrátí trimovaná záhlaví z prvního řádku listu. */
+function readSheetHeaders_(sheet) {
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return [];
+  return sheet.getRange(1, 1, 1, lastCol).getValues()[0].map((h) => String(h).trim());
+}
+
 /**
  * Přečte list tabulky a vrátí pole objektů namapovaných přes colMap.
  * Záhlaví je na řádku 1 (trimované). Prázdné řádky (bez code) jsou přeskočeny.
@@ -312,8 +417,7 @@ function parseSheetRows_(sheet, colMap) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   const lastCol = sheet.getLastColumn();
-  const rawHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  const headers = rawHeaders.map((h) => String(h).trim());
+  const headers = readSheetHeaders_(sheet);
 
   // Index každého cílového pole
   const colIndices = {};
@@ -335,6 +439,46 @@ function parseSheetRows_(sheet, colMap) {
 }
 
 /**
+ * Přečte list "Zavrene_Openings": číslo filiálky + rozsah dočasného uzavření
+ * (Od/Do). Řádek bez rozpoznaného čísla nebo obou dat se přeskočí.
+ */
+function parseClosuresRows_(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const lastCol = sheet.getLastColumn();
+  const headers = readSheetHeaders_(sheet);
+  const idx = { code: headers.indexOf('Číslo'), from: headers.indexOf('Od'), to: headers.indexOf('Do') };
+  if (idx.code === -1 || idx.from === -1 || idx.to === -1) return [];
+
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  return data
+    .map((row) => ({
+      code: formatCellValue_(row[idx.code]),
+      from: formatDateCellValue_(row[idx.from]),
+      to: formatDateCellValue_(row[idx.to]),
+    }))
+    .filter((r) => r.code && r.from && r.to);
+}
+
+/**
+ * Sloučí nové rozsahy uzavření do stávajících (jako string JSON pole).
+ * Přidává jen rozsahy, které tam ještě přesně (from+to) nejsou — ruční
+ * zadání se nikdy neodstraňuje ani nepřepisuje.
+ */
+function mergeClosureRanges_(existingRangesJson, newRanges) {
+  let existing = [];
+  try { existing = existingRangesJson ? JSON.parse(existingRangesJson) : []; } catch (e) { existing = []; }
+  if (!Array.isArray(existing)) existing = [];
+  const known = new Set(existing.map((r) => r.from + '|' + r.to));
+  let added = 0;
+  newRanges.forEach((r) => {
+    const key = r.from + '|' + r.to;
+    if (!known.has(key)) { existing.push({ from: r.from, to: r.to }); known.add(key); added++; }
+  });
+  return { ranges: existing, added: added };
+}
+
+/**
  * Převede hodnotu buňky na string.
  * Časové buňky (h:mm) GAS vrací jako Date s datem 30.12.1899 — formátujeme jako "H:mm".
  */
@@ -352,6 +496,20 @@ function formatCellValue_(val) {
   const timeMatch = str.match(/^(\d{1,2}):(\d{2})$/);
   if (timeMatch) return parseInt(timeMatch[1], 10) + ':' + timeMatch[2];
   return str;
+}
+
+/** Buňka se skutečným kalendářním datem (Od/Do) → 'yyyy-MM-dd', nebo '' když nejde rozpoznat. */
+function formatDateCellValue_(val) {
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  const str = (val !== undefined && val !== null) ? String(val).trim() : '';
+  if (!str) return '';
+  const iso = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  const cz = str.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})$/);
+  if (cz) return cz[3] + '-' + cz[2].padStart(2, '0') + '-' + cz[1].padStart(2, '0');
+  return '';
 }
 
 /** Extrahuje ID složky z Google Drive URL. */

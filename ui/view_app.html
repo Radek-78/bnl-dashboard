@@ -392,11 +392,11 @@
                 <div class="form-row-2">
                   <label>
                     <span>Název listu — filiálky</span>
-                    <input name="syncStoresSheet" type="text" placeholder="VTBZL_export">
+                    <input name="syncStoresSheet" type="text" placeholder="Organizace_Detail">
                   </label>
                   <label>
-                    <span>Prefix listu — dočasné zavření</span>
-                    <input name="syncTempClosedPrefix" type="text" placeholder="Dočasné zavření">
+                    <span>Název listu — dočasná uzavření</span>
+                    <input name="syncClosuresSheet" type="text" placeholder="Zavrene_Openings">
                   </label>
                 </div>
                 <div class="form-row-2">
@@ -622,7 +622,7 @@
     <button class="modal-close" type="button" id="closeBulkLogisticModal" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>
   </div>
   <div class="modal-body">
-    <p class="form-hint" style="margin:0 0 12px">Ve filiálkách byly nalezeny zkratky LC bez vlastního záznamu. Doplň číslo a název — zkratku už známe ze souboru.</p>
+    <p class="form-hint" style="margin:0 0 12px">Ve zdrojovém souboru byla nalezena LC bez vlastního záznamu. Doplň číslo a zkratku — název už známe ze souboru.</p>
     <div class="table-wrap">
       <table>
         <thead>
@@ -2543,7 +2543,7 @@ _sfState: {},
       // id = null → nová filiálka (prázdný formulář)
       const store = id
         ? this.stores.find((s) => s.id === id)
-        : { id: '', code: '', name: '', lc_code: '', phone: '', area_manager: '', regional_manager: '', rm_phone: '', active: true, metropolitni: false, temp_closed_ranges: '' };
+        : { id: '', code: '', name: '', lc_code: '', phone: '', area_manager: '', vt_phone: '', regional_manager: '', rm_phone: '', active: true, metropolitni: false, temp_closed_ranges: '' };
       if (!store) return;
       if (!id && !this.hasStoresWrite) return;
       this._smStore = store;
@@ -2648,6 +2648,7 @@ _sfState: {},
           <div class="sm-card-body">
             <div class="sm-field-row">
               ${textField('VT', 'area_manager', ' sm-field--wide')}
+              ${textField('Telefon VT', 'vt_phone')}
             </div>
           </div>
         </div>
@@ -3148,41 +3149,35 @@ _sfState: {},
       BRV: { code: '11', name: 'Bravantice' },
     },
 
-    /** Zkratky LC nalezené ve filiálkách, které zatím nemají vlastní záznam v Log. centrech. */
-    _missingLogisticAbbreviations() {
-      const known = new Set((this.logistics || []).map((lc) => String(lc.abbreviation || '').trim().toUpperCase()));
-      const found = new Set();
-      (this.stores || []).forEach((s) => {
-        const abbr = String(s.lc_code || '').trim().toUpperCase();
-        if (abbr && !known.has(abbr)) found.add(abbr);
-      });
-      return [...found].sort();
+    /** Najde v KNOWN_LOGISTICS záznam podle názvu (obráceně k běžnému klíčování podle zkratky). */
+    _knownLogisticByName(name) {
+      const needle = String(name || '').trim().toLowerCase();
+      const abbr = Object.keys(this.KNOWN_LOGISTICS).find(
+        (a) => this.KNOWN_LOGISTICS[a].name.trim().toLowerCase() === needle
+      );
+      return abbr ? Object.assign({ abbreviation: abbr }, this.KNOWN_LOGISTICS[abbr]) : null;
     },
 
+    /** Najde zdrojový soubor (dle uložené konfigurace) a otevře modal s LC, která v něm chybí. */
     openBulkLogisticModal() {
-      if (!this.stores.length) {
-        Ui.call('apiListStores', null, { silent: true, busy: 'Načítám filiálky…' })
-          .then((stores) => { this.stores = stores || []; this._openBulkLogisticModalReady(); })
-          .catch((e) => Ui.toast(e.message, 'error'));
-        return;
-      }
-      this._openBulkLogisticModalReady();
+      Ui.call('apiFindMissingLcInFile', null, { silent: true, busy: 'Hledám chybějící LC ve zdrojovém souboru…' })
+        .then((res) => this._openBulkLogisticModalReady(res.missing || []))
+        .catch((e) => Ui.toast(e.message, 'error'));
     },
 
-    _openBulkLogisticModalReady() {
-      const missing = this._missingLogisticAbbreviations();
+    _openBulkLogisticModalReady(missing) {
       if (!missing.length) {
-        Ui.toast('Všechny LC ze souboru už mají svůj záznam.');
+        Ui.toast('Všechna LC ze zdrojového souboru už mají svůj záznam.');
         return;
       }
-      document.querySelector('#bulkLogisticRows').innerHTML = missing.map((abbr, i) => {
-        const known = this.KNOWN_LOGISTICS[abbr];
+      document.querySelector('#bulkLogisticRows').innerHTML = missing.map((name, i) => {
+        const known = this._knownLogisticByName(name);
         return `
         <tr>
           <td style="text-align:center"><input type="checkbox" class="bulk-lc-use" data-idx="${i}" checked></td>
           <td><input class="sm-input" data-idx="${i}" data-bulk-field="code" placeholder="5" value="${Ui.escape(known ? known.code : '')}"></td>
-          <td><strong>${Ui.escape(abbr)}</strong><input type="hidden" data-idx="${i}" data-bulk-field="abbreviation" value="${Ui.escape(abbr)}"></td>
-          <td><input class="sm-input" data-idx="${i}" data-bulk-field="name" placeholder="Brandýs nad Labem" value="${Ui.escape(known ? known.name : '')}"></td>
+          <td><input class="sm-input" data-idx="${i}" data-bulk-field="abbreviation" placeholder="BZL" value="${Ui.escape(known ? known.abbreviation : '')}"></td>
+          <td><strong>${Ui.escape(name)}</strong><input type="hidden" data-idx="${i}" data-bulk-field="name" value="${Ui.escape(name)}"></td>
           <td style="text-align:center"><input type="checkbox" data-idx="${i}" data-bulk-field="active" checked></td>
         </tr>`;
       }).join('');
@@ -3200,8 +3195,8 @@ _sfState: {},
         rows.push(row);
       });
       if (!rows.length) { Ui.toast('Nevybrali jste žádné LC k vytvoření.', 'error'); return; }
-      const missingFields = rows.some((r) => !r.code || !r.name);
-      if (missingFields) { Ui.toast('U vybraných LC vyplňte číslo i název.', 'error'); return; }
+      const missingFields = rows.some((r) => !r.code || !r.abbreviation);
+      if (missingFields) { Ui.toast('U vybraných LC vyplňte číslo i zkratku.', 'error'); return; }
 
       Ui.closeModal(document.querySelector('#bulkLogisticModal'));
       Ui.call('apiBulkCreateLogistics', rows, { silent: true, busy: 'Vytvářím logistická centra…' })
@@ -3233,7 +3228,7 @@ _sfState: {},
       form.elements.syncFolderUrl.value = s.syncFolderUrl || '';
       form.elements.syncFileNamePattern.value = s.syncFileNamePattern || '';
       form.elements.syncStoresSheet.value = s.syncStoresSheet || '';
-      form.elements.syncTempClosedPrefix.value = s.syncTempClosedPrefix || '';
+      form.elements.syncClosuresSheet.value = s.syncClosuresSheet || '';
       form.elements.autoSyncEnabled.value = s.autoSyncEnabled ? 'true' : 'false';
       form.elements.autoSyncHour.value = String(s.autoSyncHour ?? 3);
       const lastCheck = document.querySelector('#autoSyncLastCheck');
@@ -3291,7 +3286,7 @@ _sfState: {},
         syncFolderUrl: form.elements.syncFolderUrl.value,
         syncFileNamePattern: form.elements.syncFileNamePattern.value,
         syncStoresSheet: form.elements.syncStoresSheet.value,
-        syncTempClosedPrefix: form.elements.syncTempClosedPrefix.value,
+        syncClosuresSheet: form.elements.syncClosuresSheet.value,
         autoSyncEnabled: form.elements.autoSyncEnabled.value === 'true',
         autoSyncHour: parseInt(form.elements.autoSyncHour.value, 10),
       }, { silent: true, busy: 'Ukládám konfiguraci…' })

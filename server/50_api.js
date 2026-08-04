@@ -49,8 +49,9 @@ function apiGetBootstrap() {
       data.settings = s;
       data.syncSettings = {
         syncFolderUrl: s.syncFolderUrl || '',
-        syncStoresSheet: s.syncStoresSheet || 'VTBZL_export',
-        syncTempClosedPrefix: s.syncTempClosedPrefix || 'Dočasné zavření',
+        syncFileNamePattern: s.syncFileNamePattern || '',
+        syncStoresSheet: s.syncStoresSheet || 'Organizace_Detail',
+        syncClosuresSheet: s.syncClosuresSheet || 'Zavrene_Openings',
         autoSyncEnabled: s.autoSyncEnabled === true || s.autoSyncEnabled === 'true',
         autoSyncHour: s.autoSyncHour !== undefined && s.autoSyncHour !== '' ? Number(s.autoSyncHour) : 3,
         autoSyncLastCheckAt: s.autoSyncLastCheckAt || null,
@@ -327,6 +328,7 @@ function apiSaveStore(payload) {
       lc_code: lc_code,
       phone: String((payload && payload.phone) || '').trim(),
       area_manager: String((payload && payload.area_manager) || '').trim(),
+      vt_phone: String((payload && payload.vt_phone) || '').trim(),
       regional_manager: String((payload && payload.regional_manager) || '').trim(),
       rm_phone: String((payload && payload.rm_phone) || '').trim(),
       temporarily_closed: payload && payload.temporarily_closed === true,
@@ -600,8 +602,9 @@ function apiGetSyncSettings() {
     const s = settingsAll_();
     return {
       syncFolderUrl: s.syncFolderUrl || '',
-      syncStoresSheet: s.syncStoresSheet || 'VTBZL_export',
-      syncTempClosedPrefix: s.syncTempClosedPrefix || 'Dočasné zavření',
+      syncFileNamePattern: s.syncFileNamePattern || '',
+      syncStoresSheet: s.syncStoresSheet || 'Organizace_Detail',
+      syncClosuresSheet: s.syncClosuresSheet || 'Zavrene_Openings',
       autoSyncEnabled: s.autoSyncEnabled === true || s.autoSyncEnabled === 'true',
       autoSyncHour: s.autoSyncHour !== undefined && s.autoSyncHour !== '' ? Number(s.autoSyncHour) : 3,
       autoSyncLastCheckAt: s.autoSyncLastCheckAt || null,
@@ -627,8 +630,8 @@ function apiSaveSyncSettings(payload) {
   return guard_(ROLES.ADMIN, () => {
     settingsSet_('syncFolderUrl', String((payload && payload.syncFolderUrl) || '').trim());
     settingsSet_('syncFileNamePattern', String((payload && payload.syncFileNamePattern) || '').trim());
-    settingsSet_('syncStoresSheet', String((payload && payload.syncStoresSheet) || 'VTBZL_export').trim());
-    settingsSet_('syncTempClosedPrefix', String((payload && payload.syncTempClosedPrefix) || 'Dočasné zavření').trim());
+    settingsSet_('syncStoresSheet', String((payload && payload.syncStoresSheet) || 'Organizace_Detail').trim());
+    settingsSet_('syncClosuresSheet', String((payload && payload.syncClosuresSheet) || 'Zavrene_Openings').trim());
 
     const autoSyncEnabled = !!(payload && payload.autoSyncEnabled);
     const autoSyncHour = Math.min(23, Math.max(0, parseInt(payload && payload.autoSyncHour, 10) || 0));
@@ -660,7 +663,7 @@ function apiSaveSyncSettings(payload) {
  * to omezí na jednou za běh skriptu, CacheService pak i napříč requesty.
  */
 let dbSchemaEnsuredThisRun_ = false;
-const SCHEMA_CHECK_CACHE_KEY_ = 'schema:checked:2'; // změna klíče vynutí novou kontrolu po přidání sloupce
+const SCHEMA_CHECK_CACHE_KEY_ = 'schema:checked:3'; // změna klíče vynutí novou kontrolu po přidání sloupce
 const SCHEMA_CHECK_TTL_ = 1800; // sekund
 
 function dbEnsureApps_() {

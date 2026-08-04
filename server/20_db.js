@@ -18,7 +18,7 @@ const DB_SCHEMA = {
     'thu_open', 'thu_close', 'fri_open', 'fri_close', 'sat_open', 'sat_close',
     'sun_open', 'sun_close',
     'temporarily_closed', 'active', 'manually_inactive', 'synced_at', 'created_at', 'created_by', 'updated_at', 'temp_closed_ranges',
-    'metropolitni',
+    'metropolitni', 'vt_phone',
   ],
   'logistics': [
     'id', 'code', 'name', 'abbreviation',
