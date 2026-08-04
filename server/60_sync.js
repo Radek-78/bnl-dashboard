@@ -225,7 +225,8 @@ function syncStores_(ss, settings) {
   const sheet1 = ss.getSheetByName(mainSheetName);
   if (!sheet1) throw new Error('List "' + mainSheetName + '" nebyl v souboru nalezen.');
 
-  const mainRows = parseSheetRows_(sheet1, STORES_COL_MAP);
+  // Filiálky s číslem nad 900 se ze zdroje nikdy nenačítají ani nezakládají (testovací/vyhrazený rozsah čísel).
+  const mainRows = parseSheetRows_(sheet1, STORES_COL_MAP).filter((r) => !(parseInt(r.code, 10) > 900));
   const xlsxMap = new Map(mainRows.map((r) => [r.code, r]));
 
   // Mapa LC: název (malými, trimovaný) → zkratka. Zdroj nese jen celý název LC.

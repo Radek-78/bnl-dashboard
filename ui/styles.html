@@ -3250,6 +3250,10 @@
     max-width: min(860px, calc(100vw - 32px));
   }
 
+  #storeModal.modal-large {
+    max-width: min(960px, calc(100vw - 32px));
+  }
+
   .modal::backdrop {
     background: rgba(0, 24, 70, 0.5);
     backdrop-filter: blur(3px);
@@ -5620,11 +5624,12 @@
     align-items: center;
     color: var(--muted);
     display: flex;
-    gap: 3px;
+    gap: 4px;
   }
   .sm-hour-input {
-    font-size: 0.74rem;
-    padding: 3px 4px;
+    font-size: 0.8rem;
+    min-width: 0;
+    padding: 4px 3px;
     text-align: center;
   }
 
@@ -5652,8 +5657,8 @@
 
   .sm-hours {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
   }
 
   .sm-hour-item {
