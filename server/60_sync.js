@@ -87,7 +87,9 @@ function apiFindMissingLcInFile() {
       rows.forEach((r) => { const name = String(r.lc_name || '').trim(); if (name) seen.add(name); });
       names = [...seen];
     } finally {
-      if (tempSheetId) { try { Drive.Files.remove(tempSheetId); } catch (_) {} }
+      // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
+      // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
+      if (tempSheetId) { try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); } catch (_) {} }
     }
 
     const known = new Set(dbGetAll_(SHEETS.LOGISTICS).map((lc) => String(lc.name || '').trim().toLowerCase()));
@@ -204,8 +206,10 @@ function runSyncCore_(settings, isAuto) {
       stores: syncStores_(ss, settings),
     };
   } finally {
+    // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
+    // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
     if (tempSheetId) {
-      try { Drive.Files.remove(tempSheetId); } catch (_) {}
+      try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); } catch (_) {}
     }
   }
 

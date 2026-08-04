@@ -783,7 +783,9 @@ function rzOpenInfoArtiklechSheet_(file) {
   }
 
   // Stará dočasná kopie (pokud existuje) se smaže, ať se nehromadí v Disku.
-  if (cachedId) { try { Drive.Files.remove(cachedId); } catch (e) { /* není kritické */ } }
+  // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
+  // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
+  if (cachedId) { try { Drive.Files.remove(cachedId, { supportsAllDrives: true }); } catch (e) { /* není kritické */ } }
 
   const scriptFolder = scriptFolder_();
   const copyMeta = { name: '__rz_lookup_tmp__', mimeType: 'application/vnd.google-apps.spreadsheet' };
@@ -1181,7 +1183,9 @@ function rzReadSourceFile_(file) {
   } catch (e) {
     throw new Error('Nepodařilo se načíst soubor "' + file.getName() + '": ' + e.message);
   } finally {
-    if (tempSheetId) { try { Drive.Files.remove(tempSheetId); } catch (_) { /* dočasný soubor, chyba mazání není kritická */ } }
+    // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
+    // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
+    if (tempSheetId) { try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); } catch (_) { /* dočasný soubor, chyba mazání není kritická */ } }
   }
 }
 
