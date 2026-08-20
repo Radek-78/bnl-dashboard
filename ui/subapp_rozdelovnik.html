@@ -1907,6 +1907,9 @@
      * mění jen DOM - _rzComputed by po takové úpravě bylo zastaralé.
      * Pevná šířka 20 sloupců artiklů (RZ_ARTIKLY_ROWS) i pro málo vyplněných
      * artiklů - odpovídá to kapacitě nástroje a formátu, který WB očekává.
+     * Do složky Export navíc posílá csvRows pro samostatné .csv pro externí
+     * systém (viz rzBuildExportCsv_ na serveru) - jen kombinace artikl+
+     * filiálka s nenulovým přídělem.
      */
     exportWb() {
       const el = this.container.querySelector('#rzTabContent');
@@ -1931,6 +1934,10 @@
         ['', '', 'Skladové místo'].concat(pad([], '')),
       ];
 
+      // Řádky pro externí .csv (viz rzBuildExportCsv_ na serveru) - jeden na
+      // kombinaci artikl+filiálka, jen s nenulovým přídělem (nulové appka
+      // vůbec neposílá, server by je tak jako tak nezapsal).
+      const csvRows = [];
       this.stores.forEach((s) => {
         const vals = artikly.map((a) => {
           const cell = el.querySelector('.rzr-prideli-cell[data-cislo="' + CSS.escape(a.cislo_artiklu) + '"][data-store="' + CSS.escape(s.code) + '"]');
@@ -1938,14 +1945,19 @@
           return numEl ? (this._toNumber(numEl.textContent) || 0) : 0;
         });
         grid.push(['', s.code, s.name].concat(pad(vals, 0)));
+        artikly.forEach((a, i) => {
+          if (vals[i] > 0) csvRows.push({ cislo_artiklu: a.cislo_artiklu, obsah: a.obsah || '', store: s.code, prideleno: vals[i] });
+        });
       });
 
-      Ui.call('apiRzExportWb', { grid: grid, filledCount: filled }, { silent: true, busy: 'Exportuji do listu WB…' })
+      Ui.call('apiRzExportWb', { grid: grid, filledCount: filled, csvRows: csvRows }, { silent: true, busy: 'Exportuji do listu WB…' })
         .then((res) => {
           if (!res || !res.exportedToFolder) {
             Ui.toast('List WB byl aktualizován. Soubor do složky Export se neuložil - zkontrolujte nastavenou složku Export.', 'error');
-          } else if (res.xlsxError) {
-            Ui.toast('List WB i Google Sheet ve složce Export uloženy, ale .xlsx se nepodařilo vytvořit: ' + res.xlsxError, 'error');
+          } else if (res.xlsxError || res.csvError) {
+            Ui.toast('List WB i Google Sheet ve složce Export uloženy, ale ' +
+              [res.xlsxError ? '.xlsx' : '', res.csvError ? '.csv' : ''].filter(Boolean).join(' a ') +
+              ' se nepodařilo vytvořit: ' + [res.xlsxError, res.csvError].filter(Boolean).join('; '), 'error');
           } else {
             Ui.toast('List WB byl aktualizován a export uložen do složky Export.', 'success');
           }

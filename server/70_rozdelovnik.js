@@ -1294,15 +1294,43 @@ function rzShareLikeFolder_(fileId, folderId) {
 }
 
 /**
+ * Sestaví CSV pro externí systém (viz apiRzExportWb, krok 3) - jeden řádek
+ * na kombinaci artikl+filiálka s nenulovým přídělem (nulové appka na
+ * klientovi vůbec nepošle). Sloupce jsou pevně dané formátem, který systém
+ * očekává, ne appkou volitelné:
+ *  A=1, B=4 (natvrdo), C=dnešní datum "dd.mm.rrrr",
+ *  D=číslo artiklu + obsah balení na 4 místa s nulami zleva (např. artikl
+ *    4076 + obsah 12 -> "40760012"), E=číslo filiálky, F=příděl (celé číslo),
+ *  G=0 (natvrdo). Oddělovač sloupců středník, řádky CRLF.
+ */
+function rzBuildExportCsv_(rows) {
+  const pad4 = (val) => {
+    const digits = String(val == null ? '' : val).replace(/\D/g, '');
+    return (digits || '0').padStart(4, '0');
+  };
+  const today = new Date();
+  const dateStr = String(today.getDate()).padStart(2, '0') + '.' + String(today.getMonth() + 1).padStart(2, '0') + '.' + today.getFullYear();
+  return rows.map((r) => {
+    const cislo = String((r && r.cislo_artiklu) || '').trim();
+    const store = String((r && r.store) || '').trim();
+    const prideleno = Math.round(Number(r && r.prideleno) || 0);
+    return ['1', '4', dateStr, cislo + pad4(r && r.obsah), store, String(prideleno), '0'].join(';');
+  }).join('\r\n');
+}
+
+/**
  * Export hotového rozdělení pro oddělení WB:
  *  1) list "WB" přímo v DB spreadsheetu subaplikace (vedle Artikly/Rozdelovnik/
  *     Odprodeje_WAWI atd.) - přepíše/vytvoří se při každém exportu.
  *  2) pokud je v Nastavení zadaná složka Export (folderExport), navíc nový
  *     samostatný Google Sheet + identický .xlsx soubor s datem a časem v
  *     názvu - každý export tak zůstane v historii, nic se nepřepisuje.
+ *  3) tamtéž ještě .csv pro externí systém (viz rzBuildExportCsv_) - nezávislé
+ *     na kroku 2), postavené z payload.csvRows (klient posílá jen řádky
+ *     s nenulovým přídělem).
  * Mřížku (7 hlavičkových řádků + řádky prodejen) si sestaví klient z aktuálně
- * zobrazených hodnot Příděl. Selhání kroku 2) (chybějící/nedostupná složka)
- * export do DB nezablokuje - jen se zapíše do auditu.
+ * zobrazených hodnot Příděl. Selhání kroků 2)/3) (chybějící/nedostupná
+ * složka) export do DB nezablokuje - jen se zapíše do auditu.
  */
 function apiRzExportWb(payload) {
   return rzGuard_((user) => {
@@ -1321,6 +1349,7 @@ function apiRzExportWb(payload) {
 
     let exportedToFolder = false;
     let xlsxError = null;
+    let csvError = null;
     const folderId = rzExtractFolderId_(rzSettingsAll_().folderExport);
     if (folderId) {
       const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'd.M.yyyy H-mm');
@@ -1371,9 +1400,23 @@ function apiRzExportWb(payload) {
           audit_('rz_export_wb_file_failed', 'xlsx: ' + e.message);
         }
       }
+
+      // Krok 3: .csv pro externí systém - nezávislé na kroku 2) (jiný formát/účel).
+      const csvRows = Array.isArray(payload && payload.csvRows) ? payload.csvRows : [];
+      if (csvRows.length) {
+        try {
+          const csvBlob = Utilities.newBlob(rzBuildExportCsv_(csvRows), 'text/csv', fileName + '.csv');
+          const csvFile = DriveApp.getFolderById(folderId).createFile(csvBlob);
+          rzShareLikeFolder_(csvFile.getId(), folderId);
+        } catch (e) {
+          console.error('Export .csv do složky Export selhal: ' + e);
+          csvError = e.message;
+          audit_('rz_export_wb_file_failed', 'csv: ' + e.message);
+        }
+      }
     }
 
-    audit_('rz_export_wb', 'Export listu WB (' + filledCount + ' artiklů) - soubory do složky Export: ' + (exportedToFolder ? 'ano' : 'ne') + (xlsxError ? ' (xlsx selhal)' : ''));
-    return { ok: true, exportedToFolder: exportedToFolder, xlsxError: xlsxError };
+    audit_('rz_export_wb', 'Export listu WB (' + filledCount + ' artiklů) - soubory do složky Export: ' + (exportedToFolder ? 'ano' : 'ne') + (xlsxError ? ' (xlsx selhal)' : '') + (csvError ? ' (csv selhal)' : ''));
+    return { ok: true, exportedToFolder: exportedToFolder, xlsxError: xlsxError, csvError: csvError };
   });
 }
