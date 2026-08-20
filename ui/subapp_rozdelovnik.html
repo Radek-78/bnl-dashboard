@@ -1221,7 +1221,7 @@
       const { byArtikl, byStore, byStoreDeaktivace } = this._rozdeleniLookup();
       const dis = this.canWrite ? '' : ' disabled';
 
-      const frozenRows = this.stores.map((s) => '<div class="rzr-hrow rzr-store-cell">' + Ui.escape(s.code) + '</div>').join('');
+      const frozenRows = this.stores.map((s) => '<div class="rzr-hrow rzr-store-cell" data-store="' + Ui.escape(s.code) + '">' + Ui.escape(s.code) + '</div>').join('');
       const rwToPersist = [];
 
       const computed = artikly.map((a) => {
@@ -1285,7 +1285,7 @@
         const dataRows = c.storeRows.map((r) => {
           // Pevně vyhrazený slot na deltu (i prázdný) - hodnota Příděl tak
           // nikdy nemění pozici podle toho, jestli je nebo není upravená.
-          return '<div class="rzr-hrow rzr-data-row">' +
+          return '<div class="rzr-hrow rzr-data-row" data-store="' + Ui.escape(r.store.code) + '">' +
             '<span title="' + Ui.escape(this._medianTooltip(r.vals)) + '">' + (r.median != null ? this._fmtNum(r.median) : '—') + '</span>' +
             '<span title="' + Ui.escape(this._stavTooltip(r.vals)) + '">' + (r.stav != null ? this._fmtNum(r.stav) : '—') + '</span>' +
             '<div class="rzr-prideli-cell' + (r.eligible ? '' : ' is-excluded') + '" data-cislo="' + esc + '" data-store="' + Ui.escape(r.store.code) + '"' + (r.eligible ? '' : ' title="' + Ui.escape(r.excludedReason) + '"') + '>' +
@@ -1377,6 +1377,32 @@
         });
         el.querySelectorAll('.rzr-ignore-vyrazeni').forEach((cb) => {
           cb.addEventListener('change', () => this.toggleIgnorovatVyrazeni(cb.dataset.cislo, cb.checked));
+        });
+      }
+
+      // Zvýraznění řádku prodejny pod kurzorem - řádek jedné prodejny je
+      // "rozstřižený" napříč zamrzlým sloupcem a KAŽDÝM blokem artiklu (jsou
+      // to samostatné sourozenecké divy, ne buňky jedné <tr>), takže se to
+      // nedá čistě CSS - deleguje se přes data-store na .rzr-hrow a při
+      // změně hoveru se přepne třída na všech řádcích se stejným kódem.
+      const scrollEl = el.querySelector('.rzr-scroll');
+      if (scrollEl) {
+        scrollEl.addEventListener('mouseover', (e) => {
+          const row = e.target.closest('.rzr-hrow[data-store]');
+          const store = row ? row.dataset.store : null;
+          if (store === this._hoverStore) return;
+          if (this._hoverStore) {
+            scrollEl.querySelectorAll('.rzr-hrow[data-store="' + CSS.escape(this._hoverStore) + '"]').forEach((n) => n.classList.remove('is-hover-row'));
+          }
+          this._hoverStore = store;
+          if (store) {
+            scrollEl.querySelectorAll('.rzr-hrow[data-store="' + CSS.escape(store) + '"]').forEach((n) => n.classList.add('is-hover-row'));
+          }
+        });
+        scrollEl.addEventListener('mouseleave', () => {
+          if (!this._hoverStore) return;
+          scrollEl.querySelectorAll('.rzr-hrow[data-store="' + CSS.escape(this._hoverStore) + '"]').forEach((n) => n.classList.remove('is-hover-row'));
+          this._hoverStore = null;
         });
       }
 

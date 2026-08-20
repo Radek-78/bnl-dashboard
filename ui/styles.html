@@ -2215,6 +2215,12 @@
     padding: 0 6px;
   }
 
+  /* Zvýraznění řádku prodejny pod kurzorem napříč zamrzlým sloupcem i všemi
+     bloky artiklů - viz JS v renderRozdeleni (data-store + delegovaný hover). */
+  .rzr-hrow.is-hover-row {
+    background: rgba(0, 80, 170, 0.06);
+  }
+
   .rzr-frozen {
     background: var(--white);
     border-right: 1px solid var(--line);
