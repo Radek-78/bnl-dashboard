@@ -40,6 +40,25 @@ function applySheetFont_(sheet) {
 }
 
 /**
+ * Uklidí dočasnou kopii zdrojového souboru (konverze .xlsx → Google Sheet).
+ *
+ * Schválně přes DriveApp.setTrashed (koš), NE přes Drive.Files.remove: Drive
+ * API v3 files.delete hlásí "File not found" i u souboru, který prokazatelně
+ * existuje, pokud ho volající nevlastní - typicky když kopie vzniká ve složce
+ * pod cizím/sdíleným diskem. DriveApp v tomhle prostředí funguje spolehlivě
+ * (stejným způsobem maže soubory rzDeleteSyncFile_). Selhání úklidu nesmí
+ * shodit samotný import/synchronizaci, proto se jen zaloguje.
+ */
+function trashTempFile_(fileId) {
+  if (!fileId) return;
+  try {
+    DriveApp.getFileById(fileId).setTrashed(true);
+  } catch (e) {
+    console.error('Smazání dočasné kopie ' + fileId + ' selhalo: ' + e);
+  }
+}
+
+/**
  * Zapíše záznam do auditního logu. Selhání auditu nesmí shodit hlavní operaci.
  */
 function audit_(action, detail) {

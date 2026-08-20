@@ -136,6 +136,13 @@ function TOOLS_debugVyrazene() {
     : 'CHYBA: žádný soubor s výrazem "' + pattern + '" nebyl ve složce nalezen - zkontroluj, jestli výraz odpovídá skutečnému názvu souboru.');
   if (!file) return;
 
+  // Typ souboru rozhoduje, jestli se musí převádět na Sheet (jen .xlsx) - viz rzReadVyrazeneSourceFile_.
+  const mimeType = file.getMimeType();
+  console.log('Typ souboru: ' + mimeType + (mimeType === MimeType.GOOGLE_SHEETS
+    ? ' (nativní Google Sheet - čte se přímo, bez převodu)'
+    : (mimeType === MimeType.CSV ? ' (CSV - čte se přímo, bez převodu)' : ' (.xlsx - musí se převést na Sheet, převedená kopie se drží do změny zdroje)')));
+  console.log('Uložená převedená kopie: ' + (settings.vyrazeneSheetId || '(žádná)') + ' | podpis zdroje: ' + (settings.vyrazeneSheetSignature || '(žádný)'));
+
   const { headers, rows } = rzReadVyrazeneSourceFile_(file);
   console.log('Obsah souboru: ' + headers.length + ' sloupců, ' + rows.length + ' řádků. Hlavičky: ' + JSON.stringify(headers));
   if (!rows.length) { console.log('CHYBA: soubor je prázdný nebo se nepodařilo přečíst žádná data.'); return; }

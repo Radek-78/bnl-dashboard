@@ -799,12 +799,7 @@ function rzOpenInfoArtiklechSheet_(file) {
   }
 
   // Stará dočasná kopie (pokud existuje) se smaže, ať se nehromadí v Disku.
-  // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
-  // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
-  if (cachedId) {
-    try { Drive.Files.remove(cachedId, { supportsAllDrives: true }); }
-    catch (e) { console.error('Smazání dočasné kopie ' + cachedId + ' selhalo: ' + e); }
-  }
+  trashTempFile_(cachedId);
 
   const scriptFolder = scriptFolder_();
   const copyMeta = { name: '__rz_lookup_tmp__', mimeType: 'application/vnd.google-apps.spreadsheet' };
@@ -1022,21 +1017,53 @@ function apiRzGetVyrazeneStores(cisla) {
   });
 }
 
-/**
- * Jako rzReadSourceFile_, ale u nativního Google Sheetu čte přímo bez
- * dočasné kopie (stejný trik jako rzOpenInfoArtiklechSheet_) - Vyřazené
- * artikly se čtou živě při KAŽDÉM volání apiRzGetVyrazeneStores (schválně
- * bez importu), takže kopírovat celý soubor (desítky tisíc řádků) pokaždé
- * znovu by bylo zbytečně pomalé a zatěžovalo by to Disk.
- */
-function rzReadVyrazeneSourceFile_(file) {
-  if (file.getMimeType() !== MimeType.GOOGLE_SHEETS) return rzReadSourceFile_(file);
-  const sheet = SpreadsheetApp.openById(file.getId()).getSheets()[0];
+/** Přečte první list Sheetu jako { headers, rows } - sdílené oběma větvemi rzReadVyrazeneSourceFile_. */
+function rzReadSheetGrid_(sheet) {
   const lastRow = sheet.getLastRow();
   const lastCol = sheet.getLastColumn();
   if (lastRow < 1 || lastCol < 1) return { headers: [], rows: [] };
   const values = sheet.getRange(1, 1, lastRow, lastCol).getValues();
   return { headers: values[0].map(String), rows: values.slice(1) };
+}
+
+/**
+ * Přečte soubor Vyřazené artikly.
+ *
+ * Na rozdíl od ostatních 4 zdrojových souborů se čte ŽIVĚ při každém otevření
+ * Rozdělovníku (schválně bez tlačítka Importovat), takže cena čtení je tady
+ * mnohem citlivější než jinde:
+ *  - nativní Google Sheet: čte se přímo, žádná kopie,
+ *  - .csv: čte se přímo z blobu (rzReadSourceFile_ u CSV kopii nedělá),
+ *  - .xlsx: musí se převést na Sheet, ale převedená kopie se DRŽÍ a používá
+ *    se znovu, dokud se zdrojový soubor nezmění (klíč = ID + datum úpravy).
+ *
+ * Dřív se u .xlsx kopie vytvářela a rovnou zase mazala při KAŽDÉM načtení
+ * appky - každé načtení tak stálo ~15 s navíc a při neúspěšném úklidu (viz
+ * trashTempFile_) se kopie po ~100 kB hromadily v Disku.
+ */
+function rzReadVyrazeneSourceFile_(file) {
+  const mimeType = file.getMimeType();
+  if (mimeType === MimeType.GOOGLE_SHEETS) return rzReadSheetGrid_(SpreadsheetApp.openById(file.getId()).getSheets()[0]);
+  if (mimeType === MimeType.CSV) return rzReadSourceFile_(file);
+
+  const settings = rzSettingsAll_();
+  const signature = file.getId() + ':' + file.getLastUpdated().getTime();
+  const cachedId = settings.vyrazeneSheetId || '';
+  if (cachedId && settings.vyrazeneSheetSignature === signature) {
+    try {
+      return rzReadSheetGrid_(SpreadsheetApp.openById(cachedId).getSheets()[0]);
+    } catch (e) { /* převedená kopie zmizela/je neplatná - vytvoří se nová níže */ }
+  }
+
+  // Zdroj se změnil (nebo kopie chybí) - starou zahodit a převést znovu.
+  trashTempFile_(cachedId);
+  const scriptFolder = scriptFolder_();
+  const copyMeta = { name: '__rz_vyrazene_sheet__', mimeType: 'application/vnd.google-apps.spreadsheet' };
+  if (scriptFolder) copyMeta.parents = [scriptFolder.getId()];
+  const copy = Drive.Files.copy(copyMeta, file.getId(), { supportsAllDrives: true });
+  rzSettingsSet_('vyrazeneSheetId', copy.id);
+  rzSettingsSet_('vyrazeneSheetSignature', signature);
+  return rzReadSheetGrid_(SpreadsheetApp.openById(copy.id).getSheets()[0]);
 }
 
 /* ── Import zdrojových souborů (dynamické schéma) ────────────────
@@ -1202,12 +1229,7 @@ function rzReadSourceFile_(file) {
   } catch (e) {
     throw new Error('Nepodařilo se načíst soubor "' + file.getName() + '": ' + e.message);
   } finally {
-    // supportsAllDrives: bez toho mazání tiše selže, pokud kopie leží ve
-    // sdíleném disku (stejný důvod jako u Drive.Files.copy, viz v3.1.144).
-    if (tempSheetId) {
-      try { Drive.Files.remove(tempSheetId, { supportsAllDrives: true }); }
-      catch (e) { console.error('Smazání dočasné kopie ' + tempSheetId + ' selhalo: ' + e); }
-    }
+    trashTempFile_(tempSheetId);
   }
 }
 
