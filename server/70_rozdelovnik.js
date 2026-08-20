@@ -1056,10 +1056,14 @@ function rzReadVyrazeneSourceFile_(file) {
   }
 
   // Zdroj se změnil (nebo kopie chybí) - starou zahodit a převést znovu.
+  // Kopie se zakládá přímo do složky zdrojového souboru (ne do složky
+  // skriptu) - ať leží spolu s originálem, kde ji uvidí i lidé, kteří mají
+  // přístup jen do téhle složky, ne do celého Disku appky.
   trashTempFile_(cachedId);
-  const scriptFolder = scriptFolder_();
+  const parents = file.getParents();
+  const destFolder = parents.hasNext() ? parents.next() : scriptFolder_();
   const copyMeta = { name: '__rz_vyrazene_sheet__', mimeType: 'application/vnd.google-apps.spreadsheet' };
-  if (scriptFolder) copyMeta.parents = [scriptFolder.getId()];
+  if (destFolder) copyMeta.parents = [destFolder.getId()];
   const copy = Drive.Files.copy(copyMeta, file.getId(), { supportsAllDrives: true });
   rzSettingsSet_('vyrazeneSheetId', copy.id);
   rzSettingsSet_('vyrazeneSheetSignature', signature);
