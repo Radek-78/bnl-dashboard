@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.154', date: '20.8.2026', message: 'Oprava: sloupec B v .csv exportu WB má být "004" (3 místa s nulami zleva), ne jen "4".' },
   { version: 'v3.1.153', date: '20.8.2026', message: 'Export listu WB: do složky Export se navíc ukládá .csv pro externí systém - jeden řádek na kombinaci artikl+filiálka s nenulovým přídělem (A=1, B=4, C=dnešní datum, D=číslo artiklu + obsah balení na 4 místa s nulami zleva, E=číslo filiálky, F=příděl, G=0; sloupce oddělené středníkem).' },
   { version: 'v3.1.152', date: '20.8.2026', message: 'Převedená kopie souboru Vyřazené artikly (__rz_vyrazene_sheet__) se teď zakládá přímo do složky zdrojového .xlsx souboru, ne do složky skriptu/kořene Disku - leží tak spolu s originálem, viditelná i pro lidi s přístupem jen do téhle složky.' },
   { version: 'v3.1.151', date: '20.8.2026', message: 'Vyřazené artikly (.xlsx) se už nepřevádějí na Google Sheet při každém otevření Rozdělovníku - převedená kopie se drží a používá znovu, dokud se zdrojový soubor nezmění. Otevření Rozdělovníku tím zrychlí o zhruba 15 s a v Disku přestanou vznikat kopie __rz_import_tmp__ po každém načtení. Zároveň opraveno mazání dočasných kopií (i __sync_tmp__ u synchronizace filiálek): Drive API hlásilo "File not found" i u souboru, který prokazatelně existuje, protože ho appka nevlastní - úklid teď jde přes koš (DriveApp), což v tomto prostředí funguje spolehlivě.' },

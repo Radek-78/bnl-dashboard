@@ -1298,7 +1298,7 @@ function rzShareLikeFolder_(fileId, folderId) {
  * na kombinaci artikl+filiálka s nenulovým přídělem (nulové appka na
  * klientovi vůbec nepošle). Sloupce jsou pevně dané formátem, který systém
  * očekává, ne appkou volitelné:
- *  A=1, B=4 (natvrdo), C=dnešní datum "dd.mm.rrrr",
+ *  A=1, B=004 (natvrdo), C=dnešní datum "dd.mm.rrrr",
  *  D=číslo artiklu + obsah balení na 4 místa s nulami zleva (např. artikl
  *    4076 + obsah 12 -> "40760012"), E=číslo filiálky, F=příděl (celé číslo),
  *  G=0 (natvrdo). Oddělovač sloupců středník, řádky CRLF.
@@ -1314,7 +1314,7 @@ function rzBuildExportCsv_(rows) {
     const cislo = String((r && r.cislo_artiklu) || '').trim();
     const store = String((r && r.store) || '').trim();
     const prideleno = Math.round(Number(r && r.prideleno) || 0);
-    return ['1', '4', dateStr, cislo + pad4(r && r.obsah), store, String(prideleno), '0'].join(';');
+    return ['1', '004', dateStr, cislo + pad4(r && r.obsah), store, String(prideleno), '0'].join(';');
   }).join('\r\n');
 }
 
