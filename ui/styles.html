@@ -2448,8 +2448,31 @@
   }
 
   .rzr-rw {
-    flex: 1;
+    flex: 0 0 46px;
     text-align: center;
+  }
+
+  /* Součet Teo. stav + Příděl přes všechny filiálky - vpravo v uvolněném
+     místě po zúžení .rzr-rw (viz renderRozdeleni/_recomputeBlockLive). */
+  .rzr-stav-prideli {
+    align-items: baseline;
+    color: var(--muted);
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .rzr-stav-prideli-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  .rzr-stav-prideli b {
+    color: var(--text);
+    font-size: 12px;
   }
 
   /* Nativní šipky number inputu jsou ~8 px - nahrazené vlastními tlačítky. */
@@ -2606,6 +2629,34 @@
   .rzr-prideli-btn:hover {
     background: var(--white);
     border-color: var(--lidl-blue);
+  }
+
+  /* Křížek "deaktivovat filiálku pro tento artikl" - stejná velikost jako
+     -/+ , ale v odlišné (červené) barvě, ať je zjevně jiná akce. Zaškrtnutý
+     stav (is-active = filiálka je právě deaktivovaná) je vyplněný červeně. */
+  .rzr-prideli-cross {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    color: var(--lidl-red);
+    cursor: pointer;
+    flex: 0 0 13px;
+    font-size: 9px;
+    height: 13px;
+    line-height: 1;
+    padding: 0;
+    width: 13px;
+  }
+
+  .rzr-prideli-cross:hover {
+    background: var(--white);
+    border-color: var(--lidl-red);
+  }
+
+  .rzr-prideli-cross.is-active {
+    background: var(--lidl-red);
+    border-color: var(--lidl-red);
+    color: #fff;
   }
 
   /* Odznak "M" vpravo nahoře v hlavičce Metropol artiklu. */

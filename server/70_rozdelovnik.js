@@ -24,7 +24,12 @@ const RZ_SCHEMA = {
   // ignorovat_vyrazeni (jen na úrovni artiklu, prodejna '') - checkbox "vše"
   // u Příděl v Rozdělení, dočasně povolí přidělení tohoto artiklu na VŠECHNY
   // filiálky - vyřazené (nezalistované) i Metropol.
-  'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw', 'zaokrouhlit', 'ignorovat_vyrazeni'],
+  // rucne_vyrazeno (jen na úrovni prodejny, prodejna != '') - křížek u tlačítek
+  // +/- v Rozdělení, natrvalo (dokud ho uživatel sám nezruší) vyloučí
+  // KONKRÉTNÍ filiálku z přídělu KONKRÉTNÍHO artiklu - na rozdíl od
+  // ignorovat_vyrazeni/Metropol/Vyřazených artiklů to není pravidlo podle dat,
+  // ale ruční rozhodnutí uživatele, proto ho nepřebíjí ani checkbox "vše".
+  'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw', 'zaokrouhlit', 'ignorovat_vyrazeni', 'rucne_vyrazeno'],
   // cisla - čísla artiklů skupiny spojená STŘEDNÍKEM, ne čárkou (jen čísla,
   // ne název/obsah/množství - ty se dohledávají/zadávají znovu při každém
   // vložení skupiny) - viz apiRzSaveSkupina, proč zrovna středník.
@@ -752,6 +757,17 @@ function apiRzSaveRozdeleniUprava(payload) {
     if (!cislo || !prodejna) throw new Error('Chybí číslo artiklu nebo prodejna.');
     const uprava = (payload && payload.uprava !== '' && payload.uprava != null) ? Number(payload.uprava) || 0 : '';
     return rzUpsertRozdeleni_(cislo, prodejna, { uprava: uprava });
+  });
+}
+
+/** Křížek u tlačítek +/- v Rozdělení - vyloučí/vrátí konkrétní filiálku z přídělu konkrétního artiklu (viz poznámka u "rucne_vyrazeno" v RZ_SCHEMA). */
+function apiRzSaveRozdeleniRucneVyrazeno(payload) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k zápisu.');
+    const cislo = String((payload && payload.cislo_artiklu) || '').trim();
+    const prodejna = String((payload && payload.prodejna) || '').trim();
+    if (!cislo || !prodejna) throw new Error('Chybí číslo artiklu nebo prodejna.');
+    return rzUpsertRozdeleni_(cislo, prodejna, { rucne_vyrazeno: !!(payload && payload.rucne_vyrazeno) });
   });
 }
 
