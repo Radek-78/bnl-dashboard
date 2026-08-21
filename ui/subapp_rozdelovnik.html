@@ -1210,6 +1210,15 @@
      * pozice čísla jsou vždy stejné, ať se hodnoty změnily jakkoliv.
      */
     renderRozdeleni(el) {
+      // Kliknutí na křížek/checkbox "vše" přepočítá eligibilitu napříč víc
+      // buňkami, proto se místo cíleného přepisu volá tahle funkce znovu
+      // celá (el.innerHTML se přepíše) - bez zapamatování scrollu by to
+      // uživateli při každém takovém kliknutí vrátilo pohled úplně nahoru/
+      // doleva, i uprostřed dlouhého seznamu filiálek.
+      const prevScrollEl = el.querySelector('.rzr-scroll');
+      const savedScrollLeft = prevScrollEl ? prevScrollEl.scrollLeft : 0;
+      const savedScrollTop = prevScrollEl ? prevScrollEl.scrollTop : 0;
+
       const artikly = this.artikly.filter((a) => a && a.cislo_artiklu);
       if (!this.stores.length || this.rozdeleni === null || !artikly.length) {
         el.innerHTML = '<section class="panel"><div class="panel-body"><p class="form-hint">' +
@@ -1387,6 +1396,8 @@
       // změně hoveru se přepne třída na všech řádcích se stejným kódem.
       const scrollEl = el.querySelector('.rzr-scroll');
       if (scrollEl) {
+        scrollEl.scrollLeft = savedScrollLeft;
+        scrollEl.scrollTop = savedScrollTop;
         scrollEl.addEventListener('mouseover', (e) => {
           const row = e.target.closest('.rzr-hrow[data-store]');
           const store = row ? row.dataset.store : null;

@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.155', date: '21.8.2026', message: 'Oprava: v záložce Rozdělení kliknutí na křížek (deaktivace filiálky) nebo na checkbox "vše" vrátilo pohled na stránku úplně nahoru/doleva, protože se celý blok znovu vykresloval. Appka si teď pozici scrollu před překreslením zapamatuje a hned po něm vrátí, takže pohled zůstane tam, kde uživatel klikal.' },
   { version: 'v3.1.154', date: '20.8.2026', message: 'Oprava: sloupec B v .csv exportu WB má být "004" (3 místa s nulami zleva), ne jen "4".' },
   { version: 'v3.1.153', date: '20.8.2026', message: 'Export listu WB: do složky Export se navíc ukládá .csv pro externí systém - jeden řádek na kombinaci artikl+filiálka s nenulovým přídělem (A=1, B=4, C=dnešní datum, D=číslo artiklu + obsah balení na 4 místa s nulami zleva, E=číslo filiálky, F=příděl, G=0; sloupce oddělené středníkem).' },
   { version: 'v3.1.152', date: '20.8.2026', message: 'Převedená kopie souboru Vyřazené artikly (__rz_vyrazene_sheet__) se teď zakládá přímo do složky zdrojového .xlsx souboru, ne do složky skriptu/kořene Disku - leží tak spolu s originálem, viditelná i pro lidi s přístupem jen do téhle složky.' },
