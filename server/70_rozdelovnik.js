@@ -1296,25 +1296,25 @@ function rzShareLikeFolder_(fileId, folderId) {
 /**
  * Sestaví CSV pro externí systém (viz apiRzExportWb, krok 3) - jeden řádek
  * na kombinaci artikl+filiálka s nenulovým přídělem (nulové appka na
- * klientovi vůbec nepošle). Sloupce jsou pevně dané formátem, který systém
- * očekává, ne appkou volitelné:
- *  A=1, B=004 (natvrdo), C=dnešní datum "dd.mm.rrrr",
- *  D=číslo artiklu + obsah balení na 4 místa s nulami zleva (např. artikl
- *    4076 + obsah 12 -> "40760012"), E=číslo filiálky, F=příděl (celé číslo),
- *  G=0 (natvrdo). Oddělovač sloupců středník, řádky CRLF.
+ * klientovi vůbec nepošle). Sloupce:
+ *  A=1 (natvrdo), B=kodB doplněný nulami zleva na 3 místa (uživatel zadává
+ *    v exportním modalu, výchozí "4" -> "004"), C=datum přídělu "dd.mm.rrrr"
+ *    (taky z modalu, appka ho nedopočítává sama), D=číslo artiklu + obsah
+ *    balení na 4 místa s nulami zleva (např. artikl 4076 + obsah 12 ->
+ *    "40760012"), E=číslo filiálky, F=příděl (celé číslo), G=0 (natvrdo).
+ * Oddělovač sloupců středník, řádky CRLF.
  */
-function rzBuildExportCsv_(rows) {
+function rzBuildExportCsv_(rows, dateStr, kodB) {
   const pad4 = (val) => {
     const digits = String(val == null ? '' : val).replace(/\D/g, '');
     return (digits || '0').padStart(4, '0');
   };
-  const today = new Date();
-  const dateStr = String(today.getDate()).padStart(2, '0') + '.' + String(today.getMonth() + 1).padStart(2, '0') + '.' + today.getFullYear();
+  const kodBPadded = String(kodB || '').replace(/\D/g, '').padStart(3, '0');
   return rows.map((r) => {
     const cislo = String((r && r.cislo_artiklu) || '').trim();
     const store = String((r && r.store) || '').trim();
     const prideleno = Math.round(Number(r && r.prideleno) || 0);
-    return ['1', '004', dateStr, cislo + pad4(r && r.obsah), store, String(prideleno), '0'].join(';');
+    return ['1', kodBPadded, dateStr, cislo + pad4(r && r.obsah), store, String(prideleno), '0'].join(';');
   }).join('\r\n');
 }
 
@@ -1328,9 +1328,11 @@ function rzBuildExportCsv_(rows) {
  *  3) tamtéž ještě .csv pro externí systém (viz rzBuildExportCsv_) - nezávislé
  *     na kroku 2), postavené z payload.csvRows (klient posílá jen řádky
  *     s nenulovým přídělem).
- * Mřížku (7 hlavičkových řádků + řádky prodejen) si sestaví klient z aktuálně
- * zobrazených hodnot Příděl. Selhání kroků 2)/3) (chybějící/nedostupná
- * složka) export do DB nezablokuje - jen se zapíše do auditu.
+ * Datum přídělu (payload.datumCsv, "dd.mm.rrrr") a hodnota sloupce B .csv
+ * (payload.kodB) zadává uživatel v exportním modalu před spuštěním - appka
+ * si je sama nedopočítává. Mřížku (7 hlavičkových řádků + řádky prodejen) si
+ * sestaví klient z aktuálně zobrazených hodnot Příděl. Selhání kroků 2)/3)
+ * (chybějící/nedostupná složka) export do DB nezablokuje - jen se zapíše do auditu.
  */
 function apiRzExportWb(payload) {
   return rzGuard_((user) => {
@@ -1405,7 +1407,10 @@ function apiRzExportWb(payload) {
       const csvRows = Array.isArray(payload && payload.csvRows) ? payload.csvRows : [];
       if (csvRows.length) {
         try {
-          const csvBlob = Utilities.newBlob(rzBuildExportCsv_(csvRows), 'text/csv', fileName + '.csv');
+          const csvDateStr = String((payload && payload.datumCsv) || '').trim()
+            || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy');
+          const csvContent = rzBuildExportCsv_(csvRows, csvDateStr, payload && payload.kodB);
+          const csvBlob = Utilities.newBlob(csvContent, 'text/csv', fileName + '.csv');
           const csvFile = DriveApp.getFolderById(folderId).createFile(csvBlob);
           rzShareLikeFolder_(csvFile.getId(), folderId);
         } catch (e) {

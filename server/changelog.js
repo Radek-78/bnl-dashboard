@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.156', date: '31.8.2026', message: 'Export listu WB: kliknutí na Exportovat teď nejdřív otevře modal, kde se zadá datum přídělu (výchozí dnešek) a hodnota sloupce B v .csv (výchozí "4", doplní se nulami zleva na 3 místa). Zadané datum se použije jednotně v listu WB (Sheet i .xlsx) i v .csv.' },
   { version: 'v3.1.155', date: '21.8.2026', message: 'Oprava: v záložce Rozdělení kliknutí na křížek (deaktivace filiálky) nebo na checkbox "vše" vrátilo pohled na stránku úplně nahoru/doleva, protože se celý blok znovu vykresloval. Appka si teď pozici scrollu před překreslením zapamatuje a hned po něm vrátí, takže pohled zůstane tam, kde uživatel klikal.' },
   { version: 'v3.1.154', date: '20.8.2026', message: 'Oprava: sloupec B v .csv exportu WB má být "004" (3 místa s nulami zleva), ne jen "4".' },
   { version: 'v3.1.153', date: '20.8.2026', message: 'Export listu WB: do složky Export se navíc ukládá .csv pro externí systém - jeden řádek na kombinaci artikl+filiálka s nenulovým přídělem (A=1, B=4, C=dnešní datum, D=číslo artiklu + obsah balení na 4 místa s nulami zleva, E=číslo filiálky, F=příděl, G=0; sloupce oddělené středníkem).' },

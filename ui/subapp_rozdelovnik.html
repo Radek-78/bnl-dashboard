@@ -266,7 +266,7 @@
         settingsBtnWrap.insertAdjacentHTML('afterbegin',
           '<button class="button button-secondary button-small is-hidden" type="button" id="rzExportWbBtn">' +
           '<svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-file-text"></use></svg>Exportovat</button>');
-        document.querySelector('#rzExportWbBtn').addEventListener('click', () => this.exportWb());
+        document.querySelector('#rzExportWbBtn').addEventListener('click', () => this.openExportWbModal());
       }
       // Stejně jako Exportovat - jen v záložce Rozdělení, přepíná se v showTab.
       if (settingsBtnWrap && this.canWrite && !settingsBtnWrap.querySelector('#rzRecalcAllBtn')) {
@@ -377,6 +377,26 @@
         '      <button class="button button-primary" type="submit"><svg><use href="#i-check"></use></svg>Uložit</button>' +
         '    </footer>' +
         '  </form>' +
+        '</dialog>' +
+        '<dialog class="modal" id="rzExportWbModal">' +
+        '  <form id="rzExportWbForm">' +
+        '    <header class="modal-header">' +
+        '      <span class="modal-icon"><svg><use href="#i-file-text"></use></svg></span>' +
+        '      <div class="modal-header-text"><p class="kicker">Rozdělovník 20 artiklů</p><h2>Export listu WB</h2></div>' +
+        '      <button class="modal-close" type="button" id="rzCloseExportWbModalBtn" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>' +
+        '    </header>' +
+        '    <div class="modal-body">' +
+        '      <div class="form form-plain">' +
+        '        <label><span>Datum přídělu</span><input type="date" name="datum" id="rzExportWbDate"></label>' +
+        '        <label><span>Hodnota sloupce B (.csv)</span><input type="text" inputmode="numeric" name="kodB" id="rzExportWbKodB" placeholder="4"></label>' +
+        '        <p class="form-hint">Datum se použije v listu WB (Sheet i .xlsx) i v .csv. Hodnota sloupce B se v .csv doplní nulami zleva na 3 místa (např. "4" → "004").</p>' +
+        '      </div>' +
+        '    </div>' +
+        '    <footer class="modal-actions">' +
+        '      <button class="button button-secondary" type="button" id="rzCancelExportWbModalBtn"><svg><use href="#i-close"></use></svg>Zrušit</button>' +
+        '      <button class="button button-primary" type="submit"><svg><use href="#i-check"></use></svg>Exportovat</button>' +
+        '    </footer>' +
+        '  </form>' +
         '</dialog>';
 
       this.container.querySelectorAll('.rz-tabbtn').forEach((btn) => {
@@ -389,6 +409,9 @@
       this.container.querySelector('#rzCancelSkupinaModalBtn').addEventListener('click', () => Ui.closeModal(this.container.querySelector('#rzSkupinaModal')));
       this.container.querySelector('#rzSkupinaLoadFromTableBtn').addEventListener('click', () => this.loadSkupinaFromTable());
       this.container.querySelector('#rzSkupinaForm').addEventListener('submit', (e) => { e.preventDefault(); this.saveSkupinaModal(e.target); });
+      this.container.querySelector('#rzCloseExportWbModalBtn').addEventListener('click', () => Ui.closeModal(this.container.querySelector('#rzExportWbModal')));
+      this.container.querySelector('#rzCancelExportWbModalBtn').addEventListener('click', () => Ui.closeModal(this.container.querySelector('#rzExportWbModal')));
+      this.container.querySelector('#rzExportWbForm').addEventListener('submit', (e) => { e.preventDefault(); this.submitExportWbModal(e.target); });
       this.container.querySelectorAll('.rz-modal-tabbtn').forEach((btn) => {
         btn.addEventListener('click', () => {
           const key = btn.dataset.settingsTab;
@@ -1910,6 +1933,24 @@
       });
     },
 
+    /** Otevře modal pro export - datum přídělu (výchozí dnešek) a hodnota sloupce B v .csv (výchozí "4"), samotný export proběhne až po potvrzení (viz submitExportWbModal). */
+    openExportWbModal() {
+      const modal = this.container.querySelector('#rzExportWbModal');
+      const form = this.container.querySelector('#rzExportWbForm');
+      const today = new Date();
+      form.elements.datum.value = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+      form.elements.kodB.value = '4';
+      Ui.openModal(modal);
+    },
+
+    submitExportWbModal(form) {
+      const datum = form.elements.datum.value;
+      if (!datum) { Ui.toast('Vyplňte datum přídělu.', 'error'); return; }
+      const kodB = form.elements.kodB.value.trim() || '4';
+      Ui.closeModal(this.container.querySelector('#rzExportWbModal'));
+      this.exportWb(datum, kodB);
+    },
+
     /**
      * Export rozdělení pro oddělení WB - list "WB" přímo v DB spreadsheetu
      * subaplikace (vedle Artikly/Rozdelovnik/Odprodeje_WAWI atd.), ne
@@ -1921,8 +1962,12 @@
      * Do složky Export navíc posílá csvRows pro samostatné .csv pro externí
      * systém (viz rzBuildExportCsv_ na serveru) - jen kombinace artikl+
      * filiálka s nenulovým přídělem.
+     * datum (z modalu, "YYYY-MM-DD") je den, na který se příděl připravuje -
+     * použije se jak v hlavičce listu WB/.xlsx, tak (jinak naformátovaný,
+     * viz dateStrCsv) ve sloupci C .csv. kodB je hodnota sloupce B v .csv,
+     * appka ji na serveru doplní nulami zleva na 3 místa.
      */
-    exportWb() {
+    exportWb(datum, kodB) {
       const el = this.container.querySelector('#rzTabContent');
       const artikly = this.artikly.filter((a) => a && a.cislo_artiklu).slice(0, RZ_ARTIKLY_ROWS);
       if (!artikly.length || !el || !el.querySelector('.rzr-prideli-cell')) {
@@ -1932,8 +1977,13 @@
       const n = RZ_ARTIKLY_ROWS;
       const filled = artikly.length;
       const pad = (vals, emptyVal) => { const out = vals.slice(); while (out.length < n) out.push(emptyVal); return out; };
-      const today = new Date();
-      const dateStr = today.getDate() + '.' + (today.getMonth() + 1) + '.' + today.getFullYear();
+      // "T00:00:00" - ať se datum z <input type="date"> parsuje jako místní
+      // půlnoc, ne UTC (to by v některých časových pásmech mohlo dát jiný den).
+      const chosenDate = datum ? new Date(datum + 'T00:00:00') : new Date();
+      const dateStr = chosenDate.getDate() + '.' + (chosenDate.getMonth() + 1) + '.' + chosenDate.getFullYear();
+      // .csv má pevně daný formát "dd.mm.rrrr" (s nulami), na rozdíl od
+      // hlavičky listu WB výše, která je bez nich - viz rzBuildExportCsv_.
+      const dateStrCsv = String(chosenDate.getDate()).padStart(2, '0') + '.' + String(chosenDate.getMonth() + 1).padStart(2, '0') + '.' + chosenDate.getFullYear();
 
       const grid = [
         ['', '', dateStr].concat(pad([], '')),
@@ -1961,7 +2011,7 @@
         });
       });
 
-      Ui.call('apiRzExportWb', { grid: grid, filledCount: filled, csvRows: csvRows }, { silent: true, busy: 'Exportuji do listu WB…' })
+      Ui.call('apiRzExportWb', { grid: grid, filledCount: filled, csvRows: csvRows, datumCsv: dateStrCsv, kodB: kodB }, { silent: true, busy: 'Exportuji do listu WB…' })
         .then((res) => {
           if (!res || !res.exportedToFolder) {
             Ui.toast('List WB byl aktualizován. Soubor do složky Export se neuložil - zkontrolujte nastavenou složku Export.', 'error');
