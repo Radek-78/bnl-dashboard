@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.157', date: '1.9.2026', message: 'Export .csv WB: číslo artiklu ve sloupci D se teď doplňuje nulami zleva na 7 míst (dřív bez doplnění), teprve za ním následuje obsah balení doplněný na 4 místa (např. artikl 4076 + obsah 12 -> "00040760012").' },
   { version: 'v3.1.156', date: '31.8.2026', message: 'Export listu WB: kliknutí na Exportovat teď nejdřív otevře modal, kde se zadá datum přídělu (výchozí dnešek) a hodnota sloupce B v .csv (výchozí "4", doplní se nulami zleva na 3 místa). Zadané datum se použije jednotně v listu WB (Sheet i .xlsx) i v .csv.' },
   { version: 'v3.1.155', date: '21.8.2026', message: 'Oprava: v záložce Rozdělení kliknutí na křížek (deaktivace filiálky) nebo na checkbox "vše" vrátilo pohled na stránku úplně nahoru/doleva, protože se celý blok znovu vykresloval. Appka si teď pozici scrollu před překreslením zapamatuje a hned po něm vrátí, takže pohled zůstane tam, kde uživatel klikal.' },
   { version: 'v3.1.154', date: '20.8.2026', message: 'Oprava: sloupec B v .csv exportu WB má být "004" (3 místa s nulami zleva), ne jen "4".' },
