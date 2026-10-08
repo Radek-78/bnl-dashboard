@@ -27,10 +27,12 @@
     // schválně jen pro tuto relaci prohlížeče, neukládá se (bezpečnější
     // výchozí stav při reloadu).
     _ignoreVyrazeniGlobal: false,
-    // Datum závozu (přídělu) - k němu se posuzuje, zda je filiálka otevřená a není
-    // dočasně uzavřená. Výchozí dnešek. Přepínače "Přidělovat" jsou schválně jen
-    // pro tuto relaci (výchozí stav = nepřidělovat), stejně jako _ignoreVyrazeniGlobal.
+    // Datum závozu (přídělu) - k němu se každá filiálka zařadí do jedné kategorie:
+    // neotevřená > dočasně uzavřená > otevřená (viz _storeCategory). Výchozí dnešek.
+    // Přepínače "Přidělovat" určují, kterým kategoriím se přiděluje; jsou schválně jen
+    // pro tuto relaci (výchozí jen otevřené), stejně jako _ignoreVyrazeniGlobal.
     _deliveryDate: '',
+    _allowOpen: true,
     _allowClosed: false,
     _allowUnopened: false,
     settings: {},
@@ -289,12 +291,17 @@
           '<label class="rz-delivery-date" title="K tomuto dni se posuzuje, zda je filiálka otevřená a není dočasně uzavřená">Závoz' +
           '<input type="date" id="rzDeliveryDate" value="' + this._deliveryDate + '"></label>' +
           '<span class="rz-delivery-label">Přidělovat:</span>' +
-          '<label class="rz-delivery-check" title="Přidělovat i filiálkám, které jsou k datu závozu dočasně uzavřené"><input type="checkbox" id="rzAllowClosed"><span>dočasně uzavřené</span></label>' +
-          '<label class="rz-delivery-check" title="Přidělovat i filiálkám, které k datu závozu ještě nejsou otevřené"><input type="checkbox" id="rzAllowUnopened"><span>neotevřené</span></label>' +
+          '<label class="rz-delivery-check" title="Přidělovat filiálkám, které jsou k datu závozu otevřené"><input type="checkbox" id="rzAllowOpen" checked><span>otevřené</span></label>' +
+          '<label class="rz-delivery-check" title="Přidělovat filiálkám, které jsou k datu závozu dočasně uzavřené"><input type="checkbox" id="rzAllowClosed"><span>dočasně uzavřené</span></label>' +
+          '<label class="rz-delivery-check" title="Přidělovat filiálkám, které k datu závozu ještě nejsou otevřené (datum otevření má přednost před dočasným uzavřením)"><input type="checkbox" id="rzAllowUnopened"><span>neotevřené</span></label>' +
           '</div>');
         document.querySelector('#rzDeliveryDate').addEventListener('change', (e) => {
           this._deliveryDate = e.target.value || this._todayIso();
           e.target.value = this._deliveryDate;
+          this._onStoreRulesChanged();
+        });
+        document.querySelector('#rzAllowOpen').addEventListener('change', (e) => {
+          this._allowOpen = e.target.checked;
           this._onStoreRulesChanged();
         });
         document.querySelector('#rzAllowClosed').addEventListener('change', (e) => {
@@ -1287,9 +1294,10 @@
       const dis = this.canWrite ? '' : ' disabled';
 
       const frozenRows = this.stores.map((s) => {
-        const st = this._storeStatusAt(s);
-        const note = st.unopened ? this._storeBlockReason('unopened', s) : (st.closed ? this._storeBlockReason('closed', s) : '');
-        const cls = this._storeBlock(s) ? ' is-blocked' : (note ? ' is-flagged' : '');
+        const cat = this._storeCategory(s);
+        const blocked = !!this._storeBlock(s);
+        const note = (cat !== 'open' || blocked) ? this._storeBlockReason(cat, s) : '';
+        const cls = blocked ? ' is-blocked' : (cat !== 'open' ? ' is-flagged' : '');
         return '<div class="rzr-hrow rzr-store-cell' + cls + '" data-store="' + Ui.escape(s.code) + '"' + (note ? ' title="' + Ui.escape(note) + '"' : '') + '>' + Ui.escape(s.code) + '</div>';
       }).join('');
       const rwToPersist = [];
@@ -1595,8 +1603,8 @@
      * relaci) - obojí OBĚ tato omezení zcela vypne, i Metropol.
      */
     _isEligible(a, s, ignorovatVyrazeni) {
-      // Neotevřená / dočasně uzavřená filiálka k datu závozu - řídí ji jen přepínače
-      // "Přidělovat" v horní liště, checkbox "vše" (vyřazené a Metropol) ji nepřebíjí.
+      // Kategorie filiálky k datu závozu (otevřená / dočasně uzavřená / neotevřená) - řídí ji
+      // jen přepínače "Přidělovat" v horní liště, checkbox "vše" (vyřazené a Metropol) ji nepřebíjí.
       if (this._storeBlock(s)) return false;
       if (ignorovatVyrazeni || this._ignoreVyrazeniGlobal) return true;
       if (a.metropol && !s.metropolitni) return false;
@@ -1610,21 +1618,22 @@
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     },
 
-    /** Stav filiálky k datu závozu (bez ohledu na přepínače): neotevřená / dočasně uzavřená. */
-    _storeStatusAt(s) {
+    /**
+     * Kategorie filiálky k datu závozu - vždy právě jedna: 'unopened' (datum otevření v budoucnu,
+     * má přednost i před dočasným uzavřením), 'closed' (dočasně uzavřená), jinak 'open'.
+     */
+    _storeCategory(s) {
       const d = this._deliveryDate || this._todayIso();
-      return {
-        unopened: !!s.opening_date && s.opening_date > d,
-        closed: (s.closed_ranges || []).some((r) => r.from <= d && d <= r.to),
-      };
+      if (s.opening_date && s.opening_date > d) return 'unopened';
+      if ((s.closed_ranges || []).some((r) => r.from <= d && d <= r.to)) return 'closed';
+      return 'open';
     },
 
-    /** Proč se filiálce k datu závozu nepřiděluje: 'unopened' / 'closed', nebo '' když se přidělovat smí. */
+    /** Kategorie, které se podle přepínačů "Přidělovat" nepřiděluje, nebo '' když se přidělovat smí. */
     _storeBlock(s) {
-      const st = this._storeStatusAt(s);
-      if (st.unopened && !this._allowUnopened) return 'unopened';
-      if (st.closed && !this._allowClosed) return 'closed';
-      return '';
+      const cat = this._storeCategory(s);
+      const allowed = cat === 'unopened' ? this._allowUnopened : cat === 'closed' ? this._allowClosed : this._allowOpen;
+      return allowed ? '' : cat;
     },
 
     _storeBlockReason(kind, s) {
@@ -1632,7 +1641,8 @@
         const [y, m, d] = String(s.opening_date).split('-');
         return 'Filiálka k datu závozu ještě není otevřená (otevře se ' + Number(d) + '. ' + Number(m) + '. ' + y + ')';
       }
-      return 'Filiálka je k datu závozu dočasně uzavřená';
+      if (kind === 'closed') return 'Filiálka je k datu závozu dočasně uzavřená';
+      return 'Filiálka je k datu závozu otevřená - přidělování otevřeným filiálkám je vypnuté';
     },
 
     /** Změna data závozu nebo přepínačů "Přidělovat" - mění, kterým filiálkám se přiděluje. */

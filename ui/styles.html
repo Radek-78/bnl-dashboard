@@ -5163,12 +5163,15 @@
     font-weight: 600;
   }
 
+  /* Stejná výška jako tlačítka button-small vedle (globální input má min-height 38px). */
   .rz-delivery-date input {
     border: 1px solid rgba(255, 255, 255, 0.35);
     border-radius: 6px;
+    box-sizing: border-box;
     font: inherit;
     font-weight: 400;
-    height: 28px;
+    height: var(--rz-topbar-btn-h, 28px);
+    min-height: 0;
     padding: 0 6px;
   }
 
