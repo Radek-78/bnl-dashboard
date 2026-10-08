@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.163', date: '8.10.2026', message: 'Úvodní plocha: karta Uživatelé odstraněna, karta Změny filiálek je přes celou výšku plochy a vypisuje všechny změny poslední synchronizace (při větším počtu se seznam posouvá uvnitř karty). Tlačítko Zobrazit podrobnosti změn otevře přehled se změnami polí.' },
   { version: 'v3.1.162', date: '8.10.2026', message: 'Oprava: aplikace se po v3.1.161 nespustila (chyba skriptu kvůli odkazu na mapu v detailu filiálky). Odkaz je přepsaný tak, aby ho Apps Script při načítání stránky neuřízl.' },
   { version: 'v3.1.161', date: '8.10.2026', message: 'Filiálky: kliknutím na řádek se otevře detail filiálky (kontakty včetně zástupce RM, adresa s odkazem na mapu, LC, datum otevření, otevírací doba a uzavírky s rozlišením ze zdroje / ručně). Synchronizace nově přebírá i adresu a zástupce RM. Na úvodní ploše přibyly vedle dlaždic aplikací karty Uživatelé (počty podle lokace) a Změny filiálek z poslední synchronizace s tlačítkem pro zobrazení všech změn; vidí je všichni uživatelé.' },
   { version: 'v3.1.160', date: '8.10.2026', message: 'Filiálky: filiálka před otevřením se už neukazuje jako dočasně uzavřená - filtr Dočasně uzavřena zobrazí jen skutečně dočasně uzavřené filiálky a u filiálek před otevřením se nezobrazuje rozsah uzavření. Stejně se počítá i počet dočasně uzavřených na úvodní stránce.' },

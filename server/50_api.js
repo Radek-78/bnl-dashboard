@@ -143,20 +143,10 @@ function apiGetHome() {
 }
 
 /**
- * Přehled pro plochu - vidí ho každý přihlášený uživatel: počty uživatelů podle lokace
- * (bez jmen a e-mailů) a změny filiálek z poslední synchronizace.
+ * Přehled pro plochu - vidí ho každý přihlášený uživatel: změny filiálek z poslední synchronizace.
  */
 function apiGetHomeOverview() {
   return guard_(ROLES.USER, () => {
-    const users = dbGetAll_(SHEETS.USERS).filter((u) => u.active !== false);
-    const lcNames = {};
-    dbGetAll_(SHEETS.LOGISTICS).forEach((lc) => { lcNames[String(lc.abbreviation || '').trim().toUpperCase()] = lc.name; });
-    const byLoc = {};
-    users.forEach((u) => {
-      const loc = String(u.location || 'HQ').trim().toUpperCase() || 'HQ';
-      byLoc[loc] = (byLoc[loc] || 0) + 1;
-    });
-
     const s = settingsAll_();
     let history = [];
     let last = null;
@@ -166,14 +156,6 @@ function apiGetHomeOverview() {
     const latest = history[0] || null;
 
     return {
-      users: {
-        total: users.length,
-        byLocation: Object.keys(byLoc).map((code) => ({
-          code: code,
-          name: code === 'HQ' ? 'Centrála' : (lcNames[code] || ''),
-          count: byLoc[code],
-        })),
-      },
       sync: last ? {
         at: s.lastSyncAt || null,
         auto: !!(lastOk && lastOk.auto),

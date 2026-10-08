@@ -88,13 +88,6 @@
           <p class="modules-empty is-hidden" id="modulesEmpty">Zatím žádné aplikace. Přidejte je v sekci <strong>Administrace → Aplikace</strong>.</p>
         </div>
         <aside class="home-side">
-          <section class="home-card" id="homeUsersCard">
-            <div class="home-card-head">
-              <span class="home-card-ico"><svg><use href="#i-users"></use></svg></span>
-              <h3>Uživatelé</h3>
-            </div>
-            <div class="home-card-body" id="homeUsersBody"><p class="home-empty">Načítám…</p></div>
-          </section>
           <section class="home-card" id="homeSyncCard">
             <div class="home-card-head">
               <span class="home-card-ico"><svg><use href="#i-sync"></use></svg></span>
@@ -1269,7 +1262,7 @@ _sfState: {},
       this.loadHomeOverview();
     },
 
-    /* ── Plocha: karty Uživatelé a Změny filiálek (vidí je každý přihlášený) ── */
+    /* ── Plocha: karta Změny filiálek (vidí ji každý přihlášený) ── */
 
     loadHomeOverview() {
       if (this._homeOverview) this.renderHomeOverview(this._homeOverview);
@@ -1277,37 +1270,15 @@ _sfState: {},
         .then((d) => { this._homeOverview = d; this.renderHomeOverview(d); })
         .catch(() => {
           if (this._homeOverview) return;
-          ['#homeUsersBody', '#homeSyncBody'].forEach((sel) => {
-            const el = document.querySelector(sel);
-            if (el) el.innerHTML = '<p class="home-empty">Přehled se nepodařilo načíst.</p>';
-          });
+          const el = document.querySelector('#homeSyncBody');
+          if (el) el.innerHTML = '<p class="home-empty">Přehled se nepodařilo načíst.</p>';
         });
     },
 
     renderHomeOverview(d) {
       const esc = Ui.escape.bind(Ui);
 
-      // Uživatelé - jen počty podle lokace (bez jmen), Centrála první, pak podle počtu.
-      const u = d.users || { total: 0, byLocation: [] };
-      const rows = (u.byLocation || []).slice().sort((a, b) => {
-        if ((a.code === 'HQ') !== (b.code === 'HQ')) return a.code === 'HQ' ? -1 : 1;
-        return b.count - a.count || String(a.code).localeCompare(String(b.code), 'cs');
-      });
-      const max = rows.reduce((m, r) => Math.max(m, r.count), 1);
-      const usersBody = document.querySelector('#homeUsersBody');
-      if (usersBody) {
-        usersBody.innerHTML = `
-          <div class="hc-big"><b>${u.total || 0}</b><span>registrovaných uživatelů</span></div>
-          <div class="hc-sub">Podle lokace</div>
-          ${rows.length ? `<ul class="hc-bars">${rows.map((r) => `
-            <li title="${esc(r.name ? r.code + ' — ' + r.name : r.code)}">
-              <span class="hc-bar-l">${esc(r.code === 'HQ' ? 'Centrála' : r.code)}</span>
-              <span class="hc-bar-t"><i style="width:${Math.round(r.count / max * 100)}%"></i></span>
-              <span class="hc-bar-v">${r.count}</span>
-            </li>`).join('')}</ul>` : '<p class="home-empty">Žádní uživatelé.</p>'}`;
-      }
-
-      // Změny filiálek z poslední synchronizace
+      // Změny filiálek z poslední synchronizace - karta má celou výšku plochy, seznam se posouvá uvnitř.
       const body = document.querySelector('#homeSyncBody');
       const meta = document.querySelector('#homeSyncMeta');
       if (!body) return;
@@ -1339,11 +1310,10 @@ _sfState: {},
         .concat((ch.updated || []).map((it) => ['is-blue', store(it) + ': ' + (it.fields || []).slice(0, 2)
           .map((f) => esc(f.field) + ' <span class="hc-from">' + esc(f.old || '—') + '</span> → ' + esc(f.new || '—')).join('; ')
           + ((it.fields || []).length > 2 ? ' <span class="hc-more">+ ' + ((it.fields || []).length - 2) + ' dalších</span>' : '')]));
-      const shown = items.slice(0, 8);
       body.innerHTML = fail + (chips
         ? `<div class="hc-chips">${chips}</div>
-           ${shown.length ? `<ul class="hc-list">${shown.map(([cls, html]) => `<li class="${cls}">${html}</li>`).join('')}</ul>` : ''}
-           <button class="button button-secondary button-small hc-all" type="button" id="homeSyncAll">Zobrazit všechny změny${items.length > shown.length ? ' (' + items.length + ')' : ''}</button>`
+           <ul class="hc-list">${items.map(([cls, html]) => `<li class="${cls}">${html}</li>`).join('')}</ul>
+           <button class="button button-secondary button-small hc-all" type="button" id="homeSyncAll">Zobrazit podrobnosti změn</button>`
         : '<p class="home-empty">Beze změn oproti minulé synchronizaci.</p>');
       body.querySelectorAll('.hc-list li').forEach((li) => { li.title = li.textContent; });
       const all = body.querySelector('#homeSyncAll');
