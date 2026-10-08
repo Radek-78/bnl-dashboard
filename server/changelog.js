@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.162', date: '8.10.2026', message: 'Oprava: aplikace se po v3.1.161 nespustila (chyba skriptu kvůli odkazu na mapu v detailu filiálky). Odkaz je přepsaný tak, aby ho Apps Script při načítání stránky neuřízl.' },
   { version: 'v3.1.161', date: '8.10.2026', message: 'Filiálky: kliknutím na řádek se otevře detail filiálky (kontakty včetně zástupce RM, adresa s odkazem na mapu, LC, datum otevření, otevírací doba a uzavírky s rozlišením ze zdroje / ručně). Synchronizace nově přebírá i adresu a zástupce RM. Na úvodní ploše přibyly vedle dlaždic aplikací karty Uživatelé (počty podle lokace) a Změny filiálek z poslední synchronizace s tlačítkem pro zobrazení všech změn; vidí je všichni uživatelé.' },
   { version: 'v3.1.160', date: '8.10.2026', message: 'Filiálky: filiálka před otevřením se už neukazuje jako dočasně uzavřená - filtr Dočasně uzavřena zobrazí jen skutečně dočasně uzavřené filiálky a u filiálek před otevřením se nezobrazuje rozsah uzavření. Stejně se počítá i počet dočasně uzavřených na úvodní stránce.' },
   { version: 'v3.1.159', date: '8.10.2026', message: 'Rozdělovník: přepínače Přidělovat mají nově tři volby - otevřené (výchozí zapnuto), dočasně uzavřené a neotevřené. Každá filiálka patří k datu závozu do jediné skupiny; neotevřená filiálka (datum otevření v budoucnu) má přednost i před dočasným uzavřením, takže pro ni stačí zapnout jen neotevřené. Pole Závoz má stejnou výšku jako tlačítka v horní liště.' },

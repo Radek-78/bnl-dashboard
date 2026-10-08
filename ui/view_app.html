@@ -2820,8 +2820,11 @@ _sfState: {},
       const address = [s.street, [s.zip, s.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
       // "Lidl Město Ulice" - celá adresa s číslem popisným Mapy často netrefí, Lidl + město + ulice ano.
       const mapQuery = ['Lidl', s.city, s.street].filter(Boolean).join(' ');
+      // Odkaz schválně jako řetězec v apostrofech, ne v template literalu: Apps Script při servírování
+      // inline skriptu bere text za lomítky uvnitř zpětných apostrofů jako komentář a řádek usekne.
+      const mapUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(mapQuery);
       const mapLink = (s.city || s.street)
-        ? `<a class="sd-link" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}">Zobrazit na mapě</a>`
+        ? '<a class="sd-link" target="_blank" rel="noopener" href="' + esc(mapUrl) + '">Zobrazit na mapě</a>'
         : '';
 
       document.querySelector('#sdBody').innerHTML = `${alert}
