@@ -315,7 +315,8 @@
                 <col style="width:60px">
                 <col style="width:160px">
                 <col style="width:160px">
-                <col style="width:110px">
+                <col style="width:90px">
+                <col style="width:70px">
                 <col style="width:90px">
                 <col style="width:80px">
               </colgroup>
@@ -332,7 +333,8 @@
                   <th><button class="th-btn" type="button" data-table="stores" data-col="lc_code">LC<span class="sort-ind" data-sort-ind="stores-lc_code"></span></button></th>
                   <th><button class="th-btn" type="button" data-table="stores" data-col="area_manager">VT<span class="sort-ind" data-sort-ind="stores-area_manager"></span></button></th>
                   <th><button class="th-btn" type="button" data-table="stores" data-col="regional_manager">RM<span class="sort-ind" data-sort-ind="stores-regional_manager"></span></button></th>
-                  <th><button class="th-btn" type="button" data-table="stores" data-col="metropolitni">Metropolitní<span class="sort-ind" data-sort-ind="stores-metropolitni"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="stores" data-col="metropolitni">Metropol<span class="sort-ind" data-sort-ind="stores-metropolitni"></span></button></th>
+                  <th><button class="th-btn" type="button" data-table="stores" data-col="atyp">Atyp<span class="sort-ind" data-sort-ind="stores-atyp"></span></button></th>
                   <th><button class="th-btn" type="button" data-table="stores" data-col="active">Stav<span class="sort-ind" data-sort-ind="stores-active"></span></button></th>
                   <th style="text-align:center">Akce</th>
                 </tr>
@@ -2596,6 +2598,7 @@ _sfState: {},
             <td>${Ui.escape(s.area_manager || '–')}</td>
             <td>${Ui.escape(s.regional_manager || '–')}</td>
             <td style="text-align:center"><input type="checkbox" class="store-metro-toggle" data-store-metro="${Ui.escape(s.id)}"${s.metropolitni === true ? ' checked' : ''}${this.hasStoresWrite ? '' : ' disabled'} title="Metropolitní filiálka"></td>
+            <td style="text-align:center"><input type="checkbox" class="store-metro-toggle" data-store-atyp="${Ui.escape(s.id)}"${s.atyp === true ? ' checked' : ''}${this.hasStoresWrite ? '' : ' disabled'} title="Atyp filiálka"></td>
             <td>${s.active === false ? '<span class="pill is-red">Neaktivní</span>' : '<span class="pill is-green">Aktivní</span>'}</td>
             <td style="text-align:center;white-space:nowrap">
               ${this.hasStoresWrite
@@ -2614,7 +2617,7 @@ _sfState: {},
             </td>
           </tr>`;
           }).join('')
-        : '<tr><td colspan="8">Žádné filiálky. Spusťte synchronizaci.</td></tr>';
+        : '<tr><td colspan="9">Žádné filiálky. Spusťte synchronizaci.</td></tr>';
       document.querySelectorAll('[data-store-toggle]').forEach((btn) => {
         btn.addEventListener('click', () => this.toggleStoreActive(btn.dataset.storeToggle));
       });
@@ -2623,6 +2626,9 @@ _sfState: {},
       });
       document.querySelectorAll('[data-store-metro]').forEach((cb) => {
         cb.addEventListener('change', () => this.toggleStoreMetro(cb.dataset.storeMetro, cb.checked));
+      });
+      document.querySelectorAll('[data-store-atyp]').forEach((cb) => {
+        cb.addEventListener('change', () => this.toggleStoreAtyp(cb.dataset.storeAtyp, cb.checked));
       });
       // Klik na řádek = detail; tlačítka, checkbox Metropolitní ap. mají vlastní akci.
       document.querySelectorAll('[data-store-row]').forEach((tr) => {
@@ -2649,6 +2655,35 @@ _sfState: {},
         const s = this.stores.find((x) => x.id === id);
         if (s) s.metropolitni = o.value;
       });
+      Object.keys(this._atypOverrides).forEach((id) => {
+        const o = this._atypOverrides[id];
+        if (now - o.at > 60000) { delete this._atypOverrides[id]; return; }
+        const s = this.stores.find((x) => x.id === id);
+        if (s) s.atyp = o.value;
+      });
+    },
+
+    _atypOverrides: {},
+
+    /** Optimistická změna příznaku Atyp — stejně jako Metropol: projeví se hned, server běží na pozadí. */
+    toggleStoreAtyp(id, checked) {
+      const s = this.stores.find((x) => x.id === id);
+      if (!s) return;
+      const previous = s.atyp === true;
+      s.atyp = checked;
+      this._atypOverrides[id] = { value: checked, at: Date.now() };
+      Ui.call('apiSetStoreAtyp', { id: id, atyp: checked }, { silent: true })
+        .then(() => {
+          Ui.toast(s.code + ' ' + s.name + ': ' + (checked ? 'označena jako Atyp.' : 'označení Atyp zrušeno.'));
+        })
+        .catch((e) => {
+          if (this._atypOverrides[id] && this._atypOverrides[id].value === checked) {
+            delete this._atypOverrides[id];
+            s.atyp = previous;
+            this.renderStores();
+          }
+          Ui.toast(e.message, 'error');
+        });
     },
 
     /** Optimistická změna příznaku Metropolitní — projeví se hned, server běží na pozadí. */
@@ -2774,7 +2809,8 @@ _sfState: {},
         (notYetOpen ? `<span class="pill is-blue">Otevře se ${esc(this._fmtCzDate(s.opening_date))}</span>`
           : s.active === false ? '<span class="pill is-red">Neaktivní</span>' : '<span class="pill is-green">Aktivní</span>')
         + (tempClosed ? '<span class="pill is-orange">Dočasně uzavřena</span>' : '')
-        + (s.metropolitni === true ? '<span class="pill is-blue">Metropolitní</span>' : '');
+        + (s.metropolitni === true ? '<span class="pill is-blue">Metropol</span>' : '')
+        + (s.atyp === true ? '<span class="pill is-blue">Atyp</span>' : '');
 
       // Upozornění nahoře: probíhající uzavírka, nebo ještě neotevřená, nebo nejbližší plánovaná uzavírka.
       const today = this._toIsoDate(new Date());
@@ -2809,7 +2845,8 @@ _sfState: {},
             ${this._sdRow('map-pin', 'Adresa', esc(address), mapLink)}
             ${this._sdRow('truck', 'Logistické centrum', s.lc_code ? esc(s.lc_code) + (lc && lc.name ? ' · ' + esc(lc.name) : '') : '')}
             ${this._sdRow('calendar', 'Datum otevření', esc(this._fmtCzDate(s.opening_date)))}
-            ${this._sdRow('star', 'Metropolitní', s.metropolitni === true ? 'Ano' : 'Ne')}
+            ${this._sdRow('star', 'Metropol', s.metropolitni === true ? 'Ano' : 'Ne')}
+            ${this._sdRow('tag', 'Atyp', s.atyp === true ? 'Ano' : 'Ne')}
           </section>
           <section class="sd-card"><div class="sd-card-title">Otevírací doba</div>${this._sdHours(s)}</section>
           <section class="sd-card"><div class="sd-card-title">Uzavírky</div>${this._sdClosures(s)}</section>
@@ -2835,7 +2872,7 @@ _sfState: {},
       // id = null → nová filiálka (prázdný formulář)
       const store = id
         ? this.stores.find((s) => s.id === id)
-        : { id: '', code: '', name: '', lc_code: '', phone: '', area_manager: '', vt_phone: '', regional_manager: '', rm_phone: '', active: true, metropolitni: false, temp_closed_ranges: '' };
+        : { id: '', code: '', name: '', lc_code: '', phone: '', area_manager: '', vt_phone: '', regional_manager: '', rm_phone: '', active: true, metropolitni: false, atyp: false, temp_closed_ranges: '' };
       if (!store) return;
       if (!id && !this.hasStoresWrite) return;
       this._smStore = store;
@@ -2931,9 +2968,12 @@ _sfState: {},
               ${edit
                 ? `<div class="sm-field"><span class="sm-label">LC</span><select class="sm-input" data-sm-field="lc_code"><option value=""></option>${lcOptions}</select></div>`
                 : `<div class="sm-field"><span class="sm-label">LC</span><span class="sm-value sm-value--bold">${val('lc_code') || '–'}</span></div>`}
-              <div class="sm-field"><span class="sm-label">Metropolitní</span>${edit
+              <div class="sm-field"><span class="sm-label">Metropol</span>${edit
                 ? `<label class="sm-check"><input type="checkbox" data-sm-field="metropolitni"${s.metropolitni === true ? ' checked' : ''}><span>Ano</span></label>`
                 : `<span class="sm-value">${s.metropolitni === true ? 'Ano' : 'Ne'}</span>`}</div>
+              <div class="sm-field"><span class="sm-label">Atyp</span>${edit
+                ? `<label class="sm-check"><input type="checkbox" data-sm-field="atyp"${s.atyp === true ? ' checked' : ''}><span>Ano</span></label>`
+                : `<span class="sm-value">${s.atyp === true ? 'Ano' : 'Ne'}</span>`}</div>
             </div>
           </div>
         </div>
@@ -3139,7 +3179,7 @@ _sfState: {},
         return;
       }
 
-      const payload = { id: store.id || null, temp_closed_ranges: this._smRanges, active: store.active !== false, metropolitni: false };
+      const payload = { id: store.id || null, temp_closed_ranges: this._smRanges, active: store.active !== false, metropolitni: false, atyp: false };
       document.querySelectorAll('#storeModal [data-sm-field]').forEach((el) => {
         if (el.type === 'checkbox') payload[el.dataset.smField] = el.checked;
         else payload[el.dataset.smField] = el.value;
@@ -3764,7 +3804,7 @@ _sfState: {},
 
     _colDisplayVal(tableKey, col, rawVal) {
       if (col === 'active') return rawVal === true || rawVal === 'true' ? 'Aktivní' : 'Neaktivní';
-      if (col === 'metropolitni') return rawVal === true || rawVal === 'true' ? 'Ano' : 'Ne';
+      if (col === 'metropolitni' || col === 'atyp') return rawVal === true || rawVal === 'true' ? 'Ano' : 'Ne';
       if (col === 'role') return this.roleLabel(rawVal) || String(rawVal || '');
       if (col === 'timestamp') return Ui.formatDateTime(rawVal);
       return String(rawVal !== null && rawVal !== undefined ? rawVal : '');

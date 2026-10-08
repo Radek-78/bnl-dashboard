@@ -29,6 +29,9 @@ const RZ_SCHEMA = {
   // KONKRÉTNÍ filiálku z přídělu KONKRÉTNÍHO artiklu - na rozdíl od
   // ignorovat_vyrazeni/Metropol/Vyřazených artiklů to není pravidlo podle dat,
   // ale ruční rozhodnutí uživatele, proto ho nepřebíjí ani checkbox "vše".
+  // Řádek s cislo_artiklu '*' a vyplněnou prodejnou = křížek u čísla prodejny ve
+  // sloupci Prodejna - vyloučí filiálku z přídělu VŠECH artiklů (rucne_vyrazeno).
+  // Smaže ho reset tabulky Artiklů stejně jako ostatní ruční úpravy.
   'rozdeleni': ['id', 'cislo_artiklu', 'prodejna', 'min', 'max', 'uprava', 'created_at', 'created_by', 'updated_at', 'rw', 'zaokrouhlit', 'ignorovat_vyrazeni', 'rucne_vyrazeno'],
   // cisla - čísla artiklů skupiny spojená STŘEDNÍKEM, ne čárkou (jen čísla,
   // ne název/obsah/množství - ty se dohledávají/zadávají znovu při každém
@@ -771,6 +774,16 @@ function apiRzSaveRozdeleniRucneVyrazeno(payload) {
   });
 }
 
+/** Křížek u čísla prodejny ve sloupci Prodejna - vyloučí/vrátí filiálku z přídělu všech artiklů. */
+function apiRzSaveProdejnaVyrazena(payload) {
+  return rzGuard_((user) => {
+    if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k zápisu.');
+    const prodejna = String((payload && payload.prodejna) || '').trim();
+    if (!prodejna) throw new Error('Chybí prodejna.');
+    return rzUpsertRozdeleni_('*', prodejna, { rucne_vyrazeno: !!(payload && payload.rucne_vyrazeno) });
+  });
+}
+
 /**
  * Informace o artiklech má běžně desítky až stovky tisíc řádků — appka ho
  * proto nikdy celý nečte ani nikam neukládá, jen v něm cíleně vyhledá
@@ -813,7 +826,28 @@ function rzOpenInfoArtiklechSheet_(file) {
   return SpreadsheetApp.openById(copy.id).getSheets()[0];
 }
 
-/** V listu najde řádek s daným číslem artiklu ve sloupci ARTIKL (TextFinder) a vrátí Název/Obsah. */
+/**
+ * Artikl se z Informací o artiklech bere jen se STATUS 6–10 - řádek s jiným statusem
+ * je chybný/neplatný záznam a nesmí se načíst (i když má správné číslo artiklu).
+ */
+function rzStatusOk_(val) {
+  const text = String(val == null ? '' : val).trim().replace(',', '.');
+  if (!text) return false;
+  const n = Number(text);
+  return !isNaN(n) && n >= 6 && n <= 10;
+}
+
+/** Index sloupce STATUS v hlavičce Informací o artiklech - bez něj nejde status ověřit, proto chyba. */
+function rzStatusColIndex_(headers) {
+  const idx = headers.findIndex((h) => String(h || '').trim().toUpperCase() === 'STATUS');
+  if (idx === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou STATUS.');
+  return idx;
+}
+
+/**
+ * V listu najde řádek s daným číslem artiklu ve sloupci ARTIKL (TextFinder) a se STATUS 6–10
+ * a vrátí Název/Obsah. Artikl může být v souboru víckrát - bere se první řádek s platným statusem.
+ */
 function rzFindArtiklInSheet_(sheet, cisloArtiklu) {
   const lastCol = sheet.getLastColumn();
   const lastRow = sheet.getLastRow();
@@ -824,16 +858,19 @@ function rzFindArtiklInSheet_(sheet, cisloArtiklu) {
   const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
   const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
   if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
+  const idxStatus = rzStatusColIndex_(headers);
 
   const artiklCol = sheet.getRange(2, idxArtikl + 1, lastRow - 1, 1);
-  const match = artiklCol.createTextFinder(String(cisloArtiklu)).matchEntireCell(true).findNext();
-  if (!match) return null;
-
-  const rowVals = sheet.getRange(match.getRow(), 1, 1, lastCol).getValues()[0];
-  return {
-    nazev: idxNazev !== -1 ? String(rowVals[idxNazev] || '').trim() : '',
-    obsah: idxObsah !== -1 ? String(rowVals[idxObsah] || '').trim() : '',
-  };
+  const matches = artiklCol.createTextFinder(String(cisloArtiklu)).matchEntireCell(true).findAll();
+  for (let i = 0; i < matches.length; i++) {
+    const rowVals = sheet.getRange(matches[i].getRow(), 1, 1, lastCol).getValues()[0];
+    if (!rzStatusOk_(rowVals[idxStatus])) continue;
+    return {
+      nazev: idxNazev !== -1 ? String(rowVals[idxNazev] || '').trim() : '',
+      obsah: idxObsah !== -1 ? String(rowVals[idxObsah] || '').trim() : '',
+    };
+  }
+  return null;
 }
 
 /** Vyhledá Název a Obsah pro jedno číslo artiklu — vrací null, pokud nenalezeno. Volá se na pozadí po opuštění pole Artikl. */
@@ -863,7 +900,8 @@ function apiRzLookupArtikl(cisloArtiklu) {
       const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
       const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
       if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
-      const row = data.slice(1).find((r) => String(r[idxArtikl] || '').trim() === cislo);
+      const idxStatus = rzStatusColIndex_(headers);
+      const row = data.slice(1).find((r) => String(r[idxArtikl] || '').trim() === cislo && rzStatusOk_(r[idxStatus]));
       if (!row) return null;
       return {
         nazev: idxNazev !== -1 ? String(row[idxNazev] || '').trim() : '',
@@ -913,8 +951,10 @@ function apiRzLookupArtiklBatch(cisla) {
       const idxNazev = headers.findIndex((h) => norm(h) === 'NAZEV');
       const idxObsah = headers.findIndex((h) => norm(h) === 'OBSAH');
       if (idxArtikl === -1) throw new Error('Soubor Informace o artiklech nemá sloupec s hlavičkou ARTIKL.');
+      const idxStatus = rzStatusColIndex_(headers);
       // Jeden průchod souborem pro všechna hledaná čísla, ne jeden průchod na číslo.
       for (let i = 1; i < data.length; i++) {
+        if (!rzStatusOk_(data[i][idxStatus])) continue;
         const cell = data[i][idxArtikl];
         const hit = wanted.find((c) => remaining[c] && rzArtiklMatches_(cell, c));
         if (!hit) continue;
@@ -951,7 +991,7 @@ function apiRzListStores() {
     return dbGetAll_(SHEETS.STORES)
       .filter((s) => s.active === true && String(s.lc_code).trim().toUpperCase() === defaultLcCode)
       .map((s) => ({
-        code: s.code, name: s.name, metropolitni: !!s.metropolitni,
+        code: s.code, name: s.name, metropolitni: !!s.metropolitni, atyp: s.atyp === true,
         opening_date: normalizeIsoDate_(s.opening_date),
         closed_ranges: storeClosureRanges_(s),
       }))

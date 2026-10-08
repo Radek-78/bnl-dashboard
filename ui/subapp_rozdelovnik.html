@@ -35,6 +35,11 @@
     _allowOpen: true,
     _allowClosed: false,
     _allowUnopened: false,
+    // Atyp filiálky - nezávisle na kategorii otevřená/uzavřená/neotevřená; vypnuto = nedostanou nic.
+    _allowAtyp: true,
+    // Prodejny vyloučené křížkem ve sloupci Prodejna ze všech artiklů - plní _rozdeleniLookup
+    // z řádků rozdeleni s cislo_artiklu '*' (ukládá se, smaže ho reset tabulky Artiklů).
+    _prodejnyOff: {},
     settings: {},
     importData: {},
     importOverview: null,
@@ -294,6 +299,7 @@
           '<label class="rz-delivery-check" title="Přidělovat filiálkám, které jsou k datu závozu otevřené"><input type="checkbox" id="rzAllowOpen" checked><span>otevřené</span></label>' +
           '<label class="rz-delivery-check" title="Přidělovat filiálkám, které jsou k datu závozu dočasně uzavřené"><input type="checkbox" id="rzAllowClosed"><span>dočasně uzavřené</span></label>' +
           '<label class="rz-delivery-check" title="Přidělovat filiálkám, které k datu závozu ještě nejsou otevřené (datum otevření má přednost před dočasným uzavřením)"><input type="checkbox" id="rzAllowUnopened"><span>neotevřené</span></label>' +
+          '<label class="rz-delivery-check" title="Přidělovat Atyp filiálkám (platí zároveň s volbou otevřené / dočasně uzavřené / neotevřené)"><input type="checkbox" id="rzAllowAtyp" checked><span>Atyp</span></label>' +
           '</div>');
         document.querySelector('#rzDeliveryDate').addEventListener('change', (e) => {
           this._deliveryDate = e.target.value || this._todayIso();
@@ -306,6 +312,10 @@
         });
         document.querySelector('#rzAllowClosed').addEventListener('change', (e) => {
           this._allowClosed = e.target.checked;
+          this._onStoreRulesChanged();
+        });
+        document.querySelector('#rzAllowAtyp').addEventListener('change', (e) => {
+          this._allowAtyp = e.target.checked;
           this._onStoreRulesChanged();
         });
         document.querySelector('#rzAllowUnopened').addEventListener('change', (e) => {
@@ -1097,7 +1107,7 @@
       Ui.confirm({
         kicker: 'Artikly',
         title: 'Resetovat tabulku artiklů?',
-        message: 'Smaže se všech 20 řádků (čísla artiklů, názvy, obsah, množství i příznak Metropol) a zároveň i data v záložce Rozdělení (min/max, Úprava po prodejnách) - jinak by po opětovném zadání stejného čísla artiklu zůstala viset stará čísla. Tuto akci nelze vrátit.',
+        message: 'Smaže se všech 20 řádků (čísla artiklů, názvy, obsah, množství i příznak Metropol) a zároveň i data v záložce Rozdělení (min/max, RW, ruční úpravy +/- a křížky u prodejen) - jinak by po opětovném zadání stejného čísla artiklu zůstala viset stará čísla. Tuto akci nelze vrátit.',
         confirmLabel: 'Resetovat',
       }).then((confirmed) => {
         if (!confirmed) return;
@@ -1295,10 +1305,16 @@
 
       const frozenRows = this.stores.map((s) => {
         const cat = this._storeCategory(s);
-        const blocked = !!this._storeBlock(s);
-        const note = (cat !== 'open' || blocked) ? this._storeBlockReason(cat, s) : '';
-        const cls = blocked ? ' is-blocked' : (cat !== 'open' ? ' is-flagged' : '');
-        return '<div class="rzr-hrow rzr-store-cell' + cls + '" data-store="' + Ui.escape(s.code) + '"' + (note ? ' title="' + Ui.escape(note) + '"' : '') + '>' + Ui.escape(s.code) + '</div>';
+        const block = this._storeBlock(s);
+        const off = !!this._prodejnyOff[s.code];
+        const note = block ? this._storeBlockReason(block, s) : (cat !== 'open' ? this._storeBlockReason(cat, s) : '');
+        const cls = block ? ' is-blocked' : (cat !== 'open' ? ' is-flagged' : '');
+        return '<div class="rzr-hrow rzr-store-cell' + cls + '" data-store="' + Ui.escape(s.code) + '"' + (note ? ' title="' + Ui.escape(note) + '"' : '') + '>' +
+          '<span>' + Ui.escape(s.code) + '</span>' +
+          (this.canWrite ? '<button class="rzr-prideli-cross rzr-store-cross' + (off ? ' is-active' : '') + '" type="button" data-store-off="' + Ui.escape(s.code) + '" title="' +
+            (off ? 'Vrátit filiálku do přídělu všech artiklů' : 'Vyloučit filiálku z přídělu všech artiklů') + '" aria-label="' +
+            (off ? 'Vrátit filiálku do přídělu' : 'Vyloučit filiálku z přídělu') + '">✕</button>' : '') +
+          '</div>';
       }).join('');
       const rwToPersist = [];
 
@@ -1449,7 +1465,10 @@
             this.adjustPrideli(cell.dataset.cislo, cell.dataset.store, Number(btn.dataset.dir));
           });
         });
-        el.querySelectorAll('.rzr-prideli-cross').forEach((btn) => {
+        el.querySelectorAll('[data-store-off]').forEach((btn) => {
+          btn.addEventListener('click', () => this.toggleProdejnaVyrazena(btn.dataset.storeOff, !btn.classList.contains('is-active')));
+        });
+        el.querySelectorAll('.rzr-prideli-cell .rzr-prideli-cross').forEach((btn) => {
           btn.addEventListener('click', () => {
             const cell = btn.closest('.rzr-prideli-cell');
             this.toggleRucneVyrazeno(cell.dataset.cislo, cell.dataset.store, !btn.classList.contains('is-active'));
@@ -1581,6 +1600,8 @@
           }
         }
       });
+      // Řádky '*' = křížek u čísla prodejny (vyloučení ze všech artiklů) - čte _storeBlock přes _isEligible.
+      this._prodejnyOff = byStoreDeaktivace['*'] || {};
       return { byArtikl, byStore, byStoreDeaktivace };
     },
 
@@ -1631,9 +1652,12 @@
 
     /** Kategorie, které se podle přepínačů "Přidělovat" nepřiděluje, nebo '' když se přidělovat smí. */
     _storeBlock(s) {
+      if (this._prodejnyOff[s.code]) return 'off';
       const cat = this._storeCategory(s);
       const allowed = cat === 'unopened' ? this._allowUnopened : cat === 'closed' ? this._allowClosed : this._allowOpen;
-      return allowed ? '' : cat;
+      if (!allowed) return cat;
+      if (s.atyp === true && !this._allowAtyp) return 'atyp';
+      return '';
     },
 
     _storeBlockReason(kind, s) {
@@ -1641,6 +1665,8 @@
         const [y, m, d] = String(s.opening_date).split('-');
         return 'Filiálka k datu závozu ještě není otevřená (otevře se ' + Number(d) + '. ' + Number(m) + '. ' + y + ')';
       }
+      if (kind === 'off') return 'Filiálka je ručně vyloučená z přídělu všech artiklů (křížek u čísla prodejny)';
+      if (kind === 'atyp') return 'Atyp filiálka - přidělování Atyp filiálkám je vypnuté';
       if (kind === 'closed') return 'Filiálka je k datu závozu dočasně uzavřená';
       return 'Filiálka je k datu závozu otevřená - přidělování otevřeným filiálkám je vypnuté';
     },
@@ -2160,6 +2186,14 @@
       this._upsertRozdeleniLocal(cislo, '', { ignorovat_vyrazeni: checked });
       this.renderTabContent();
       Ui.call('apiRzSaveRozdeleniIgnorovatVyrazeni', { cislo_artiklu: cislo, ignorovat_vyrazeni: checked }, { silent: true })
+        .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /** Křížek u čísla prodejny - vyloučí/vrátí filiálku z přídělu VŠECH artiklů (řádek rozdeleni s cislo_artiklu '*'). */
+    toggleProdejnaVyrazena(store, deactivate) {
+      this._upsertRozdeleniLocal('*', store, { rucne_vyrazeno: deactivate });
+      this.renderTabContent();
+      Ui.call('apiRzSaveProdejnaVyrazena', { prodejna: store, rucne_vyrazeno: deactivate }, { silent: true })
         .catch((e) => Ui.toast(e.message, 'error'));
     },
 

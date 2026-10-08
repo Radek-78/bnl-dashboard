@@ -366,6 +366,7 @@ function apiSaveStore(payload) {
       temporarily_closed: payload && payload.temporarily_closed === true,
       active: !payload || payload.active !== false,
       metropolitni: !!(payload && payload.metropolitni),
+      atyp: !!(payload && payload.atyp),
     };
     // Ruční deaktivace přes editaci se chová stejně jako tlačítko vypnutí —
     // sync ji nesmí automaticky vrátit zpět (viz manually_inactive v syncStores_).
@@ -416,6 +417,22 @@ function apiSetStoreMetropolitni(payload) {
     const value = !!(payload && payload.metropolitni);
     dbUpdate_(SHEETS.STORES, id, { metropolitni: value });
     audit_('store_metropolitni', store.code + ' ' + store.name + ' → ' + (value ? 'metropolitní' : 'běžná'));
+    return null;
+  });
+}
+
+/** Příznak Atyp - stejný princip jako Metropol; v Rozdělovníku ho řídí přepínač Přidělovat: Atyp. */
+function apiSetStoreAtyp(payload) {
+  return guard_(ROLES.USER, (actor) => {
+    const id = payload && payload.id;
+    const store = dbGetById_(SHEETS.STORES, id);
+    if (!store) throw new Error('Filiálka nenalezena.');
+    if (!isAllowed_(actor, 'stores_write', store.lc_code)) {
+      throw new Error('Nemáte oprávnění upravovat filiálku v lokaci ' + store.lc_code);
+    }
+    const value = !!(payload && payload.atyp);
+    dbUpdate_(SHEETS.STORES, id, { atyp: value });
+    audit_('store_atyp', store.code + ' ' + store.name + ' → ' + (value ? 'Atyp' : 'běžná'));
     return null;
   });
 }
@@ -695,7 +712,7 @@ function apiSaveSyncSettings(payload) {
  * to omezí na jednou za běh skriptu, CacheService pak i napříč requesty.
  */
 let dbSchemaEnsuredThisRun_ = false;
-const SCHEMA_CHECK_CACHE_KEY_ = 'schema:checked:5'; // změna klíče vynutí novou kontrolu po přidání sloupce
+const SCHEMA_CHECK_CACHE_KEY_ = 'schema:checked:6'; // změna klíče vynutí novou kontrolu po přidání sloupce
 const SCHEMA_CHECK_TTL_ = 1800; // sekund
 
 function dbEnsureApps_() {

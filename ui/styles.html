@@ -2257,6 +2257,16 @@
 
   /* Filiálka k datu závozu neotevřená / dočasně uzavřená: vyloučená z přídělu (is-blocked),
      nebo přidělovaná díky přepínači v horní liště (is-flagged) - důvod je v tooltipu. */
+  /* Křížek u čísla prodejny - vyloučí filiálku ze všech artiklů; číslo zůstává uprostřed, křížek u pravého okraje. */
+  .rzr-store-cell { position: relative; }
+
+  .rzr-store-cross {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
   .rzr-store-cell.is-blocked {
     color: #9ca3af;
     text-decoration: line-through;
