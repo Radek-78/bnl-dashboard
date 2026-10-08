@@ -314,6 +314,7 @@
                     <div style="display:flex;align-items:center;gap:6px">
                       <button class="th-btn" type="button" data-table="stores" data-col="name">Název<span class="sort-ind" data-sort-ind="stores-name"></span></button>
                       <button class="sf-tc-toggle" type="button" id="sfTcToggle" title="Zobrazit jen dočasně uzavřené">Dočasně uzavřena</button>
+                      <button class="sf-tc-toggle sf-up-toggle" type="button" id="sfUpToggle" title="Zobrazit jen filiálky před otevřením">Před otevřením</button>
                     </div>
                   </th>
                   <th><button class="th-btn" type="button" data-table="stores" data-col="lc_code">LC<span class="sort-ind" data-sort-ind="stores-lc_code"></span></button></th>
@@ -421,7 +422,7 @@
                     </select>
                   </label>
                 </div>
-                <small class="form-hint">Jednou denně ve zvolenou hodinu se zkontroluje, zda se soubor ve složce změnil — pokud ano, synchronizace proběhne automaticky.</small>
+                <small class="form-hint">Jednou denně ve zvolenou hodinu se zkontroluje, zda se soubor ve složce změnil — pokud ano, synchronizace proběhne automaticky. Doporučeno 6:00 — zdrojový soubor se přepisuje mezi 4. a 5. hodinou, dřívější kontrola by viděla ještě včerejší data.</small>
                 <small class="form-hint" id="autoSyncLastCheck"></small>
                 <div class="form-actions">
                   <button class="button button-secondary write-only" type="submit" id="saveSyncSettingsButton"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-check"></use></svg>Uložit konfiguraci</button>
@@ -878,12 +879,34 @@ _sfState: {},
       return `${y}-${m}-${d}`;
     },
 
+    /** Pole rozsahů {from, to} z JSON textu ([] při prázdné/neplatné hodnotě). */
+    _parseRanges(raw) {
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(String(raw));
+        return Array.isArray(parsed) ? parsed.filter((r) => r && r.from && r.to) : [];
+      } catch { return []; }
+    },
+
+    /** Všechny uzavírky filiálky - ze zdroje (synchronizace) i ručně zadané. */
+    _storeRanges(store) {
+      return this._parseRanges(store.sync_closed_ranges).concat(this._parseRanges(store.temp_closed_ranges));
+    },
+
+    /** Filiálka má datum otevření v budoucnu. */
+    _isNotYetOpen(store) {
+      if (!store.opening_date) return false;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      return this._parseLocalDate(store.opening_date) > today;
+    },
+
+    _fmtCzDate(iso) {
+      const [y, m, d] = String(iso || '').split('-');
+      return y && m && d ? Number(d) + '. ' + Number(m) + '. ' + y : '';
+    },
+
     _tempClosedRangeLabel(store) {
-      const raw = store.temp_closed_ranges;
-      if (!raw) return '';
-      let ranges;
-      try { ranges = JSON.parse(raw); } catch { return ''; }
-      if (!Array.isArray(ranges)) return '';
+      const ranges = this._storeRanges(store);
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const thisYear = today.getFullYear();
       const fmt = (iso) => {
@@ -900,11 +923,8 @@ _sfState: {},
     },
 
     _isTempClosed(store) {
-      const raw = store.temp_closed_ranges;
-      if (!raw) return false;
-      let ranges;
-      try { ranges = JSON.parse(raw); } catch { return false; }
-      if (!Array.isArray(ranges) || ranges.length === 0) return false;
+      const ranges = this._storeRanges(store);
+      if (ranges.length === 0) return false;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       return ranges.some((r) => {
@@ -1473,6 +1493,23 @@ _sfState: {},
       }
     },
 
+    /** Skupiny reportu k uzavírkám a stavu filiálek (nově zavřeno, skončené uzavírky, před otevřením, ručně deaktivované). */
+    _syncStatusGroups(ch) {
+      const esc = Ui.escape.bind(Ui);
+      const fmt = (iso) => esc(this._fmtCzDate(iso));
+      const range = (it) => it.from === it.to ? fmt(it.from) : fmt(it.from) + ' – ' + fmt(it.to);
+      const group = (label, cls, items, extra) => (items || []).length ? `<div class="sync-change-group">
+          <div class="sync-change-label ${cls}">${label} (${items.length})</div>
+          ${items.map((it) => `<div class="sync-change-row">${esc(it.code)} — ${esc(it.name)}${extra ? ' <span style="color:var(--muted)">(' + extra(it) + ')</span>' : ''}</div>`).join('')}
+        </div>` : '';
+      return [
+        group('Nově zavřeno', 'is-orange', ch.closed, range),
+        group('Uzavírka skončila nebo byla zrušena', 'is-green', ch.reopened, range),
+        group('Před otevřením', 'is-blue', ch.notYetOpen, (it) => 'otevře se ' + fmt(it.date)),
+        group('Ručně deaktivované — ve zdroji aktivní a nezavřené, zkontrolujte, zda je znovu zapnout', 'is-red', ch.manualInactive),
+      ].filter(Boolean);
+    },
+
     openSyncChangesModal() {
       const result = this._syncResult;
       if (!result) return;
@@ -1500,6 +1537,7 @@ _sfState: {},
       sections.push(group('Deaktivováno', 'is-red', ch.deactivated));
       sections.push(group('Reaktivováno', 'is-orange', ch.reactivated));
       sections.push(group('Upraveno', 'is-blue', ch.updated));
+      this._syncStatusGroups(ch).forEach((g) => sections.push(g));
       const body = sections.filter(Boolean).join('') || '<p style="color:var(--muted)">Žádné změny.</p>';
       document.querySelector('#syncChangesBody').innerHTML = body;
       Ui.openModal(document.querySelector('#syncChangesModal'));
@@ -2421,6 +2459,11 @@ _sfState: {},
           this._sfFilters.tc = !this._sfFilters.tc;
           this.renderStores();
         });
+        document.querySelector('#sfUpToggle').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this._sfFilters.up = !this._sfFilters.up;
+          this.renderStores();
+        });
       }
       const cached = this.stores.length > 0;
       if (cached) { this.renderSfBadges(); this.renderStores(); }
@@ -2436,21 +2479,25 @@ _sfState: {},
     },
 
     renderStores() {
-      const { lc, vt, rm, tc } = this._sfFilters;
+      const { lc, vt, rm, tc, up } = this._sfFilters;
       let rows = this.sortFilter('stores', this.stores);
       if (lc.size) rows = rows.filter((s) => lc.has(s.lc_code));
       if (vt.size) rows = rows.filter((s) => vt.has(s.area_manager));
       if (rm.size) rows = rows.filter((s) => rm.has(s.regional_manager));
       if (tc) rows = rows.filter((s) => this._isTempClosed(s));
+      if (up) rows = rows.filter((s) => this._isNotYetOpen(s));
       const tcBtn = document.querySelector('#sfTcToggle');
       if (tcBtn) tcBtn.classList.toggle('is-on', tc);
+      const upBtn = document.querySelector('#sfUpToggle');
+      if (upBtn) upBtn.classList.toggle('is-on', !!up);
       document.querySelector('#storeRows').innerHTML = rows.length
         ? rows.map((s) => {
             const tempClosed = this._isTempClosed(s);
+            const notYetOpen = this._isNotYetOpen(s);
             return `
           <tr class="${s.active === false ? 'is-muted' : ''}">
             <td><strong>${Ui.escape(s.code)}</strong></td>
-            <td><span class="store-name-cell">${Ui.escape(s.name)}${tempClosed ? `<span class="store-tc-right"><span class="store-tc-range">${Ui.escape(this._tempClosedRangeLabel(s))}</span><span class="pill is-orange">Dočasně uzavřena</span></span>` : ''}</span></td>
+            <td><span class="store-name-cell">${Ui.escape(s.name)}${tempClosed ? `<span class="store-tc-right"><span class="store-tc-range">${Ui.escape(this._tempClosedRangeLabel(s))}</span><span class="pill is-orange">Dočasně uzavřena</span></span>` : ''}${notYetOpen ? `<span class="store-tc-right"><span class="store-tc-range is-upcoming">od ${Ui.escape(this._fmtCzDate(s.opening_date))}</span><span class="pill is-blue">Před otevřením</span></span>` : ''}</span></td>
             <td>${Ui.escape(s.lc_code || '–')}</td>
             <td>${Ui.escape(s.area_manager || '–')}</td>
             <td>${Ui.escape(s.regional_manager || '–')}</td>
@@ -2535,6 +2582,7 @@ _sfState: {},
     _smStore: null,
     _smEditable: false,
     _smRanges: [],
+    _smSyncRanges: [],
     _smCalYear: 0,
     _smCalMonth: 0,
     _smSelStart: null,
@@ -2556,6 +2604,8 @@ _sfState: {},
         ranges = Array.isArray(parsed) ? parsed : [];
       } catch { ranges = []; }
       this._smRanges = ranges.map((r) => ({ from: r.from, to: r.to }));
+      // Uzavírky ze zdroje se v detailu jen zobrazují - spravuje je synchronizace.
+      this._smSyncRanges = this._parseRanges(store.sync_closed_ranges);
       this._smSelStart = null;
 
       const now = new Date();
@@ -2617,7 +2667,7 @@ _sfState: {},
         .map((lc) => `<option value="${Ui.escape(lc.abbreviation)}"${lc.abbreviation === s.lc_code ? ' selected' : ''}>${Ui.escape(lc.abbreviation)} — ${Ui.escape(lc.name)}</option>`)
         .join('');
       document.querySelector('#smFields').innerHTML = `
-        ${edit ? '<p class="sm-sync-note">Pole z měsíčního exportu (název, LC, VT, RM, telefony, otevírací doby) budou při příští synchronizaci přepsána podle zdrojového souboru.</p>' : ''}
+        ${edit ? '<p class="sm-sync-note">Pole z měsíčního exportu (název, LC, VT, RM, telefony, otevírací doby, datum otevření a uzavírky ze zdroje) budou při příští synchronizaci přepsána podle zdrojového souboru. Ručně zadané uzavírky synchronizace nemění.</p>' : ''}
         <div class="sm-card">
           <div class="sm-card-icon sm-card-icon--store">${ico.store}</div>
           <div class="sm-card-body">
@@ -2668,6 +2718,7 @@ _sfState: {},
               <div class="sm-field"><span class="sm-label">Stav filiálky</span>${edit
                 ? `<select class="sm-input" data-sm-field="active"><option value="true"${s.active !== false ? ' selected' : ''}>Aktivní</option><option value="false"${s.active === false ? ' selected' : ''}>Neaktivní</option></select>`
                 : `<span class="sm-value">${statusHtml}</span>`}</div>
+              <div class="sm-field"><span class="sm-label">Datum otevření</span><span class="sm-value">${Ui.escape(this._fmtCzDate(s.opening_date)) || '–'}${this._isNotYetOpen(s) ? ' <span class="pill is-blue">Před otevřením</span>' : ''}</span></div>
             </div>
           </div>
         </div>`;
@@ -2703,14 +2754,16 @@ _sfState: {},
       const daysInMonth = new Date(year, month + 1, 0).getDate();
 
       const ranges = this._smRanges;
-      const isInRange = (d) => {
+      const inRanges = (list, d) => {
         const t = d.getTime();
-        return ranges.some((r) => {
+        return list.some((r) => {
           const f = this._parseLocalDate(r.from);
           const to = this._parseLocalDate(r.to);
           return t >= f.getTime() && t <= to.getTime();
         });
       };
+      const isInRange = (d) => inRanges(ranges, d);
+      const isInSyncRange = (d) => inRanges(this._smSyncRanges, d);
 
       const DAY_HEADS = ['Po','Út','St','Čt','Pá','So','Ne'];
       let html = '<div class="sm-cal-head">' + DAY_HEADS.map((d) => `<span>${d}</span>`).join('') + '</div>';
@@ -2721,7 +2774,8 @@ _sfState: {},
         const iso = this._toIsoDate(d);
         const isToday = d.getTime() === today.getTime();
         const marked = isInRange(d);
-        html += `<button class="sm-cal-day${marked ? ' is-marked' : ''}${isToday ? ' is-today' : ''}" type="button" data-date="${iso}">${day}</button>`;
+        const synced = !marked && isInSyncRange(d);
+        html += `<button class="sm-cal-day${marked ? ' is-marked' : ''}${synced ? ' is-sync' : ''}${isToday ? ' is-today' : ''}" type="button" data-date="${iso}"${synced ? ' title="Uzavírka ze zdroje"' : ''}>${day}</button>`;
       }
       const trailing = 42 - startOffset - daysInMonth;
       for (let i = 0; i < trailing; i++) html += '<span></span>';
@@ -2806,12 +2860,17 @@ _sfState: {},
 
     _smRenderRangeList() {
       const el = document.querySelector('#smRanges');
-      if (!this._smRanges.length) { el.innerHTML = '<div class="sm-no-ranges">Žádné dočasné uzavření</div>'; return; }
+      if (!this._smRanges.length && !this._smSyncRanges.length) { el.innerHTML = '<div class="sm-no-ranges">Žádné dočasné uzavření</div>'; return; }
       const fmt = (iso) => {
         const [y, m, d] = iso.split('-');
         return d + '. ' + m + '. ' + y;
       };
-      el.innerHTML = this._smRanges.map((r, i) =>
+      el.innerHTML = this._smSyncRanges.map((r) =>
+        `<div class="sm-range-item is-sync" title="Uzavírka ze zdrojového souboru - mění ji jen synchronizace">
+          <span>${fmt(r.from)}${r.from !== r.to ? ' – ' + fmt(r.to) : ''}</span>
+          <span class="sm-range-src">ze zdroje</span>
+        </div>`
+      ).join('') + this._smRanges.map((r, i) =>
         `<div class="sm-range-item">
           <span>${fmt(r.from)}${r.from !== r.to ? ' – ' + fmt(r.to) : ''}</span>
           <button class="sm-range-del" type="button" data-range-idx="${i}" title="Odstranit">×</button>
@@ -2861,7 +2920,7 @@ _sfState: {},
 
     /* ── Filiálky – filtrování ────────────────────── */
 
-    _sfFilters: { lc: new Set(), vt: new Set(), rm: new Set(), tc: false },
+    _sfFilters: { lc: new Set(), vt: new Set(), rm: new Set(), tc: false, up: false },
 
     _sfCs: new Intl.Collator('cs'),
 
@@ -3230,7 +3289,7 @@ _sfState: {},
       form.elements.syncStoresSheet.value = s.syncStoresSheet || '';
       form.elements.syncClosuresSheet.value = s.syncClosuresSheet || '';
       form.elements.autoSyncEnabled.value = s.autoSyncEnabled ? 'true' : 'false';
-      form.elements.autoSyncHour.value = String(s.autoSyncHour ?? 3);
+      form.elements.autoSyncHour.value = String(s.autoSyncHour ?? 6);
       const lastCheck = document.querySelector('#autoSyncLastCheck');
       if (lastCheck) {
         lastCheck.textContent = s.autoSyncLastCheckAt
@@ -3273,6 +3332,7 @@ _sfState: {},
         added: st.added || 0, updated: st.updated || 0,
         deactivated: st.deactivated || 0, reactivated: st.reactivated || 0,
         unchanged: st.unchanged || 0,
+        closed: st.closedNew || 0, reopened: st.closedEnded || 0,
         errors: (st.errors || []).length,
       });
       if (h.length > 20) h.length = 20;
@@ -3309,6 +3369,8 @@ _sfState: {},
             s.updated > 0 ? s.updated + ' upraveno' : '',
             s.deactivated > 0 ? s.deactivated + ' deaktivováno' : '',
             s.reactivated > 0 ? s.reactivated + ' reaktivováno' : '',
+            s.closedNew > 0 ? s.closedNew + ' nově zavřeno' : '',
+            s.closedEnded > 0 ? s.closedEnded + ' uzavírek skončilo' : '',
           ].filter(Boolean);
           const hasChanges = parts.length > 0;
           Ui.toast('Synchronizace dokončena' + (hasChanges ? ': ' + parts.join(', ') : ' — žádné změny') + '.');
@@ -3352,13 +3414,19 @@ _sfState: {},
     /** Pilulky se souhrnem synchronizace — bere plné stats (errors pole) i záznam historie (errors číslo). */
     _syncStatPills(stats) {
       if (!stats) return '<span class="pill">Neprobíhala</span>';
+      if (stats.failure) return `<span class="pill is-red" title="${Ui.escape(stats.failure)}">Chyba: ${Ui.escape(stats.failure)}</span>`;
       const fmt = (n) => n > 0 ? n : 0;
       const errs = Array.isArray(stats.errors) ? stats.errors.length : (stats.errors || 0);
+      // Plné stats z běhu mají closedNew/closedEnded, záznam historie closed/reopened.
+      const closed = stats.closedNew != null ? stats.closedNew : (stats.closed || 0);
+      const reopened = stats.closedEnded != null ? stats.closedEnded : (stats.reopened || 0);
       return [
         stats.added    > 0 ? `<span class="pill is-green">+${fmt(stats.added)} přidáno</span>` : '',
         stats.updated  > 0 ? `<span class="pill is-blue">${fmt(stats.updated)} upraveno</span>` : '',
         stats.deactivated > 0 ? `<span class="pill is-red">${fmt(stats.deactivated)} deaktivováno</span>` : '',
         stats.reactivated > 0 ? `<span class="pill is-orange">${fmt(stats.reactivated)} reaktivováno</span>` : '',
+        closed > 0 ? `<span class="pill is-orange">${fmt(closed)} nově zavřeno</span>` : '',
+        reopened > 0 ? `<span class="pill is-green">${fmt(reopened)} uzavírek skončilo</span>` : '',
         `<span class="pill">${fmt(stats.unchanged)} beze změny</span>`,
         errs > 0 ? `<span class="pill is-red">${errs} chyb</span>` : '',
       ].filter(Boolean).join('');
@@ -3411,6 +3479,7 @@ _sfState: {},
               </details>`).join('')}
           </div>`);
         }
+        this._syncStatusGroups(ch).forEach((g) => sections.push(g));
         if (!sections.length) return '';
         return `<details class="sync-change-detail"><summary>Zobrazit detail změn</summary>
           <div class="sync-detail-tools"><button class="button button-secondary button-small sync-expand-all" type="button" data-state="closed">Rozbalit vše</button></div>

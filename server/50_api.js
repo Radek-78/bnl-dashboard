@@ -3,14 +3,19 @@
  * Každý endpoint je obalený guard_() — vrací { ok, data } / { ok, error }.
  */
 
+/** Všechny uzavírky filiálky: ze zdroje (sync_closed_ranges, plní synchronizace) i ručně zadané (temp_closed_ranges). */
+function storeClosureRanges_(store) {
+  return parseClosureRanges_(store.sync_closed_ranges).concat(parseClosureRanges_(store.temp_closed_ranges));
+}
+
 function isTempClosedNow_(store) {
-  var raw = store.temp_closed_ranges;
-  if (!raw) return false;
-  var ranges;
-  try { ranges = JSON.parse(String(raw)); } catch(e) { return false; }
-  if (!Array.isArray(ranges) || ranges.length === 0) return false;
   var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  return ranges.some(function(r) { return r.from <= today && today <= r.to; });
+  return storeClosureRanges_(store).some(function(r) { return r.from <= today && today <= r.to; });
+}
+
+/** Filiálka pro klienta - datum otevření vždy ve tvaru 'yyyy-MM-dd' (viz normalizeIsoDate_). */
+function storeForClient_(store) {
+  return Object.assign({}, store, { opening_date: normalizeIsoDate_(store.opening_date) });
 }
 
 function apiGetCurrentUser() {
@@ -43,7 +48,7 @@ function apiGetBootstrap() {
     if (isAdmin) {
       const s = settingsAll_();
       data.users = dbGetAll_(SHEETS.USERS);
-      data.stores = dbGetAll_(SHEETS.STORES);
+      data.stores = dbGetAll_(SHEETS.STORES).map(storeForClient_);
       data.logistics = dbGetAll_(SHEETS.LOGISTICS);
       data.audit = dbReadTail_(SHEETS.AUDIT, 100).reverse();
       data.settings = s;
@@ -53,7 +58,7 @@ function apiGetBootstrap() {
         syncStoresSheet: s.syncStoresSheet || 'Organizace_Detail',
         syncClosuresSheet: s.syncClosuresSheet || 'Zavrene_Openings',
         autoSyncEnabled: s.autoSyncEnabled === true || s.autoSyncEnabled === 'true',
-        autoSyncHour: s.autoSyncHour !== undefined && s.autoSyncHour !== '' ? Number(s.autoSyncHour) : 3,
+        autoSyncHour: s.autoSyncHour !== undefined && s.autoSyncHour !== '' ? Number(s.autoSyncHour) : 6,
         autoSyncLastCheckAt: s.autoSyncLastCheckAt || null,
         autoSyncLastCheckResult: s.autoSyncLastCheckResult || '',
         lastSyncAt: s.lastSyncAt || null,
@@ -285,9 +290,9 @@ function apiListStores() {
     const userLoc = String(user.location || 'HQ').toUpperCase();
     
     if (userLoc === 'HQ' || userLoc === 'CENTRÁLA' || userLoc === 'CENTRAL' || user.role === 'SUPERADMIN') {
-      return allStores;
+      return allStores.map(storeForClient_);
     }
-    return allStores.filter(store => String(store.lc_code).toUpperCase() === userLoc);
+    return allStores.filter(store => String(store.lc_code).toUpperCase() === userLoc).map(storeForClient_);
   });
 }
 
@@ -606,7 +611,7 @@ function apiGetSyncSettings() {
       syncStoresSheet: s.syncStoresSheet || 'Organizace_Detail',
       syncClosuresSheet: s.syncClosuresSheet || 'Zavrene_Openings',
       autoSyncEnabled: s.autoSyncEnabled === true || s.autoSyncEnabled === 'true',
-      autoSyncHour: s.autoSyncHour !== undefined && s.autoSyncHour !== '' ? Number(s.autoSyncHour) : 3,
+      autoSyncHour: s.autoSyncHour !== undefined && s.autoSyncHour !== '' ? Number(s.autoSyncHour) : 6,
       autoSyncLastCheckAt: s.autoSyncLastCheckAt || null,
       autoSyncLastCheckResult: s.autoSyncLastCheckResult || '',
       lastSyncAt: s.lastSyncAt || null,
@@ -663,7 +668,7 @@ function apiSaveSyncSettings(payload) {
  * to omezí na jednou za běh skriptu, CacheService pak i napříč requesty.
  */
 let dbSchemaEnsuredThisRun_ = false;
-const SCHEMA_CHECK_CACHE_KEY_ = 'schema:checked:3'; // změna klíče vynutí novou kontrolu po přidání sloupce
+const SCHEMA_CHECK_CACHE_KEY_ = 'schema:checked:4'; // změna klíče vynutí novou kontrolu po přidání sloupce
 const SCHEMA_CHECK_TTL_ = 1800; // sekund
 
 function dbEnsureApps_() {

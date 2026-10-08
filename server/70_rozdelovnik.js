@@ -941,6 +941,8 @@ function apiRzLookupArtiklBatch(cisla) {
  * Referenční přehled filiálek (Metropol se nastavuje v hlavním dashboardu — čteme napřímo hlavní DB).
  * Appka je postavená pro jedno konkrétní LC — vracíme jen filiálky spadající pod
  * výchozí LC nastavené v hlavním dashboardu (Log. centra), ne celou síť.
+ * Datum otevření a uzavírky (ze zdroje i ruční) posílá kvůli vyloučení
+ * neotevřených a dočasně uzavřených filiálek k datu závozu (viz _storeBlock).
  */
 function apiRzListStores() {
   return rzGuard_(() => {
@@ -948,7 +950,11 @@ function apiRzListStores() {
     if (!defaultLcCode) throw new Error('V hlavním dashboardu není nastaveno výchozí logistické centrum (sekce Log. centra).');
     return dbGetAll_(SHEETS.STORES)
       .filter((s) => s.active === true && String(s.lc_code).trim().toUpperCase() === defaultLcCode)
-      .map((s) => ({ code: s.code, name: s.name, metropolitni: !!s.metropolitni }))
+      .map((s) => ({
+        code: s.code, name: s.name, metropolitni: !!s.metropolitni,
+        opening_date: normalizeIsoDate_(s.opening_date),
+        closed_ranges: storeClosureRanges_(s),
+      }))
       .sort((a, b) => String(a.code).localeCompare(String(b.code)));
   });
 }

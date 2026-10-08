@@ -4,8 +4,12 @@
  * Postup: najde nejnovější tabulkový soubor v zadané Drive složce (volitelně jen ty, jejichž
  * název obsahuje nastavený výraz - viz syncFileNamePattern) → zkopíruje jako Google Sheet
  * (u .xlsx tím proběhne konverze, u už existujícího Sheets souboru jde o obyčejnou kopii)
- * → přečte list "Organizace_Detail" (filiálky) a "Zavrene_Openings" (dočasná uzavření)
- * → porovná s DB → provede INSERT/UPDATE/deaktivaci.
+ * → přečte list "Organizace_Detail" (filiálky), "Zavrene_Openings" (dočasná uzavření)
+ * a nepovinně "Organizace" (datum otevření) → porovná s DB → provede INSERT/UPDATE/deaktivaci.
+ *
+ * Uzavírky ze zdroje se ukládají zvlášť (sync_closed_ranges) a každá synchronizace je
+ * celé nahradí - zrušená nebo zkrácená uzavírka ve zdroji tak zmizí i v appce. Ručně
+ * zadané uzavírky (temp_closed_ranges) sync nemění.
  *
  * Sloupec LC nese v souboru celý název logistického centra (např. "Brandýs nad Labem"),
  * ne zkratku — sync ho páruje na existující záznam v Log. centrech podle názvu. Filiálka,
@@ -37,6 +41,12 @@ const STORES_COL_MAP = {
   'Neděle otevřeno':  'sun_open',
   'Neděle zavřeno':   'sun_close',
 };
+
+/** List s datem oficiálního otevření filiálky - NEPOVINNÝ (stejně jako v Planung Dashboardu). */
+const SYNC_OPENINGS_SHEET = 'Organizace';
+
+/** Klíč v CacheService - ruční a automatická synchronizace nesmí běžet současně. */
+const SYNC_RUNNING_KEY_ = 'sync:running';
 
 /* ── Veřejné API ──────────────────────────────────────────────── */
 
@@ -135,6 +145,8 @@ function autoSyncCheck_() {
   } catch (e) {
     console.error('Automatická synchronizace selhala: ' + e);
     try { autoSyncNoteCheck_('chyba: ' + String(e && e.message ? e.message : e)); } catch (_) {}
+    // Chyba nočního běhu musí být vidět v historii synchronizací, ne jen v auditu.
+    try { appendSyncHistory_(settingsAll_(), null, true, String(e && e.message ? e.message : e)); } catch (_) {}
     audit_('sync_run_auto_error', String(e && e.message ? e.message : e));
     throw e; // necháme GAS poslat vlastníkovi e-mail o selhání triggeru
   }
@@ -145,23 +157,27 @@ function autoSyncCheck_() {
 /**
  * Zapíše kompaktní záznam o proběhlé synchronizaci do _settings.syncHistory
  * (posledních 20 běhů — kdo, kdy, soubor, počty). Detail změn drží jen
- * poslední běh (lastSyncResult), historie je jen souhrn.
+ * poslední běh (lastSyncResult), historie je jen souhrn. errorMessage = běh
+ * selhal (result je pak null) - zapíše se jako záznam s chybou.
  */
-function appendSyncHistory_(settings, result, isAuto) {
+function appendSyncHistory_(settings, result, isAuto, errorMessage) {
   let history = [];
   try { history = settings.syncHistory ? JSON.parse(settings.syncHistory) : []; } catch (e) { history = []; }
-  const s = result.stores || {};
+  const s = (result && result.stores) || {};
   history.unshift({
     at: nowIso_(),
     by: currentEmail_() || 'system',
     auto: isAuto === true,
-    file: result.fileName || '',
+    file: (result && result.fileName) || '',
     added: s.added || 0,
     updated: s.updated || 0,
     deactivated: s.deactivated || 0,
     reactivated: s.reactivated || 0,
     unchanged: s.unchanged || 0,
+    closed: s.closedNew || 0,
+    reopened: s.closedEnded || 0,
     errors: (s.errors || []).length,
+    failure: errorMessage || '',
   });
   if (history.length > 20) history = history.slice(0, 20);
   settingsSet_('syncHistory', JSON.stringify(history));
@@ -169,6 +185,19 @@ function appendSyncHistory_(settings, result, isAuto) {
 
 /** Jádro synchronizace sdílené ruční (apiRunSync) i automatickou (autoSyncCheck_) cestou. */
 function runSyncCore_(settings, isAuto) {
+  // Ruční a automatický běh nesmí běžet současně (oba přepisují celý list stores).
+  // Příznak v cache místo LockService - zámek by po celou dobu syncu blokoval i běžné zápisy do DB.
+  const cache = CacheService.getScriptCache();
+  if (cache.get(SYNC_RUNNING_KEY_)) throw new Error('Synchronizace právě probíhá, zkuste to prosím za chvíli.');
+  cache.put(SYNC_RUNNING_KEY_, '1', 900);
+  try {
+    return runSyncCoreUnlocked_(settings, isAuto);
+  } finally {
+    try { cache.remove(SYNC_RUNNING_KEY_); } catch (e) { /* příznak by stejně vypršel */ }
+  }
+}
+
+function runSyncCoreUnlocked_(settings, isAuto) {
   const folderUrl = settings.syncFolderUrl || '';
   if (!folderUrl) throw new Error('Není nastavena URL složky. Vyplňte ji v sekci Synchronizace.');
 
@@ -226,6 +255,7 @@ function syncStores_(ss, settings) {
   // Filiálky s číslem nad 900 se ze zdroje nikdy nenačítají ani nezakládají (testovací/vyhrazený rozsah čísel).
   const mainRows = parseSheetRows_(sheet1, STORES_COL_MAP).filter((r) => !(parseInt(r.code, 10) > 900));
   const xlsxMap = new Map(mainRows.map((r) => [r.code, r]));
+  const sourceCodes = new Set(mainRows.map((r) => String(r.code)));
 
   // Mapa LC: název (malými, trimovaný) → zkratka. Zdroj nese jen celý název LC.
   const lcByName = {};
@@ -239,10 +269,28 @@ function syncStores_(ss, settings) {
 
   const CHANGES_LIMIT = 50;
   const stats = { added: 0, updated: 0, deactivated: 0, reactivated: 0, unchanged: 0, errors: [],
-                  changes: { added: [], updated: [], deactivated: [], reactivated: [] },
-                  closuresAdded: 0, closuresSheetFound: false };
+                  changes: { added: [], updated: [], deactivated: [], reactivated: [],
+                             closed: [], reopened: [], notYetOpen: [], manualInactive: [] },
+                  closedNew: 0, closedEnded: 0, notYetOpen: 0, manualInactive: 0,
+                  closuresSheetFound: false, openingsSheetFound: false };
   const now = nowIso_();
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   const newRecords = [];
+
+  // Datum otevření z listu Organizace (nepovinný). Bez listu zůstávají data otevření beze změny.
+  let openingsByCode = null;
+  const sheetOpenings = ss.getSheetByName(SYNC_OPENINGS_SHEET);
+  if (sheetOpenings) {
+    const parsed = parseOpeningsRows_(sheetOpenings);
+    if (parsed) {
+      stats.openingsSheetFound = true;
+      openingsByCode = {};
+      parsed.forEach((r) => { openingsByCode[r.code] = r.date; });
+    } else {
+      stats.errors.push('List "' + SYNC_OPENINGS_SHEET + '" nemá sloupce "Číslo" a "Datum Otevření" — data otevření zůstala beze změny.');
+    }
+  }
+  const openingFor_ = (code) => (openingsByCode ? (openingsByCode[String(code)] || '') : undefined);
 
   // Zpracování stávajících DB záznamů
   currentRecords.forEach((existing) => {
@@ -270,7 +318,7 @@ function syncStores_(ss, settings) {
       return;
     }
 
-    const patch = buildStorePatch_(xlsxRow, now, existing, lcAbbr);
+    const patch = buildStorePatch_(xlsxRow, now, existing, lcAbbr, openingFor_(codeKey));
 
     if (existing.manually_inactive === true) {
       // Ručně deaktivovaná filiálka — sync ji neaktivuje zpět
@@ -292,7 +340,9 @@ function syncStores_(ss, settings) {
             stats.changes.updated.push({ code: existing.code, name: patch.name || existing.name, fields: changedFields });
         }
       } else {
-        newRecords.push(existing);
+        // Bez hlášené změny - přesto se převezme i první doplnění data otevření (viz storeChangedFields_),
+        // časové značky zůstávají původní.
+        newRecords.push(Object.assign({}, existing, patch, { updated_at: existing.updated_at, synced_at: existing.synced_at }));
         stats.unchanged++;
       }
     }
@@ -305,7 +355,7 @@ function syncStores_(ss, settings) {
       stats.errors.push('Filiálka ' + code + ' (' + (xlsxRow.name || '') + '): LC "' + (xlsxRow.lc_name || '') + '" nenalezeno v Log. centrech — filiálka nebyla založena.');
       return;
     }
-    newRecords.push(Object.assign(buildStorePatch_(xlsxRow, now, null, lcAbbr), {
+    newRecords.push(Object.assign(buildStorePatch_(xlsxRow, now, null, lcAbbr, openingFor_(code)), {
       id: uuid_(),
       created_at: now,
       created_by: currentEmail_() || 'sync',
@@ -316,26 +366,63 @@ function syncStores_(ss, settings) {
       stats.changes.added.push({ code, name: xlsxRow.name || '' });
   });
 
-  // Dočasná uzavření z listu Zavrene_Openings — jen doplňují chybějící rozsahy,
-  // ruční zadání v appce se nikdy nemaže ani nepřepisuje.
+  // Dočasná uzavření z listu Zavrene_Openings - zrcadlo zdroje v sync_closed_ranges (každý běh je
+  // celé nahradí). Ručně zadané uzavírky (temp_closed_ranges) se nemění; jen se z nich odstraní
+  // rozsahy, které jsou přesně stejné jako ve zdroji (dřívější verze syncu je tam slučovala).
   const sheet2 = ss.getSheetByName(closuresSheetName);
   if (sheet2) {
     stats.closuresSheetFound = true;
-    const closureRows = parseClosuresRows_(sheet2);
     const closuresByCode = {};
-    closureRows.forEach((r) => { (closuresByCode[r.code] = closuresByCode[r.code] || []).push({ from: r.from, to: r.to }); });
+    parseClosuresRows_(sheet2).forEach((r) => { (closuresByCode[r.code] = closuresByCode[r.code] || []).push({ from: r.from, to: r.to }); });
 
     newRecords.forEach((rec) => {
-      const ranges = closuresByCode[String(rec.code)];
-      if (!ranges) return;
-      const merged = mergeClosureRanges_(rec.temp_closed_ranges, ranges);
-      if (merged.added > 0) {
-        rec.temp_closed_ranges = JSON.stringify(merged.ranges);
-        rec.temporarily_closed = isTempClosedNow_(rec);
-        stats.closuresAdded += merged.added;
+      const code = String(rec.code);
+      if (!sourceCodes.has(code)) return; // filiálka mimo zdroj - uzavírky se nechávají, jak jsou
+      const fresh = normalizeClosureRanges_(closuresByCode[code] || []);
+      const old = normalizeClosureRanges_(parseClosureRanges_(rec.sync_closed_ranges));
+      const freshKeys = new Set(fresh.map((r) => r.from + '|' + r.to));
+      const oldKeys = new Set(old.map((r) => r.from + '|' + r.to));
+      const opened = fresh.filter((r) => !oldKeys.has(r.from + '|' + r.to));
+      const ended = old.filter((r) => !freshKeys.has(r.from + '|' + r.to));
+
+      const manual = parseClosureRanges_(rec.temp_closed_ranges);
+      const manualLeft = manual.filter((r) => !freshKeys.has(r.from + '|' + r.to));
+      if (manualLeft.length !== manual.length) rec.temp_closed_ranges = manualLeft.length ? JSON.stringify(manualLeft) : '';
+
+      if (opened.length || ended.length) {
+        rec.sync_closed_ranges = fresh.length ? JSON.stringify(fresh) : '';
+        rec.updated_at = now;
       }
+      opened.forEach((r) => {
+        stats.closedNew++;
+        if (stats.changes.closed.length < CHANGES_LIMIT) stats.changes.closed.push({ code: rec.code, name: rec.name, from: r.from, to: r.to });
+      });
+      ended.forEach((r) => {
+        stats.closedEnded++;
+        if (stats.changes.reopened.length < CHANGES_LIMIT) stats.changes.reopened.push({ code: rec.code, name: rec.name, from: r.from, to: r.to });
+      });
     });
   }
+
+  // Stav k dnešku pro report: filiálky před otevřením a ručně deaktivované, které jsou ve zdroji
+  // a nejsou zavřené (dřív se ručně vypínaly kvůli uzavření - sync je sám nezapne, jen upozorní).
+  newRecords.forEach((rec) => {
+    rec.temporarily_closed = isTempClosedNow_(rec);
+    const opening = normalizeIsoDate_(rec.opening_date);
+    if (rec.active === true && opening > today) {
+      stats.notYetOpen++;
+      if (stats.changes.notYetOpen.length < CHANGES_LIMIT) stats.changes.notYetOpen.push({ code: rec.code, name: rec.name, date: opening });
+    }
+    if (rec.manually_inactive === true && sourceCodes.has(String(rec.code)) && !rec.temporarily_closed && !(opening > today)) {
+      stats.manualInactive++;
+      if (stats.changes.manualInactive.length < CHANGES_LIMIT) stats.changes.manualInactive.push({ code: rec.code, name: rec.name });
+    }
+  });
+
+  // Datum otevření jako prostý text - jinak by ho Sheets převedl na datum a při čtení posunul o časové pásmo.
+  const storesSheet = dbSheet_(SHEETS.STORES);
+  const openingCol = DB_SCHEMA[SHEETS.STORES].indexOf('opening_date') + 1;
+  if (storesSheet.getMaxRows() > 1) storesSheet.getRange(2, openingCol, storesSheet.getMaxRows() - 1, 1).setNumberFormat('@');
 
   dbBatchReplace_(SHEETS.STORES, newRecords);
   return stats;
@@ -351,24 +438,18 @@ const HOUR_FIELDS_ = [
 /**
  * Sestaví patch pro jednu filiálku. lcAbbr je už vyřešená zkratka LC (viz
  * resolveLc_ v syncStores_) — sem přichází vždy platná, jinak se řádek
- * nezpracovává vůbec. Pokud má některé pole v xlsx řádku prázdnou hodnotu
- * (např. sloupec chybí nebo je buňka prázdná), sync ho nepřepíše prázdnem —
- * ponechá se stávající hodnota z DB.
+ * nezpracovává vůbec. Zdroj je zrcadlo: prázdná buňka přepíše i stávající
+ * hodnotu v DB. Jen když sloupec ve zdroji úplně chybí, hodnota z DB zůstane.
+ * openingDate: undefined = list Organizace chybí (datum otevření se nemění).
  */
-function buildStorePatch_(xlsxRow, now, existing, lcAbbr) {
+function buildStorePatch_(xlsxRow, now, existing, lcAbbr, openingDate) {
   const NON_HOUR_FIELDS = ['code', 'name', 'phone', 'area_manager', 'vt_phone', 'regional_manager', 'rm_phone'];
-  const patch = { temporarily_closed: existing ? isTempClosedNow_(existing) : false, active: true, synced_at: now, updated_at: now, lc_code: lcAbbr };
-  NON_HOUR_FIELDS.forEach((f) => {
-    const xlsxVal = xlsxRow[f] !== undefined ? xlsxRow[f] : '';
+  const patch = { active: true, synced_at: now, updated_at: now, lc_code: lcAbbr };
+  NON_HOUR_FIELDS.concat(HOUR_FIELDS_).forEach((f) => {
     const dbVal = existing ? (existing[f] || '') : '';
-    patch[f] = xlsxVal || dbVal;
+    patch[f] = xlsxRow[f] !== undefined ? xlsxRow[f] : dbVal;
   });
-  // Otevírací doby: přepsat jen pokud xlsx má hodnotu NEBO DB ji dosud nemá
-  HOUR_FIELDS_.forEach((f) => {
-    const xlsxVal = xlsxRow[f] !== undefined ? xlsxRow[f] : '';
-    const dbVal = existing ? (existing[f] || '') : '';
-    patch[f] = xlsxVal || dbVal;
-  });
+  patch.opening_date = openingDate !== undefined ? openingDate : (existing ? normalizeIsoDate_(existing.opening_date) : '');
   return patch;
 }
 
@@ -376,6 +457,7 @@ const STORE_DIFF_FIELDS = [
   'name','lc_code','phone','area_manager','vt_phone','regional_manager','rm_phone',
   'mon_open','mon_close','tue_open','tue_close','wed_open','wed_close',
   'thu_open','thu_close','fri_open','fri_close','sat_open','sat_close','sun_open','sun_close',
+  'opening_date',
 ];
 
 const STORE_FIELD_LABELS = {
@@ -388,13 +470,19 @@ const STORE_FIELD_LABELS = {
   fri_open: 'Pá otevřeno', fri_close: 'Pá zavřeno',
   sat_open: 'So otevřeno', sat_close: 'So zavřeno',
   sun_open: 'Ne otevřeno', sun_close: 'Ne zavřeno',
+  opening_date: 'Datum otevření',
 };
 
+/**
+ * Hlášené změny polí. První doplnění data otevření (dosud prázdné) se nehlásí - jinak by
+ * první běh po zavedení sloupce ohlásil jako změněnou každou filiálku. Hodnota se přesto uloží.
+ */
 function storeChangedFields_(existing, patch) {
   const result = [];
   STORE_DIFF_FIELDS.forEach((f) => {
-    const oldVal = String(existing[f] || '');
+    const oldVal = f === 'opening_date' ? normalizeIsoDate_(existing[f]) : String(existing[f] || '');
     const newVal = String(patch[f] || '');
+    if (f === 'opening_date' && !oldVal) return;
     if (oldVal !== newVal)
       result.push({ field: STORE_FIELD_LABELS[f] || f, old: oldVal, new: newVal });
   });
@@ -460,21 +548,54 @@ function parseClosuresRows_(sheet) {
 }
 
 /**
- * Sloučí nové rozsahy uzavření do stávajících (jako string JSON pole).
- * Přidává jen rozsahy, které tam ještě přesně (from+to) nejsou — ruční
- * zadání se nikdy neodstraňuje ani nepřepisuje.
+ * Přečte list "Organizace": číslo filiálky + datum oficiálního otevření
+ * ('yyyy-MM-dd'). Vrací null, když list nemá potřebné sloupce.
  */
-function mergeClosureRanges_(existingRangesJson, newRanges) {
-  let existing = [];
-  try { existing = existingRangesJson ? JSON.parse(existingRangesJson) : []; } catch (e) { existing = []; }
-  if (!Array.isArray(existing)) existing = [];
-  const known = new Set(existing.map((r) => r.from + '|' + r.to));
-  let added = 0;
-  newRanges.forEach((r) => {
-    const key = r.from + '|' + r.to;
-    if (!known.has(key)) { existing.push({ from: r.from, to: r.to }); known.add(key); added++; }
-  });
-  return { ranges: existing, added: added };
+function parseOpeningsRows_(sheet) {
+  const lastRow = sheet.getLastRow();
+  const headers = readSheetHeaders_(sheet);
+  const idx = { code: headers.indexOf('Číslo'), date: headers.indexOf('Datum Otevření') };
+  if (idx.code === -1 || idx.date === -1) return null;
+  if (lastRow < 2) return [];
+  const data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  return data
+    .map((row) => ({ code: formatCellValue_(row[idx.code]), date: formatDateCellValue_(row[idx.date]) }))
+    .filter((r) => r.code && r.date);
+}
+
+/** Pole rozsahů {from, to} z JSON textu uloženého v DB ([] při prázdné/neplatné hodnotě). */
+function parseClosureRanges_(json) {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(String(json));
+    return Array.isArray(parsed) ? parsed.filter((r) => r && r.from && r.to).map((r) => ({ from: r.from, to: r.to })) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/** Seřadí rozsahy podle data a odstraní přesné duplicity (porovnání starého a nového stavu). */
+function normalizeClosureRanges_(ranges) {
+  const seen = new Set();
+  return ranges
+    .filter((r) => { const k = r.from + '|' + r.to; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => (a.from + a.to < b.from + b.to ? -1 : a.from + a.to > b.from + b.to ? 1 : 0));
+}
+
+/**
+ * Datum v DB → 'yyyy-MM-dd'. Kdyby Sheets textové datum přece jen převedl na Date,
+ * dbDeserialize_ ho vrátí jako ISO čas v UTC ("…T23:00:00.000Z" = místní půlnoc dalšího dne) -
+ * proto se takový čas převádí přes časové pásmo skriptu, ne useknutím textu.
+ */
+function normalizeIsoDate_(val) {
+  if (val instanceof Date) return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const str = val !== undefined && val !== null ? String(val).trim() : '';
+  if (!str) return '';
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? '' : Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  return formatDateCellValue_(str);
 }
 
 /**

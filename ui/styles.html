@@ -2255,6 +2255,17 @@
     text-align: center;
   }
 
+  /* Filiálka k datu závozu neotevřená / dočasně uzavřená: vyloučená z přídělu (is-blocked),
+     nebo přidělovaná díky přepínači v horní liště (is-flagged) - důvod je v tooltipu. */
+  .rzr-store-cell.is-blocked {
+    color: #9ca3af;
+    text-decoration: line-through;
+  }
+
+  .rzr-store-cell.is-flagged {
+    color: #c2410c;
+  }
+
   .rzr-cols-row {
     background: var(--lidl-blue);
     color: #fff;
@@ -2858,6 +2869,8 @@
     color: #b45309;
     white-space: nowrap;
   }
+
+  .store-tc-range.is-upcoming { color: #1d4ed8; }
 
   .pill.is-green  { background: #e4f5ee; color: #007a45; }
   .pill.is-orange { background: #fff3e0; color: #b45309; }
@@ -5125,6 +5138,53 @@
     gap: 12px;
   }
 
+  /* Datum závozu a přepínače "Přidělovat" v horní liště Rozdělovníku (jen záložka Rozdělení) */
+  .rz-delivery-bar {
+    align-items: center;
+    display: flex;
+    font-size: 12px;
+    gap: 10px;
+    white-space: nowrap;
+  }
+
+  /* label má v appce globálně verzálky a šedou - na tmavé liště musí být bílý a normální */
+  .rz-delivery-bar label {
+    color: #fff;
+    font-size: 12px;
+    letter-spacing: 0;
+    margin: 0;
+    text-transform: none;
+  }
+
+  .rz-delivery-date {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+    font-weight: 600;
+  }
+
+  .rz-delivery-date input {
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    font: inherit;
+    font-weight: 400;
+    height: 28px;
+    padding: 0 6px;
+  }
+
+  .rz-delivery-label {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .rz-delivery-check {
+    align-items: center;
+    cursor: pointer;
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .rz-delivery-check input { margin: 0; }
+
   .rz-queue-indicator {
     color: rgba(255, 255, 255, 0.75);
     font-size: 12px;
@@ -5426,6 +5486,9 @@
   }
   .sf-tc-toggle:hover { background: #fff7ed; }
   .sf-tc-toggle.is-on { background: #f97316; border-color: #f97316; color: #fff; }
+  .sf-up-toggle { border-color: #93c5fd; color: #bfdbfe; }
+  .sf-up-toggle:hover { background: rgba(147, 197, 253, 0.15); }
+  .sf-up-toggle.is-on { background: #3b82f6; border-color: #3b82f6; color: #fff; }
 
   .sf-rm-clear {
     display: flex;
@@ -5824,6 +5887,8 @@
   .sm-cal-day.is-today { font-weight: 700; border-color: var(--lidl-blue); color: var(--lidl-blue); background: #eff6ff; }
   .sm-cal-day.is-marked { background: #fed7aa; border-color: #fb923c; color: #7c2d12; font-weight: 600; }
   .sm-cal-day.is-marked:hover { background: #fdba74; }
+  /* Uzavírka ze zdroje - jen ke čtení, spravuje ji synchronizace */
+  .sm-cal-day.is-sync { background: #ffedd5; border: 1px dashed #fb923c; color: #9a3412; }
   .sm-cal-day.is-selecting { background: var(--lidl-blue); border-color: var(--lidl-blue); color: #fff; font-weight: 700; }
 
   /* Range list */
@@ -5845,6 +5910,20 @@
     font-size: 0.77rem;
     font-weight: 600;
     color: #92400e;
+  }
+
+  .sm-range-item.is-sync {
+    background: #f8fafc;
+    border-style: dashed;
+    border-color: #fb923c;
+  }
+
+  .sm-range-src {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   .sm-range-del {

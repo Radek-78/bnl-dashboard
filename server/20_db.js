@@ -18,7 +18,7 @@ const DB_SCHEMA = {
     'thu_open', 'thu_close', 'fri_open', 'fri_close', 'sat_open', 'sat_close',
     'sun_open', 'sun_close',
     'temporarily_closed', 'active', 'manually_inactive', 'synced_at', 'created_at', 'created_by', 'updated_at', 'temp_closed_ranges',
-    'metropolitni', 'vt_phone',
+    'metropolitni', 'vt_phone', 'opening_date', 'sync_closed_ranges',
   ],
   'logistics': [
     'id', 'code', 'name', 'abbreviation',
@@ -85,6 +85,8 @@ function dbEnsureSchema_(ss) {
     let sheet = ss.getSheetByName(name);
     if (!sheet) { sheet = ss.insertSheet(name); applySheetFont_(sheet); }
     const headers = DB_SCHEMA[name];
+    // Nový sloupec za posledním existujícím - list musí mít dost sloupců, jinak getRange selže.
+    if (sheet.getMaxColumns() < headers.length) sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
     const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
     if (headers.some((header, i) => current[i] !== header)) {
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);

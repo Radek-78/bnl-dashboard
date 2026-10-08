@@ -27,6 +27,12 @@
     // schválně jen pro tuto relaci prohlížeče, neukládá se (bezpečnější
     // výchozí stav při reloadu).
     _ignoreVyrazeniGlobal: false,
+    // Datum závozu (přídělu) - k němu se posuzuje, zda je filiálka otevřená a není
+    // dočasně uzavřená. Výchozí dnešek. Přepínače "Přidělovat" jsou schválně jen
+    // pro tuto relaci (výchozí stav = nepřidělovat), stejně jako _ignoreVyrazeniGlobal.
+    _deliveryDate: '',
+    _allowClosed: false,
+    _allowUnopened: false,
     settings: {},
     importData: {},
     importOverview: null,
@@ -45,6 +51,7 @@
     _colMenuOutside: null,
 
     init(container, app, user) {
+      this._deliveryDate = this._todayIso();
       this.container = container;
       this.app = app;
       this.user = user;
@@ -275,6 +282,30 @@
           '<svg width="14" height="14" viewBox="0 0 24 24"><use href="#i-refresh"></use></svg>Přepočítat vše</button>');
         document.querySelector('#rzRecalcAllBtn').addEventListener('click', () => this.recomputeAllRw());
       }
+      // Datum závozu a přepínače "Přidělovat" - nic neukládají, jen mění výpočet (proto i bez canWrite).
+      if (settingsBtnWrap && !settingsBtnWrap.querySelector('#rzDeliveryBar')) {
+        settingsBtnWrap.insertAdjacentHTML('afterbegin',
+          '<div class="rz-delivery-bar is-hidden" id="rzDeliveryBar">' +
+          '<label class="rz-delivery-date" title="K tomuto dni se posuzuje, zda je filiálka otevřená a není dočasně uzavřená">Závoz' +
+          '<input type="date" id="rzDeliveryDate" value="' + this._deliveryDate + '"></label>' +
+          '<span class="rz-delivery-label">Přidělovat:</span>' +
+          '<label class="rz-delivery-check" title="Přidělovat i filiálkám, které jsou k datu závozu dočasně uzavřené"><input type="checkbox" id="rzAllowClosed"><span>dočasně uzavřené</span></label>' +
+          '<label class="rz-delivery-check" title="Přidělovat i filiálkám, které k datu závozu ještě nejsou otevřené"><input type="checkbox" id="rzAllowUnopened"><span>neotevřené</span></label>' +
+          '</div>');
+        document.querySelector('#rzDeliveryDate').addEventListener('change', (e) => {
+          this._deliveryDate = e.target.value || this._todayIso();
+          e.target.value = this._deliveryDate;
+          this._onStoreRulesChanged();
+        });
+        document.querySelector('#rzAllowClosed').addEventListener('change', (e) => {
+          this._allowClosed = e.target.checked;
+          this._onStoreRulesChanged();
+        });
+        document.querySelector('#rzAllowUnopened').addEventListener('change', (e) => {
+          this._allowUnopened = e.target.checked;
+          this._onStoreRulesChanged();
+        });
+      }
       if (settingsBtnWrap && !settingsBtnWrap.querySelector('#rzQueueIndicator')) {
         settingsBtnWrap.insertAdjacentHTML('afterbegin', '<span class="rz-queue-indicator is-hidden" id="rzQueueIndicator"></span>');
       }
@@ -458,6 +489,8 @@
       if (exportBtn) exportBtn.classList.toggle('is-hidden', key !== 'rozdeleni');
       const recalcAllBtn = document.querySelector('#rzRecalcAllBtn');
       if (recalcAllBtn) recalcAllBtn.classList.toggle('is-hidden', key !== 'rozdeleni');
+      const deliveryBar = document.querySelector('#rzDeliveryBar');
+      if (deliveryBar) deliveryBar.classList.toggle('is-hidden', key !== 'rozdeleni');
       this.renderTabContent();
     },
 
@@ -1253,7 +1286,12 @@
       const { byArtikl, byStore, byStoreDeaktivace } = this._rozdeleniLookup();
       const dis = this.canWrite ? '' : ' disabled';
 
-      const frozenRows = this.stores.map((s) => '<div class="rzr-hrow rzr-store-cell" data-store="' + Ui.escape(s.code) + '">' + Ui.escape(s.code) + '</div>').join('');
+      const frozenRows = this.stores.map((s) => {
+        const st = this._storeStatusAt(s);
+        const note = st.unopened ? this._storeBlockReason('unopened', s) : (st.closed ? this._storeBlockReason('closed', s) : '');
+        const cls = this._storeBlock(s) ? ' is-blocked' : (note ? ' is-flagged' : '');
+        return '<div class="rzr-hrow rzr-store-cell' + cls + '" data-store="' + Ui.escape(s.code) + '"' + (note ? ' title="' + Ui.escape(note) + '"' : '') + '>' + Ui.escape(s.code) + '</div>';
+      }).join('');
       const rwToPersist = [];
 
       const computed = artikly.map((a) => {
@@ -1300,8 +1338,10 @@
           const delta = isEligible ? (this._toNumber(upravy[s.code]) || 0) : 0;
           const efektivni = Math.max(0, base + delta);
           rozdeleno += efektivni;
+          const block = this._storeBlock(s);
           const excludedReason = !ruleEligible
-            ? (a.metropol && !s.metropolitni ? 'Rozděluje se jen na Metropolitní filiálky' : 'Artikl je na této filiálce vyřazený (nezalistovaný)')
+            ? (block ? this._storeBlockReason(block, s)
+              : a.metropol && !s.metropolitni ? 'Rozděluje se jen na Metropolitní filiálky' : 'Artikl je na této filiálce vyřazený (nezalistovaný)')
             : (manuallyOff ? 'Filiálka ručně deaktivována pro tento artikl' : '');
           return { store: s, median: vals.median, stav: stav, efektivni: efektivni, delta: delta, eligible: isEligible, ruleEligible: ruleEligible, manuallyOff: manuallyOff, excludedReason: excludedReason, vals: vals };
         });
@@ -1555,11 +1595,50 @@
      * relaci) - obojí OBĚ tato omezení zcela vypne, i Metropol.
      */
     _isEligible(a, s, ignorovatVyrazeni) {
+      // Neotevřená / dočasně uzavřená filiálka k datu závozu - řídí ji jen přepínače
+      // "Přidělovat" v horní liště, checkbox "vše" (vyřazené a Metropol) ji nepřebíjí.
+      if (this._storeBlock(s)) return false;
       if (ignorovatVyrazeni || this._ignoreVyrazeniGlobal) return true;
       if (a.metropol && !s.metropolitni) return false;
       const excl = this.vyrazene[a.cislo_artiklu];
       if (excl && excl.some((v) => this._artiklMatches(v, s.code))) return false;
       return true;
+    },
+
+    _todayIso() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    },
+
+    /** Stav filiálky k datu závozu (bez ohledu na přepínače): neotevřená / dočasně uzavřená. */
+    _storeStatusAt(s) {
+      const d = this._deliveryDate || this._todayIso();
+      return {
+        unopened: !!s.opening_date && s.opening_date > d,
+        closed: (s.closed_ranges || []).some((r) => r.from <= d && d <= r.to),
+      };
+    },
+
+    /** Proč se filiálce k datu závozu nepřiděluje: 'unopened' / 'closed', nebo '' když se přidělovat smí. */
+    _storeBlock(s) {
+      const st = this._storeStatusAt(s);
+      if (st.unopened && !this._allowUnopened) return 'unopened';
+      if (st.closed && !this._allowClosed) return 'closed';
+      return '';
+    },
+
+    _storeBlockReason(kind, s) {
+      if (kind === 'unopened') {
+        const [y, m, d] = String(s.opening_date).split('-');
+        return 'Filiálka k datu závozu ještě není otevřená (otevře se ' + Number(d) + '. ' + Number(m) + '. ' + y + ')';
+      }
+      return 'Filiálka je k datu závozu dočasně uzavřená';
+    },
+
+    /** Změna data závozu nebo přepínačů "Přidělovat" - mění, kterým filiálkám se přiděluje. */
+    _onStoreRulesChanged() {
+      if (this.activeTab === 'rozdeleni') this.renderTabContent();
+      if (this.canWrite) Ui.toast('Příděl je přepočítaný. Uložené RW se nemění — pro nový výpočet RW použijte Přepočítat vše.');
     },
 
     /** Najde index sloupce podle kousku názvu (bez diakritiky) - hlavičky Odprodeje/Teo. stavů odpovídají přesně zdrojovému souboru, proto se nedá spoléhat na pevný název. */
@@ -1933,12 +2012,11 @@
       });
     },
 
-    /** Otevře modal pro export - datum přídělu (výchozí dnešek) a hodnota sloupce B v .csv (výchozí "4"), samotný export proběhne až po potvrzení (viz submitExportWbModal). */
+    /** Otevře modal pro export - datum přídělu (výchozí datum závozu z horní lišty) a hodnota sloupce B v .csv (výchozí "4"), samotný export proběhne až po potvrzení (viz submitExportWbModal). */
     openExportWbModal() {
       const modal = this.container.querySelector('#rzExportWbModal');
       const form = this.container.querySelector('#rzExportWbForm');
-      const today = new Date();
-      form.elements.datum.value = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+      form.elements.datum.value = this._deliveryDate || this._todayIso();
       form.elements.kodB.value = '4';
       Ui.openModal(modal);
     },
