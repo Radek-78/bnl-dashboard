@@ -922,7 +922,9 @@ _sfState: {},
         .join(', ');
     },
 
+    /** Dočasně uzavřená dnes. Filiálka před otevřením se za dočasně uzavřenou nepočítá - její uzavírky se v přehledu neukazují. */
     _isTempClosed(store) {
+      if (this._isNotYetOpen(store)) return false;
       const ranges = this._storeRanges(store);
       if (ranges.length === 0) return false;
       const today = new Date();

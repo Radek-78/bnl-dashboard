@@ -129,7 +129,9 @@ function apiGetHome() {
       warnings: warnings,
       lastSyncAt: isAdmin ? (lastSyncAt || null) : null,
       storesActive: stores.filter((st) => st.active === true).length,
-      storesTempClosed: stores.filter((st) => st.active === true && isTempClosedNow_(st)).length,
+      // Filiálka před otevřením se za dočasně uzavřenou nepočítá (stejně jako v přehledu filiálek).
+      storesTempClosed: stores.filter((st) => st.active === true && isTempClosedNow_(st) &&
+        !(normalizeIsoDate_(st.opening_date) > Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'))).length,
       logisticsActive: logisticsActive,
       lastChange: isAdmin ? (dbReadTail_(SHEETS.AUDIT, 1)[0] || null) : null,
       // Dokud neproběhla první synchronizace filiálek, neexistuje aktivní LC
