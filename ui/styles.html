@@ -5949,4 +5949,185 @@
     padding: 8px 0;
     font-style: italic;
   }
+
+  /* ── Plocha: dlaždice aplikací + boční karty Uživatelé a Změny filiálek ── */
+  .home-layout {
+    align-items: start;
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+
+  .home-layout .module-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+  .home-side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .home-card {
+    background: var(--white);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    border-top: 3px solid var(--lidl-blue);
+    box-shadow: var(--shadow);
+    padding: 12px 14px 14px;
+  }
+
+  .home-card-head {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .home-card-head h3 { color: var(--lidl-dark-blue); font-size: 14px; margin: 0; }
+
+  .home-card-ico {
+    align-items: center;
+    background: #e8f0fb;
+    border-radius: 6px;
+    color: var(--lidl-blue);
+    display: inline-flex;
+    height: 26px;
+    justify-content: center;
+    width: 26px;
+  }
+
+  .home-card-ico svg { height: 15px; width: 15px; }
+
+  .home-card-meta { color: var(--muted); font-size: 11px; margin-left: auto; white-space: nowrap; }
+
+  .home-empty { color: var(--muted); font-size: 12px; margin: 4px 0; }
+
+  .hc-big { align-items: baseline; display: flex; gap: 8px; }
+  .hc-big b { color: var(--lidl-dark-blue); font-size: 26px; line-height: 1; }
+  .hc-big span { color: var(--muted); font-size: 12px; }
+
+  .hc-sub {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    margin: 12px 0 6px;
+    text-transform: uppercase;
+  }
+
+  .hc-bars { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 0; padding: 0; }
+  .hc-bars li { align-items: center; display: grid; gap: 8px; grid-template-columns: 70px minmax(0, 1fr) 28px; font-size: 12px; }
+  .hc-bar-l { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hc-bar-t { background: var(--line-soft); border-radius: 4px; height: 8px; overflow: hidden; }
+  .hc-bar-t i { background: var(--lidl-blue); border-radius: 4px; display: block; height: 100%; }
+  .hc-bar-v { font-weight: 700; text-align: right; }
+
+  .hc-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+  .hc-chip { border-radius: 5px; font-size: 11px; font-weight: 700; padding: 2px 7px; }
+  .hc-chip.is-green  { background: #e4f5ee; color: #007a45; }
+  .hc-chip.is-blue   { background: #dbeafe; color: #1d4ed8; }
+  .hc-chip.is-orange { background: #fff3e0; color: #b45309; }
+  .hc-chip.is-red    { background: #fde8e8; color: var(--lidl-red); }
+
+  .hc-list { display: flex; flex-direction: column; gap: 3px; list-style: none; margin: 0 0 10px; padding: 0; }
+  .hc-list li {
+    border-left: 3px solid var(--line);
+    font-size: 12px;
+    overflow: hidden;
+    padding: 2px 0 2px 7px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hc-list li.is-green  { border-left-color: #10b981; }
+  .hc-list li.is-blue   { border-left-color: #3b82f6; }
+  .hc-list li.is-orange { border-left-color: #fb923c; }
+  .hc-list li.is-red    { border-left-color: var(--lidl-red); }
+  .hc-from { color: var(--muted); text-decoration: line-through; }
+  .hc-more { color: var(--muted); }
+  .hc-all { width: 100%; justify-content: center; }
+
+  .hc-fail {
+    background: #fde8e8;
+    border-radius: 6px;
+    color: #9b1c1c;
+    font-size: 12px;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+  }
+
+  @media (max-width: 1400px) {
+    .home-layout .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 1100px) {
+    .home-layout { grid-template-columns: 1fr; }
+    .home-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 720px) {
+    .home-layout .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .home-side { grid-template-columns: 1fr; }
+  }
+
+  /* ── Seznam filiálek: řádek otevírá detail ── */
+  #storeRows tr.is-clickable { cursor: pointer; }
+  #storeRows tr.is-clickable:hover td { background: #f5f8fd; }
+
+  /* ── Detail filiálky (jen ke čtení) ── */
+  .sd-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; margin-right: 10px; }
+
+  .sd-alert { border-radius: 6px; font-size: 13px; margin-bottom: 12px; padding: 8px 12px; }
+  .sd-alert.is-closed   { background: #fff3e0; color: #92400e; }
+  .sd-alert.is-upcoming { background: #dbeafe; color: #1e3a8a; }
+  .sd-alert.is-planned  { background: #f1f5f9; color: var(--text); }
+
+  .sd-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .sd-card { border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 10px 12px; }
+
+  .sd-card-title {
+    color: var(--lidl-blue);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .sd-row { display: flex; gap: 10px; padding: 5px 0; }
+  .sd-row + .sd-row { border-top: 1px solid var(--line-soft); }
+  .sd-row-ico { color: var(--muted); flex: 0 0 16px; padding-top: 2px; }
+  .sd-row-ico svg { height: 15px; width: 15px; }
+  .sd-row-label { color: var(--muted); font-size: 11px; }
+  .sd-row-value { font-size: 13px; font-weight: 600; }
+  .sd-row-sub { font-size: 12px; }
+  .sd-muted { color: var(--muted); font-weight: 400; }
+  .sd-link { color: var(--lidl-blue); text-decoration: none; }
+  .sd-link:hover { text-decoration: underline; }
+
+  .sd-hscale { color: var(--muted); display: flex; font-size: 10px; justify-content: space-between; margin: 0 92px 3px 30px; }
+  .sd-hrow { align-items: center; display: grid; gap: 8px; grid-template-columns: 22px minmax(0, 1fr) 84px; font-size: 12px; padding: 2px 0; }
+  .sd-hrow.is-today { font-weight: 700; }
+  .sd-hrow.is-today .sd-hday { color: var(--lidl-blue); }
+  .sd-htrack { background: var(--line-soft); border-radius: 4px; height: 8px; position: relative; }
+  .sd-hbar { background: var(--lidl-blue); border-radius: 4px; height: 100%; position: absolute; top: 0; }
+  .sd-hrow.is-today .sd-hbar { background: #f0b400; }
+  .sd-htime { text-align: right; white-space: nowrap; }
+  .sd-hsum { border-top: 1px solid var(--line-soft); display: flex; gap: 24px; font-size: 12px; margin-top: 8px; padding-top: 6px; }
+  .sd-hsum span { color: var(--muted); margin-right: 6px; }
+
+  .sd-closure { align-items: center; border-radius: 6px; display: flex; font-size: 12px; gap: 10px; margin-bottom: 4px; padding: 5px 8px; }
+  .sd-closure.is-current  { background: #fff3e0; color: #92400e; }
+  .sd-closure.is-upcoming { background: #eff6ff; color: #1e3a8a; }
+  .sd-closure.is-past     { background: #f8fafc; color: var(--muted); }
+  .sd-closure-state { font-weight: 700; min-width: 74px; }
+  .sd-closure-range { flex: 1; }
+  .sd-closure-src { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .sd-closure-empty { color: var(--muted); font-size: 12px; }
+
+  #storeDetailModal .modal-footer { align-items: center; }
+  .sd-meta { color: var(--muted); display: flex; flex-wrap: wrap; font-size: 11px; gap: 14px; margin-right: auto; }
+
+  @media (max-width: 760px) {
+    .sd-grid { grid-template-columns: 1fr; }
+  }
 </style>

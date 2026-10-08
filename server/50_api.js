@@ -142,6 +142,49 @@ function apiGetHome() {
   });
 }
 
+/**
+ * Přehled pro plochu - vidí ho každý přihlášený uživatel: počty uživatelů podle lokace
+ * (bez jmen a e-mailů) a změny filiálek z poslední synchronizace.
+ */
+function apiGetHomeOverview() {
+  return guard_(ROLES.USER, () => {
+    const users = dbGetAll_(SHEETS.USERS).filter((u) => u.active !== false);
+    const lcNames = {};
+    dbGetAll_(SHEETS.LOGISTICS).forEach((lc) => { lcNames[String(lc.abbreviation || '').trim().toUpperCase()] = lc.name; });
+    const byLoc = {};
+    users.forEach((u) => {
+      const loc = String(u.location || 'HQ').trim().toUpperCase() || 'HQ';
+      byLoc[loc] = (byLoc[loc] || 0) + 1;
+    });
+
+    const s = settingsAll_();
+    let history = [];
+    let last = null;
+    try { history = s.syncHistory ? JSON.parse(s.syncHistory) : []; } catch (e) { history = []; }
+    try { last = s.lastSyncResult ? JSON.parse(s.lastSyncResult) : null; } catch (e) { last = null; }
+    const lastOk = history.find((h) => !h.failure) || null;
+    const latest = history[0] || null;
+
+    return {
+      users: {
+        total: users.length,
+        byLocation: Object.keys(byLoc).map((code) => ({
+          code: code,
+          name: code === 'HQ' ? 'Centrála' : (lcNames[code] || ''),
+          count: byLoc[code],
+        })),
+      },
+      sync: last ? {
+        at: s.lastSyncAt || null,
+        auto: !!(lastOk && lastOk.auto),
+        fileName: last.fileName || '',
+        stores: last.stores || null,
+      } : null,
+      syncFailure: latest && latest.failure ? { at: latest.at, message: latest.failure } : null,
+    };
+  });
+}
+
 /* ── Uživatelé ──────────────────────────────────────────────────── */
 
 function apiListUsers() {
@@ -670,7 +713,7 @@ function apiSaveSyncSettings(payload) {
  * to omezí na jednou za běh skriptu, CacheService pak i napříč requesty.
  */
 let dbSchemaEnsuredThisRun_ = false;
-const SCHEMA_CHECK_CACHE_KEY_ = 'schema:checked:4'; // změna klíče vynutí novou kontrolu po přidání sloupce
+const SCHEMA_CHECK_CACHE_KEY_ = 'schema:checked:5'; // změna klíče vynutí novou kontrolu po přidání sloupce
 const SCHEMA_CHECK_TTL_ = 1800; // sekund
 
 function dbEnsureApps_() {

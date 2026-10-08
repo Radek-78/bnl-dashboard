@@ -40,6 +40,11 @@ const STORES_COL_MAP = {
   'Sobota zavřeno':   'sat_close',
   'Neděle otevřeno':  'sun_open',
   'Neděle zavřeno':   'sun_close',
+  'Ulice':            'street',
+  'Město':            'city',
+  'PSČ':              'zip',
+  'Zástupce RM':      'deputy_rm',
+  'Telefon zástupce': 'deputy_phone',
 };
 
 /** List s datem oficiálního otevření filiálky - NEPOVINNÝ (stejně jako v Planung Dashboardu). */
@@ -443,7 +448,8 @@ const HOUR_FIELDS_ = [
  * openingDate: undefined = list Organizace chybí (datum otevření se nemění).
  */
 function buildStorePatch_(xlsxRow, now, existing, lcAbbr, openingDate) {
-  const NON_HOUR_FIELDS = ['code', 'name', 'phone', 'area_manager', 'vt_phone', 'regional_manager', 'rm_phone'];
+  const NON_HOUR_FIELDS = ['code', 'name', 'phone', 'area_manager', 'vt_phone', 'regional_manager', 'rm_phone',
+    'street', 'city', 'zip', 'deputy_rm', 'deputy_phone'];
   const patch = { active: true, synced_at: now, updated_at: now, lc_code: lcAbbr };
   NON_HOUR_FIELDS.concat(HOUR_FIELDS_).forEach((f) => {
     const dbVal = existing ? (existing[f] || '') : '';
@@ -457,7 +463,7 @@ const STORE_DIFF_FIELDS = [
   'name','lc_code','phone','area_manager','vt_phone','regional_manager','rm_phone',
   'mon_open','mon_close','tue_open','tue_close','wed_open','wed_close',
   'thu_open','thu_close','fri_open','fri_close','sat_open','sat_close','sun_open','sun_close',
-  'opening_date',
+  'opening_date', 'street', 'city', 'zip', 'deputy_rm', 'deputy_phone',
 ];
 
 const STORE_FIELD_LABELS = {
@@ -471,18 +477,23 @@ const STORE_FIELD_LABELS = {
   sat_open: 'So otevřeno', sat_close: 'So zavřeno',
   sun_open: 'Ne otevřeno', sun_close: 'Ne zavřeno',
   opening_date: 'Datum otevření',
+  street: 'Ulice', city: 'Město', zip: 'PSČ', deputy_rm: 'Zástupce RM', deputy_phone: 'Telefon zástupce',
 };
 
+/** Pole přidaná později - jejich první doplnění (v DB dosud prázdné) se nehlásí jako změna. */
+const STORE_SILENT_FIRST_FILL = ['opening_date', 'street', 'city', 'zip', 'deputy_rm', 'deputy_phone'];
+
 /**
- * Hlášené změny polí. První doplnění data otevření (dosud prázdné) se nehlásí - jinak by
- * první běh po zavedení sloupce ohlásil jako změněnou každou filiálku. Hodnota se přesto uloží.
+ * Hlášené změny polí. První doplnění později přidaných polí (STORE_SILENT_FIRST_FILL, dosud prázdné)
+ * se nehlásí - jinak by první běh po zavedení sloupce ohlásil jako změněnou každou filiálku.
+ * Hodnota se přesto uloží.
  */
 function storeChangedFields_(existing, patch) {
   const result = [];
   STORE_DIFF_FIELDS.forEach((f) => {
     const oldVal = f === 'opening_date' ? normalizeIsoDate_(existing[f]) : String(existing[f] || '');
     const newVal = String(patch[f] || '');
-    if (f === 'opening_date' && !oldVal) return;
+    if (STORE_SILENT_FIRST_FILL.indexOf(f) !== -1 && !oldVal) return;
     if (oldVal !== newVal)
       result.push({ field: STORE_FIELD_LABELS[f] || f, old: oldVal, new: newVal });
   });

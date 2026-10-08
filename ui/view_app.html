@@ -83,8 +83,27 @@
         </div>
       </div>
 
-      <div class="module-grid" id="moduleGrid">
-        <p class="modules-empty is-hidden" id="modulesEmpty">Zatím žádné aplikace. Přidejte je v sekci <strong>Administrace → Aplikace</strong>.</p>
+      <div class="home-layout">
+        <div class="module-grid" id="moduleGrid">
+          <p class="modules-empty is-hidden" id="modulesEmpty">Zatím žádné aplikace. Přidejte je v sekci <strong>Administrace → Aplikace</strong>.</p>
+        </div>
+        <aside class="home-side">
+          <section class="home-card" id="homeUsersCard">
+            <div class="home-card-head">
+              <span class="home-card-ico"><svg><use href="#i-users"></use></svg></span>
+              <h3>Uživatelé</h3>
+            </div>
+            <div class="home-card-body" id="homeUsersBody"><p class="home-empty">Načítám…</p></div>
+          </section>
+          <section class="home-card" id="homeSyncCard">
+            <div class="home-card-head">
+              <span class="home-card-ico"><svg><use href="#i-sync"></use></svg></span>
+              <h3>Změny filiálek</h3>
+              <span class="home-card-meta" id="homeSyncMeta"></span>
+            </div>
+            <div class="home-card-body" id="homeSyncBody"><p class="home-empty">Načítám…</p></div>
+          </section>
+        </aside>
       </div>
 
     </section>
@@ -473,6 +492,24 @@
     <button class="modal-close" type="button" id="closeSyncChangesModal" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>
   </div>
   <div class="modal-body" id="syncChangesBody"></div>
+</dialog>
+
+<dialog class="modal modal-large" id="storeDetailModal">
+  <div class="modal-header">
+    <span class="modal-icon"><svg><use href="#i-store"></use></svg></span>
+    <div class="modal-header-text">
+      <p class="kicker" id="sdKicker">Filiálka</p>
+      <h2 id="sdTitle"></h2>
+    </div>
+    <div class="sd-badges" id="sdBadges"></div>
+    <button class="modal-close" type="button" id="sdClose" aria-label="Zavřít"><svg><use href="#i-close"></use></svg></button>
+  </div>
+  <div class="modal-body" id="sdBody"></div>
+  <footer class="modal-footer">
+    <div class="sd-meta" id="sdMeta"></div>
+    <button class="button" type="button" id="sdCancel">Zavřít</button>
+    <button class="button button-primary" type="button" id="sdEdit">Upravit</button>
+  </footer>
 </dialog>
 
 <dialog class="modal modal-large" id="changelogModal">
@@ -1229,6 +1266,91 @@ _sfState: {},
       this.renderNameDay();
       this.loadWeather();
       this.loadModules();
+      this.loadHomeOverview();
+    },
+
+    /* ── Plocha: karty Uživatelé a Změny filiálek (vidí je každý přihlášený) ── */
+
+    loadHomeOverview() {
+      if (this._homeOverview) this.renderHomeOverview(this._homeOverview);
+      Ui.call('apiGetHomeOverview', null, { silent: true })
+        .then((d) => { this._homeOverview = d; this.renderHomeOverview(d); })
+        .catch(() => {
+          if (this._homeOverview) return;
+          ['#homeUsersBody', '#homeSyncBody'].forEach((sel) => {
+            const el = document.querySelector(sel);
+            if (el) el.innerHTML = '<p class="home-empty">Přehled se nepodařilo načíst.</p>';
+          });
+        });
+    },
+
+    renderHomeOverview(d) {
+      const esc = Ui.escape.bind(Ui);
+
+      // Uživatelé - jen počty podle lokace (bez jmen), Centrála první, pak podle počtu.
+      const u = d.users || { total: 0, byLocation: [] };
+      const rows = (u.byLocation || []).slice().sort((a, b) => {
+        if ((a.code === 'HQ') !== (b.code === 'HQ')) return a.code === 'HQ' ? -1 : 1;
+        return b.count - a.count || String(a.code).localeCompare(String(b.code), 'cs');
+      });
+      const max = rows.reduce((m, r) => Math.max(m, r.count), 1);
+      const usersBody = document.querySelector('#homeUsersBody');
+      if (usersBody) {
+        usersBody.innerHTML = `
+          <div class="hc-big"><b>${u.total || 0}</b><span>registrovaných uživatelů</span></div>
+          <div class="hc-sub">Podle lokace</div>
+          ${rows.length ? `<ul class="hc-bars">${rows.map((r) => `
+            <li title="${esc(r.name ? r.code + ' — ' + r.name : r.code)}">
+              <span class="hc-bar-l">${esc(r.code === 'HQ' ? 'Centrála' : r.code)}</span>
+              <span class="hc-bar-t"><i style="width:${Math.round(r.count / max * 100)}%"></i></span>
+              <span class="hc-bar-v">${r.count}</span>
+            </li>`).join('')}</ul>` : '<p class="home-empty">Žádní uživatelé.</p>'}`;
+      }
+
+      // Změny filiálek z poslední synchronizace
+      const body = document.querySelector('#homeSyncBody');
+      const meta = document.querySelector('#homeSyncMeta');
+      if (!body) return;
+      const fail = d.syncFailure
+        ? `<div class="hc-fail"><b>Poslední synchronizace selhala</b> (${esc(Ui.formatDateTime(d.syncFailure.at))}): ${esc(d.syncFailure.message)}</div>`
+        : '';
+      const sync = d.sync;
+      if (!sync || !sync.stores) {
+        if (meta) meta.textContent = '';
+        body.innerHTML = fail + '<p class="home-empty">Synchronizace filiálek zatím neproběhla.</p>';
+        return;
+      }
+      if (meta) meta.textContent = Ui.formatDateTime(sync.at) + ' · ' + (sync.auto ? 'automaticky' : 'ručně');
+      const st = sync.stores;
+      const ch = st.changes || {};
+      const chip = (cls, label, n) => n ? `<span class="hc-chip ${cls}">${label} ${n}</span>` : '';
+      const chips = chip('is-green', 'Nové', st.added) + chip('is-blue', 'Změněné', st.updated)
+        + chip('is-green', 'Reaktivované', st.reactivated) + chip('is-red', 'Deaktivované', st.deactivated)
+        + chip('is-orange', 'Nově zavřené', st.closedNew) + chip('is-green', 'Uzavírky skončily', st.closedEnded)
+        + chip('is-blue', 'Před otevřením', st.notYetOpen) + chip('is-red', 'Ručně deaktivované', st.manualInactive);
+      const store = (it) => `<b>${esc(it.code)}</b> ${esc(it.name || '')}`;
+      const range = (it) => esc(this._fmtCzDate(it.from)) + (it.to && it.to !== it.from ? ' – ' + esc(this._fmtCzDate(it.to)) : '');
+      const items = []
+        .concat((ch.added || []).map((it) => ['is-green', store(it) + ' — nová filiálka']))
+        .concat((ch.reactivated || []).map((it) => ['is-green', store(it) + ' — znovu aktivní']))
+        .concat((ch.deactivated || []).map((it) => ['is-red', store(it) + ' — deaktivována (ve zdroji už není)']))
+        .concat((ch.closed || []).map((it) => ['is-orange', store(it) + ' — nově zavřeno ' + range(it)]))
+        .concat((ch.reopened || []).map((it) => ['is-green', store(it) + ' — uzavírka skončila ' + range(it)]))
+        .concat((ch.updated || []).map((it) => ['is-blue', store(it) + ': ' + (it.fields || []).slice(0, 2)
+          .map((f) => esc(f.field) + ' <span class="hc-from">' + esc(f.old || '—') + '</span> → ' + esc(f.new || '—')).join('; ')
+          + ((it.fields || []).length > 2 ? ' <span class="hc-more">+ ' + ((it.fields || []).length - 2) + ' dalších</span>' : '')]));
+      const shown = items.slice(0, 8);
+      body.innerHTML = fail + (chips
+        ? `<div class="hc-chips">${chips}</div>
+           ${shown.length ? `<ul class="hc-list">${shown.map(([cls, html]) => `<li class="${cls}">${html}</li>`).join('')}</ul>` : ''}
+           <button class="button button-secondary button-small hc-all" type="button" id="homeSyncAll">Zobrazit všechny změny${items.length > shown.length ? ' (' + items.length + ')' : ''}</button>`
+        : '<p class="home-empty">Beze změn oproti minulé synchronizaci.</p>');
+      body.querySelectorAll('.hc-list li').forEach((li) => { li.title = li.textContent; });
+      const all = body.querySelector('#homeSyncAll');
+      if (all) all.addEventListener('click', () => {
+        this._syncResult = { fileName: sync.fileName, stores: st };
+        this.openSyncChangesModal();
+      });
     },
 
     renderHome(data) {
@@ -2497,7 +2619,7 @@ _sfState: {},
             const tempClosed = this._isTempClosed(s);
             const notYetOpen = this._isNotYetOpen(s);
             return `
-          <tr class="${s.active === false ? 'is-muted' : ''}">
+          <tr class="is-clickable${s.active === false ? ' is-muted' : ''}" data-store-row="${Ui.escape(s.id)}" title="Zobrazit detail filiálky">
             <td><strong>${Ui.escape(s.code)}</strong></td>
             <td><span class="store-name-cell">${Ui.escape(s.name)}${tempClosed ? `<span class="store-tc-right"><span class="store-tc-range">${Ui.escape(this._tempClosedRangeLabel(s))}</span><span class="pill is-orange">Dočasně uzavřena</span></span>` : ''}${notYetOpen ? `<span class="store-tc-right"><span class="store-tc-range is-upcoming">od ${Ui.escape(this._fmtCzDate(s.opening_date))}</span><span class="pill is-blue">Před otevřením</span></span>` : ''}</span></td>
             <td>${Ui.escape(s.lc_code || '–')}</td>
@@ -2531,6 +2653,13 @@ _sfState: {},
       });
       document.querySelectorAll('[data-store-metro]').forEach((cb) => {
         cb.addEventListener('change', () => this.toggleStoreMetro(cb.dataset.storeMetro, cb.checked));
+      });
+      // Klik na řádek = detail; tlačítka, checkbox Metropolitní ap. mají vlastní akci.
+      document.querySelectorAll('[data-store-row]').forEach((tr) => {
+        tr.addEventListener('click', (e) => {
+          if (e.target.closest('button, input, label, a, select')) return;
+          this.openStoreDetail(tr.dataset.storeRow);
+        });
       });
       this.updateSortIndicators('stores');
     },
@@ -2577,6 +2706,146 @@ _sfState: {},
       Ui.call('apiToggleStoreActive', id, { silent: true, busy: 'Ukládám stav filiálky…' })
         .then(() => { Ui.toast('Stav filiálky byl změněn.'); this.loadStores(); })
         .catch((e) => Ui.toast(e.message, 'error'));
+    },
+
+    /* ── Filiálky – detail (jen ke čtení, po kliknutí na řádek) ── */
+
+    _SD_DAYS: [['mon', 'Po', 'Pondělí'], ['tue', 'Út', 'Úterý'], ['wed', 'St', 'Středa'], ['thu', 'Čt', 'Čtvrtek'],
+               ['fri', 'Pá', 'Pátek'], ['sat', 'So', 'Sobota'], ['sun', 'Ne', 'Neděle']],
+
+    /** "7:00" → minuty od půlnoci, nečitelné = null. */
+    _sdMinutes(t) {
+      const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '').trim());
+      return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+    },
+
+    _sdDuration(min) {
+      const h = Math.floor(min / 60), m = min % 60;
+      return h + ' h' + (m ? ' ' + m + ' min' : '');
+    },
+
+    /** Telefon jako odkaz tel: (jen číslice a plus), prázdný = ''. */
+    _sdPhone(phone) {
+      const p = String(phone || '').trim();
+      if (!p) return '';
+      const tel = p.replace(/[^0-9+]/g, '');
+      return tel ? `<a class="sd-link" href="tel:${Ui.escape(tel)}">${Ui.escape(p)}</a>` : Ui.escape(p);
+    },
+
+    /** Řádek karty: popisek, hodnota a případně vedlejší řádek (telefon, odkaz na mapu). */
+    _sdRow(icon, label, value, sub) {
+      const empty = !value && !sub;
+      return `<div class="sd-row"><span class="sd-row-ico"><svg><use href="#i-${icon}"></use></svg></span>
+        <div class="sd-row-body"><div class="sd-row-label">${Ui.escape(label)}</div>
+        ${empty ? '<div class="sd-row-value sd-muted">—</div>'
+          : (value ? `<div class="sd-row-value">${value}</div>` : '') + (sub ? `<div class="sd-row-sub">${sub}</div>` : '')}
+        </div></div>`;
+    },
+
+    /** Otevírací doba: pruh 0–24 h na každý den, dnešek zvýrazněný, dole Dnes / Týdně. */
+    _sdHours(s) {
+      const todayKey = this._SD_DAYS[(new Date().getDay() + 6) % 7][0];
+      let week = 0, today = 0;
+      const rows = this._SD_DAYS.map(([key, label, full]) => {
+        const open = s[key + '_open'], close = s[key + '_close'];
+        const a = this._sdMinutes(open), b = this._sdMinutes(close);
+        const valid = a !== null && b !== null && b > a;
+        if (valid) { week += b - a; if (key === todayKey) today = b - a; }
+        return `<div class="sd-hrow${key === todayKey ? ' is-today' : ''}" title="${full}">
+          <span class="sd-hday">${label}</span>
+          <span class="sd-htrack">${valid ? `<span class="sd-hbar" style="left:${(a / 14.4).toFixed(2)}%;width:${((b - a) / 14.4).toFixed(2)}%"></span>` : ''}</span>
+          <span class="sd-htime">${valid ? Ui.escape(open) + ' – ' + Ui.escape(close) : '<span class="sd-muted">zavřeno</span>'}</span></div>`;
+      }).join('');
+      return `<div class="sd-hscale"><span>0</span><span>6</span><span>12</span><span>18</span><span>24 h</span></div>${rows}
+        <div class="sd-hsum"><div><span>Dnes</span><b>${today ? this._sdDuration(today) : 'zavřeno'}</b></div>
+        <div><span>Týdně celkem</span><b>${week ? this._sdDuration(week) : '—'}</b></div></div>`;
+    },
+
+    /** Uzavírky: probíhající, plánované a ukončené; u každé odkud pochází (zdroj / ručně). */
+    _sdClosures(s) {
+      if (this._isNotYetOpen(s)) return '<div class="sd-closure-empty">Filiálka ještě není otevřená — uzavírky se nezobrazují.</div>';
+      const today = this._toIsoDate(new Date());
+      const list = this._parseRanges(s.sync_closed_ranges).map((r) => Object.assign({ src: 'ze zdroje' }, r))
+        .concat(this._parseRanges(s.temp_closed_ranges).map((r) => Object.assign({ src: 'ručně' }, r)))
+        .map((r) => Object.assign(r, { state: r.to < today ? 'past' : r.from > today ? 'upcoming' : 'current' }));
+      if (!list.length) return '<div class="sd-closure-empty">Žádné uzavírky</div>';
+      const order = { current: 0, upcoming: 1, past: 2 };
+      list.sort((a, b) => order[a.state] - order[b.state] || (a.state === 'past' ? (a.from < b.from ? 1 : -1) : (a.from < b.from ? -1 : 1)));
+      const label = { current: 'Probíhá', upcoming: 'Plánováno', past: 'Ukončeno' };
+      return list.map((r) => `<div class="sd-closure is-${r.state}">
+          <span class="sd-closure-state">${label[r.state]}</span>
+          <span class="sd-closure-range">${Ui.escape(this._fmtCzDate(r.from))}${r.to !== r.from ? ' – ' + Ui.escape(this._fmtCzDate(r.to)) : ''}</span>
+          <span class="sd-closure-src">${r.src}</span></div>`).join('');
+    },
+
+    openStoreDetail(id) {
+      const s = this.stores.find((x) => x.id === id);
+      if (!s) return;
+      const esc = Ui.escape.bind(Ui);
+      const modal = document.querySelector('#storeDetailModal');
+      if (!modal._sdBound) {
+        modal._sdBound = true;
+        document.querySelector('#sdClose').addEventListener('click', () => Ui.closeModal(modal));
+        document.querySelector('#sdCancel').addEventListener('click', () => Ui.closeModal(modal));
+        document.querySelector('#sdEdit').addEventListener('click', () => {
+          Ui.closeModal(modal);
+          this.openStoreModal(modal.dataset.storeId);
+        });
+        modal.addEventListener('click', (e) => { if (e.target === modal) Ui.closeModal(modal); });
+      }
+      modal.dataset.storeId = id;
+
+      const notYetOpen = this._isNotYetOpen(s);
+      const tempClosed = this._isTempClosed(s);
+      const lc = (this.logistics || []).find((l) => l.abbreviation === s.lc_code);
+      document.querySelector('#sdKicker').textContent = 'Filiálka' + (s.lc_code ? ' · LC ' + s.lc_code : '');
+      document.querySelector('#sdTitle').textContent = s.code + ' — ' + (s.name || '');
+      document.querySelector('#sdBadges').innerHTML =
+        (notYetOpen ? `<span class="pill is-blue">Otevře se ${esc(this._fmtCzDate(s.opening_date))}</span>`
+          : s.active === false ? '<span class="pill is-red">Neaktivní</span>' : '<span class="pill is-green">Aktivní</span>')
+        + (tempClosed ? '<span class="pill is-orange">Dočasně uzavřena</span>' : '')
+        + (s.metropolitni === true ? '<span class="pill is-blue">Metropolitní</span>' : '');
+
+      // Upozornění nahoře: probíhající uzavírka, nebo ještě neotevřená, nebo nejbližší plánovaná uzavírka.
+      const today = this._toIsoDate(new Date());
+      const ranges = this._storeRanges(s);
+      const current = ranges.find((r) => r.from <= today && today <= r.to);
+      const next = ranges.filter((r) => r.from > today).sort((a, b) => (a.from < b.from ? -1 : 1))[0];
+      const rangeText = (r) => esc(this._fmtCzDate(r.from)) + (r.to !== r.from ? ' – ' + esc(this._fmtCzDate(r.to)) : '');
+      let alert = '';
+      if (notYetOpen) alert = `<div class="sd-alert is-upcoming"><b>Filiálka ještě nebyla otevřena.</b> Otevře se ${esc(this._fmtCzDate(s.opening_date))}.</div>`;
+      else if (tempClosed && current) alert = `<div class="sd-alert is-closed"><b>Filiálka je právě dočasně uzavřená.</b> Uzavírka ${rangeText(current)}.</div>`;
+      else if (next) alert = `<div class="sd-alert is-planned"><b>Plánovaná uzavírka</b> ${rangeText(next)}.</div>`;
+
+      const address = [s.street, [s.zip, s.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+      // "Lidl Město Ulice" - celá adresa s číslem popisným Mapy často netrefí, Lidl + město + ulice ano.
+      const mapQuery = ['Lidl', s.city, s.street].filter(Boolean).join(' ');
+      const mapLink = (s.city || s.street)
+        ? `<a class="sd-link" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}">Zobrazit na mapě</a>`
+        : '';
+
+      document.querySelector('#sdBody').innerHTML = `${alert}
+        <div class="sd-grid">
+          <section class="sd-card"><div class="sd-card-title">Kontakty</div>
+            ${this._sdRow('store', 'Prodejna', '', this._sdPhone(s.phone))}
+            ${this._sdRow('user', 'VT', esc(s.area_manager || ''), this._sdPhone(s.vt_phone))}
+            ${this._sdRow('user', 'RM', esc(s.regional_manager || ''), this._sdPhone(s.rm_phone))}
+            ${this._sdRow('users', 'Zástupce RM', esc(s.deputy_rm || ''), this._sdPhone(s.deputy_phone))}
+          </section>
+          <section class="sd-card"><div class="sd-card-title">Adresa a zařazení</div>
+            ${this._sdRow('map-pin', 'Adresa', esc(address), mapLink)}
+            ${this._sdRow('truck', 'Logistické centrum', s.lc_code ? esc(s.lc_code) + (lc && lc.name ? ' · ' + esc(lc.name) : '') : '')}
+            ${this._sdRow('calendar', 'Datum otevření', esc(this._fmtCzDate(s.opening_date)))}
+            ${this._sdRow('star', 'Metropolitní', s.metropolitni === true ? 'Ano' : 'Ne')}
+          </section>
+          <section class="sd-card"><div class="sd-card-title">Otevírací doba</div>${this._sdHours(s)}</section>
+          <section class="sd-card"><div class="sd-card-title">Uzavírky</div>${this._sdClosures(s)}</section>
+        </div>`;
+      document.querySelector('#sdMeta').innerHTML =
+        `<span>Synchronizováno: ${esc(s.synced_at ? Ui.formatDateTime(s.synced_at) : '—')}</span>
+         <span>Upraveno: ${esc(s.updated_at ? Ui.formatDateTime(s.updated_at) : '—')}</span>`;
+      document.querySelector('#sdEdit').classList.toggle('is-hidden', !this.hasStoresWrite);
+      Ui.openModal(modal);
     },
 
     /* ── Filiálky – modal detail ──────────────────── */

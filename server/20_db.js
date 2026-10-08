@@ -19,6 +19,7 @@ const DB_SCHEMA = {
     'sun_open', 'sun_close',
     'temporarily_closed', 'active', 'manually_inactive', 'synced_at', 'created_at', 'created_by', 'updated_at', 'temp_closed_ranges',
     'metropolitni', 'vt_phone', 'opening_date', 'sync_closed_ranges',
+    'street', 'city', 'zip', 'deputy_rm', 'deputy_phone',
   ],
   'logistics': [
     'id', 'code', 'name', 'abbreviation',
