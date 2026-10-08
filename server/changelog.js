@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.165', date: '8.10.2026', message: 'Oprava: ruční úpravy přídělu tlačítky +/- se po Resetovat tabulku mohly u stejného artiklu vrátit. Rozdělení se teď vždy načítá čerstvě z databáze (ne z mezipaměti), reset maže obsah listu místo řádků, aplikace po resetu hned zapomene staré hodnoty i neodeslané úpravy a potvrzení resetu se ukáže až po úspěchu na serveru (při chybě se zobrazí chyba).' },
   { version: 'v3.1.164', date: '8.10.2026', message: 'Filiálky: sloupec Metropolitní přejmenován na Metropol a přibyl sloupec Atyp (zaškrtává se stejně jako Metropol, i v úpravě a detailu filiálky). Rozdělovník: v horní liště přibyl přepínač Přidělovat Atyp (výchozí zapnuto) - vypnutý vyloučí Atyp filiálky z přídělu; křížek u čísla prodejny ve sloupci Prodejna vyloučí filiálku z přídělu všech artiklů (uloží se, smaže ho Resetovat tabulku). Informace o artiklech: načítají se jen artikly se STATUS 6 až 10.' },
   { version: 'v3.1.163', date: '8.10.2026', message: 'Úvodní plocha: karta Uživatelé odstraněna, karta Změny filiálek je přes celou výšku plochy a vypisuje všechny změny poslední synchronizace (při větším počtu se seznam posouvá uvnitř karty). Tlačítko Zobrazit podrobnosti změn otevře přehled se změnami polí.' },
   { version: 'v3.1.162', date: '8.10.2026', message: 'Oprava: aplikace se po v3.1.161 nespustila (chyba skriptu kvůli odkazu na mapu v detailu filiálky). Odkaz je přepsaný tak, aby ho Apps Script při načítání stránky neuřízl.' },

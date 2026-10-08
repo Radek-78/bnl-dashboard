@@ -1115,10 +1115,24 @@
         el.querySelectorAll('.rz-artikly-table input[type="text"], .rz-artikly-table input[type="number"]').forEach((input) => { input.value = ''; });
         el.querySelectorAll('.rz-artikly-table input[type="checkbox"]').forEach((input) => { input.checked = false; });
         this.saveArtikly();
+        // Odložené zápisy Rozdělení (úpravy +/-, RW, min/max), které ještě neodešly, se zahodí -
+        // jinak by po resetu znovu založily řádky se starými hodnotami.
+        Object.keys(this._debounced || {}).forEach((key) => {
+          if (/^(uprava|rw|minmax):/.test(key)) { clearTimeout(this._debounced[key].timer); delete this._debounced[key]; }
+        });
+        this._updateQueueIndicator();
+        // Lokální stav se vyprázdní hned - další +/- už nesmí navázat na starou hodnotu.
+        this._rozdeleniReqId++;
+        this.rozdeleni = [];
         this._enqueue('Mažu rozdělení', () => Ui.call('apiRzResetRozdeleni', null, { silent: true }))
-          .then(() => this.loadRozdeleni())
-          .catch((e) => Ui.toast(e.message, 'error'));
-        Ui.toast('Tabulka artiklů byla resetována.');
+          .then(() => {
+            Ui.toast('Tabulka artiklů i ruční úpravy v Rozdělení byly resetovány.');
+            return this.loadRozdeleni();
+          })
+          .catch((e) => {
+            Ui.toast('Reset Rozdělení se nepovedl: ' + e.message, 'error');
+            this.loadRozdeleni();
+          });
       });
     },
 

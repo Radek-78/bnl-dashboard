@@ -599,6 +599,9 @@ function apiRzGetRozdeleni() {
   return rzGuard_(() => {
     const repo = rzRepo_();
     repo.ensureSchema();
+    // Vždy čerstvě z listu, ne z cache: kdyby se do cache těsně po resetu zapsal starší stav
+    // (souběžné čtení), vracel by se až 5 minut a staré ruční úpravy +/- by se po resetu vrátily.
+    repo.invalidateCache('rozdeleni');
     return repo.getAll('rozdeleni');
   });
 }
@@ -607,7 +610,16 @@ function apiRzGetRozdeleni() {
 function apiRzResetRozdeleni() {
   return rzGuard_((user) => {
     if (!rzCanWrite_(user)) throw new Error('Nemáte oprávnění k mazání.');
-    rzRepo_().clearTable('rozdeleni');
+    const repo = rzRepo_();
+    repo.ensureSchema();
+    // Vymazání obsahu místo mazání řádků: deleteRows selže, když by nezbyl žádný nezmrazený
+    // řádek, a list by se každým resetem zmenšoval.
+    withLock_(() => {
+      const sheet = repo.spreadsheet().getSheetByName('rozdeleni');
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+    });
+    repo.invalidateCache('rozdeleni');
     audit_('rz_rozdeleni_reset', 'Vymazána data záložky Rozdělení (reset tabulky Artiklů).');
     return { ok: true };
   });
