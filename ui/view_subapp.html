@@ -28,6 +28,10 @@
    * subaplikace se registrují v SUBAPP_VIEWS podle id a kreslí se
    * do #subappContent. Bez registrace se ukáže placeholder „ve vývoji".
    */
+  // Logo hned při načtení stránky (je vložené v kódu, viz CONFIG.logoUrl) - ne až po ověření
+  // uživatele, jinak by horní lišta 1–2 s ukazovala rozbitý obrázek.
+  document.querySelector('#subappLogo').src = (window.APP_BOOTSTRAP || {}).logoUrl || '';
+
   const SUBAPP_VIEWS = {
     // '<slug aplikace>': (container, app, user) => { ... },
   };
@@ -57,7 +61,6 @@
         return;
       }
 
-      document.querySelector('#subappLogo').src = this.boot.logoUrl || '';
       Ui.setText('#subappShellName', app.name || 'Aplikace');
       Ui.setText('#subappShellDesc', app.description || '');
       Ui.setText('#subappAvatar', Ui.getInitials([user.firstName, user.lastName].filter(Boolean).join(' ') || user.email));

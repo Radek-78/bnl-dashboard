@@ -4,6 +4,7 @@
  * Nejnovejsi verze prvni.
  */
 const CHANGELOG = [
+  { version: 'v3.1.170', date: '9.10.2026', message: 'Rozdělovník: logo v horní liště se zobrazí hned při načtení stránky, ne až po ověření uživatele (dřív lišta 1–2 s ukazovala rozbitý obrázek).' },
   { version: 'v3.1.169', date: '9.10.2026', message: 'Oprava: logo na úvodní načítací obrazovce se po přechodu na logo v kódu nezobrazovalo - šablona stránky ho při vkládání nahrazovala neškodnou hodnotou. Logo se tam teď vkládá stejně jako na ostatních místech.' },
   { version: 'v3.1.168', date: '9.10.2026', message: 'Logo Lidl je vložené přímo v kódu aplikace jako SVG. Dřív se načítalo z Disku Google ze souboru sdíleného jen s vlastníkem, takže ho ostatní uživatelé nemuseli vidět; teď se zobrazí každému a nic se nestahuje.' },
   { version: 'v3.1.167', date: '9.10.2026', message: 'Vyřazené artikly (ExcludedArticles): soubor se převádí a čte jen jednou na každou verzi (rejstřík v databázi Rozdělovníku), převedené kopie __rz_vyrazene_sheet__ se hned mažou i se staršími zapomenutými kopiemi a souběžná načtení už nevytvářejí další kopie. Rozdělení počká na načtení vyřazených artiklů, takže se RW nespočítá ani neuloží bez nich. Když se vyřazení nedá uplatnit (soubor chybí, nemá sloupce Short Article a Store, chyba čtení) nebo je soubor starší než týden, Rozdělení to ukáže výrazným upozorněním. Po nahrání nebo smazání souboru se vyřazení hned načte znovu.' },
