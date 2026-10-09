@@ -16,7 +16,7 @@ const LOGO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 115 115">
 const CONFIG = {
   defaultAppName: 'Výchozí aplikace',
   defaultAppSubtitle: '',
-  version: 'v3.1.168',
+  version: 'v3.1.169',
   releaseDate: '9.10.2026',
   logoUrl: 'data:image/svg+xml;base64,' + Utilities.base64Encode(LOGO_SVG),
   defaultSyncFolderUrl: 'https://drive.google.com/drive/folders/1DX1VFWt5fAztALgMdVGJvLwQEjm-t83B?lfhs=2',

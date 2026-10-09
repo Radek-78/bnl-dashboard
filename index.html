@@ -139,7 +139,10 @@
 
     <div class="loader <?= app.page === 'app' ? 'is-visible' : '' ?>" id="appLoader" role="status" aria-live="assertive">
       <div class="loader-inner">
-        <img src="<?= app.logoUrl ?>" alt="Lidl">
+        <? /* Logo se vkládá bez kontextového escapování: escapující varianta značky by v atributu src
+              nahradila data URI loga (CONFIG.logoUrl) neškodnou hodnotou a logo by se nezobrazilo.
+              Hodnota je pevná konstanta z kódu (jen znaky base64), uživatel ji nemůže ovlivnit. */ ?>
+        <img src="<?!= app.logoUrl ?>" alt="Lidl">
         <strong><?= app.appName ?></strong>
         <span><?= app.appSubtitle ?></span>
         <p>Načítám konfiguraci a data...</p>
