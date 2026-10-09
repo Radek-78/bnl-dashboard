@@ -140,8 +140,8 @@ function TOOLS_debugVyrazene() {
   const mimeType = file.getMimeType();
   console.log('Typ souboru: ' + mimeType + (mimeType === MimeType.GOOGLE_SHEETS
     ? ' (nativní Google Sheet - čte se přímo, bez převodu)'
-    : (mimeType === MimeType.CSV ? ' (CSV - čte se přímo, bez převodu)' : ' (.xlsx - musí se převést na Sheet, převedená kopie se drží do změny zdroje)')));
-  console.log('Uložená převedená kopie: ' + (settings.vyrazeneSheetId || '(žádná)') + ' | podpis zdroje: ' + (settings.vyrazeneSheetSignature || '(žádný)'));
+    : (mimeType === MimeType.CSV ? ' (CSV - čte se přímo, bez převodu)' : ' (.xlsx - převede se na Sheet jen při stavbě rejstříku, kopie se hned maže)')));
+  console.log('Rejstřík vyřazení postaven pro verzi: ' + (settings.vyrazeneIndexSignature || '(zatím žádnou)') + ' | aktuální verze souboru: ' + file.getId() + ':' + file.getLastUpdated().getTime());
 
   const { headers, rows } = rzReadVyrazeneSourceFile_(file);
   console.log('Obsah souboru: ' + headers.length + ' sloupců, ' + rows.length + ' řádků. Hlavičky: ' + JSON.stringify(headers));

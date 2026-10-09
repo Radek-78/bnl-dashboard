@@ -1017,62 +1017,162 @@ function apiRzListStores() {
  * "Short Article" a "Store", ostatní sloupce appka nepoužívá). Appka takový
  * artikl na danou filiálku vůbec nepřidělí - stejné tvrdé pravidlo jako
  * u Metropol filiálek (viz eligible/_isEligible v subapp_rozdelovnik.html).
- * Vrací { "<cislo>": ["<store>", ...], ... }; artikly bez vyřazení chybí.
  *
- * Schválně BEZ importu do interní tabulky (na rozdíl od ostatních 4 souborů)
- * - čte se přímo ze zdrojového souboru při každém volání, aby uživatel
- * nemusel nic ručně importovat. Soubor má desítky tisíc řádků, proto se čte
- * celý najednou (ne po řádku na artikl) a výsledek se jen krátce cachuje -
- * klíč navíc obsahuje čas poslední úpravy souboru (getLastUpdated), takže se
- * cache sama zneplatní hned, jakmile se soubor změní (nahrání nové verze
- * i ruční úprava přímo v Disku), ne až po uplynutí 5 minut. Složka/vzor
- * v Nastavení jsou nepovinné - dokud nejsou vyplněné, appka žádné vyřazení
- * nevynucuje.
+ * Zdrojový soubor (desítky tisíc řádků, u .xlsx navíc ~15 s převod) se čte
+ * JEN JEDNOU NA VERZI: z něj se postaví malý rejstřík artikl → filiálky
+ * v listu vyrazene_artikly databáze subaplikace (viz rzVyrazeneIndex_)
+ * a každé další volání čte už jen ten. Převedená kopie .xlsx se hned po
+ * přečtení maže, stejně jako případné staré zapomenuté kopie.
+ *
+ * Vrací { stores: {"<cislo>": ["<store>", ...]}, status, fileName, updatedAt,
+ * stale, message, cleanupFailed }. status: ok | not_configured | not_found |
+ * bad_headers | building (rejstřík právě staví jiný běh - klient to za chvíli
+ * zkusí znovu) | error. Cokoli jiného než ok znamená, že vyřazení NEPLATÍ -
+ * klient to musí výrazně ukázat, ne tiše rozdělit i na nezalistované filiálky.
  */
+const RZ_VYRAZENE_COPY_NAME = '__rz_vyrazene_sheet__';
+const RZ_VYRAZENE_INDEX_SHEET = 'vyrazene_artikly';
+const RZ_VYRAZENE_BUILD_KEY = 'rz_vyrazene_building';
+
 function apiRzGetVyrazeneStores(cisla) {
   return rzGuard_(() => {
-    if (!Array.isArray(cisla) || !cisla.length) return {};
-    const wanted = cisla.map((c) => String(c || '').trim()).filter((c) => c);
-    if (!wanted.length) return {};
-
+    const wanted = (Array.isArray(cisla) ? cisla : []).map((c) => String(c || '').trim()).filter((c) => c);
     const settings = rzSettingsAll_();
     const folderId = rzExtractFolderId_(settings.folderVyrazeneArtikly);
     const pattern = settings.patternVyrazeneArtikly || '';
-    if (!folderId || !pattern) return {};
-    const file = rzFindFileInFolderByName_(folderId, pattern);
-    if (!file) return {};
+    if (!folderId || !pattern) return { stores: {}, status: 'not_configured' };
 
-    // Najít soubor ve složce je levné (výpis pár souborů) - jen samotné
-    // přečtení obsahu (desítky tisíc řádků) je drahé, proto je v cache klíči
-    // i čas poslední úpravy: pořád se vyhledá aktuální soubor, ale těžké
-    // čtení/parsování se přeskočí, dokud se soubor opravdu nezmění.
-    const cacheKey = 'rz_vyrazene_' + file.getLastUpdated().getTime() + '_' + wanted.slice().sort().join(',');
+    let file;
     try {
-      const hit = CacheService.getScriptCache().get(cacheKey);
-      if (hit) return JSON.parse(hit);
-    } catch (e) { /* cache je jen optimalizace */ }
+      file = rzFindFileInFolderByName_(folderId, pattern);
+    } catch (e) {
+      return { stores: {}, status: 'error', message: 'Složku Vyřazených artiklů se nepodařilo otevřít: ' + e.message };
+    }
+    if (!file) return { stores: {}, status: 'not_found', pattern: pattern };
+
+    const updatedAt = file.getLastUpdated();
+    const info = {
+      fileName: file.getName(),
+      updatedAt: updatedAt.toISOString(),
+      stale: (Date.now() - updatedAt.getTime()) > RZ_VYRAZENE_STALE_MS,
+    };
+
+    let index;
+    try {
+      index = rzVyrazeneIndex_(file, settings);
+    } catch (e) {
+      console.error('Vyřazené artikly: ' + e);
+      return Object.assign({ stores: {}, status: 'error', message: e.message }, info);
+    }
+    if (index.building) return Object.assign({ stores: {}, status: 'building' }, info);
+    if (index.badHeaders) return Object.assign({ stores: {}, status: 'bad_headers', headers: index.headers }, info);
+
+    const stores = {};
+    wanted.forEach((c) => {
+      const hit = index.map[rzVyrazeneKey_(c)];
+      if (hit) stores[c] = hit;
+    });
+    return Object.assign({ stores: stores, status: 'ok', cleanupFailed: index.cleanupFailed || 0 }, info);
+  });
+}
+
+/** Klíč artiklu v rejstříku - číselně normalizovaný ("006716248", 6716248 i "6716248.0" → "6716248"). */
+function rzVyrazeneKey_(val) {
+  const text = String(val == null ? '' : val).trim();
+  const n = Number(text);
+  return text && !isNaN(n) ? String(n) : text;
+}
+
+/**
+ * Rejstřík vyřazení pro aktuální verzi souboru (podpis = ID + čas poslední úpravy).
+ * Když už je postavený, jen se přečte. Jinak ho postaví právě jeden běh - souběžná
+ * volání (víc artiklů zadaných za sebou, víc uživatelů) dostanou { building: true }
+ * místo toho, aby každé převádělo soubor znovu a nechávalo po sobě kopie.
+ */
+function rzVyrazeneIndex_(file, settings) {
+  const signature = file.getId() + ':' + file.getLastUpdated().getTime();
+  if (settings.vyrazeneIndexSignature === signature) return { map: rzReadVyrazeneIndex_() };
+
+  const cache = CacheService.getScriptCache();
+  if (cache.get(RZ_VYRAZENE_BUILD_KEY)) return { building: true };
+  cache.put(RZ_VYRAZENE_BUILD_KEY, '1', 600);
+  try {
+    // Mezitím ho mohl dostavět jiný běh.
+    if (rzSettingsAll_().vyrazeneIndexSignature === signature) return { map: rzReadVyrazeneIndex_() };
 
     const { headers, rows } = rzReadVyrazeneSourceFile_(file);
     const norm = (h) => String(h || '').trim().toUpperCase();
     const idxArtikl = headers.findIndex((h) => norm(h) === 'SHORT ARTICLE');
     const idxStore = headers.findIndex((h) => norm(h) === 'STORE');
-    if (idxArtikl === -1 || idxStore === -1) return {};
+    if (idxArtikl === -1 || idxStore === -1) return { badHeaders: true, headers: headers.slice(0, 30) };
 
-    const result = {};
+    const map = {};
     rows.forEach((row) => {
-      const match = wanted.find((c) => rzArtiklMatches_(row[idxArtikl], c));
-      if (!match) return;
+      const key = rzVyrazeneKey_(row[idxArtikl]);
       const store = String(row[idxStore] == null ? '' : row[idxStore]).trim();
-      if (!store) return;
-      if (!result[match]) result[match] = [];
-      if (result[match].indexOf(store) === -1) result[match].push(store);
+      if (!key || !store) return;
+      if (!map[key]) map[key] = [];
+      if (map[key].indexOf(store) === -1) map[key].push(store);
     });
+    rzWriteVyrazeneIndex_(map);
+    rzSettingsSet_('vyrazeneIndexSignature', signature);
 
-    try {
-      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 300);
-    } catch (e) { /* příliš velká data se prostě necachují */ }
-    return result;
+    // Úklid: převedené kopie (i staré zapomenuté z dřívějších verzí) už nejsou potřeba.
+    const parents = file.getParents();
+    const cleanupFailed = rzTrashVyrazeneCopies_([parents.hasNext() ? parents.next() : null, scriptFolder_()]);
+    return { map: map, cleanupFailed: cleanupFailed };
+  } finally {
+    try { cache.remove(RZ_VYRAZENE_BUILD_KEY); } catch (e) { /* příznak by stejně vypršel */ }
+  }
+}
+
+function rzVyrazeneIndexSheet_() {
+  const ss = rzRepo_().spreadsheet();
+  let sheet = ss.getSheetByName(RZ_VYRAZENE_INDEX_SHEET);
+  if (!sheet) { sheet = ss.insertSheet(RZ_VYRAZENE_INDEX_SHEET); applySheetFont_(sheet); }
+  return sheet;
+}
+
+/** Zapíše rejstřík: artikl | filiálky oddělené středníkem (jako text, ať je Sheets nepřevádí). */
+function rzWriteVyrazeneIndex_(map) {
+  const sheet = rzVyrazeneIndexSheet_();
+  const rows = Object.keys(map).map((k) => [k, map[k].join(';')]);
+  withLock_(() => {
+    sheet.clearContents();
+    sheet.getRange(1, 1, rows.length + 1, 2).setNumberFormat('@');
+    sheet.getRange(1, 1, 1, 2).setValues([['artikl', 'filialky']]);
+    if (rows.length) sheet.getRange(2, 1, rows.length, 2).setValues(rows);
   });
+}
+
+function rzReadVyrazeneIndex_() {
+  const sheet = rzVyrazeneIndexSheet_();
+  const lastRow = sheet.getLastRow();
+  const map = {};
+  if (lastRow < 2) return map;
+  sheet.getRange(2, 1, lastRow - 1, 2).getValues().forEach((r) => {
+    const key = rzVyrazeneKey_(r[0]);
+    if (key) map[key] = String(r[1] || '').split(';').filter((s) => s);
+  });
+  return map;
+}
+
+/** Přesune do koše všechny převedené kopie Vyřazených artiklů v daných složkách. Vrací počet, které smazat nešlo. */
+function rzTrashVyrazeneCopies_(folders) {
+  let failed = 0;
+  folders.forEach((folder) => {
+    if (!folder) return;
+    try {
+      const files = folder.getFilesByName(RZ_VYRAZENE_COPY_NAME);
+      while (files.hasNext()) {
+        const f = files.next();
+        try { f.setTrashed(true); } catch (e) { failed++; console.error('Kopii ' + f.getId() + ' se nepodařilo smazat: ' + e); }
+      }
+    } catch (e) {
+      console.error('Úklid kopií Vyřazených artiklů selhal: ' + e);
+    }
+  });
+  return failed;
 }
 
 /** Přečte první list Sheetu jako { headers, rows } - sdílené oběma větvemi rzReadVyrazeneSourceFile_. */
@@ -1085,47 +1185,26 @@ function rzReadSheetGrid_(sheet) {
 }
 
 /**
- * Přečte soubor Vyřazené artikly.
- *
- * Na rozdíl od ostatních 4 zdrojových souborů se čte ŽIVĚ při každém otevření
- * Rozdělovníku (schválně bez tlačítka Importovat), takže cena čtení je tady
- * mnohem citlivější než jinde:
- *  - nativní Google Sheet: čte se přímo, žádná kopie,
- *  - .csv: čte se přímo z blobu (rzReadSourceFile_ u CSV kopii nedělá),
- *  - .xlsx: musí se převést na Sheet, ale převedená kopie se DRŽÍ a používá
- *    se znovu, dokud se zdrojový soubor nezmění (klíč = ID + datum úpravy).
- *
- * Dřív se u .xlsx kopie vytvářela a rovnou zase mazala při KAŽDÉM načtení
- * appky - každé načtení tak stálo ~15 s navíc a při neúspěšném úklidu (viz
- * trashTempFile_) se kopie po ~100 kB hromadily v Disku.
+ * Přečte soubor Vyřazené artikly (volá se jen při stavbě rejstříku, tj. jednou na verzi):
+ *  - nativní Google Sheet a .csv: čte se přímo, bez kopie,
+ *  - .xlsx: převede se na Sheet do složky zdroje, přečte a kopie se hned přesune do koše.
  */
 function rzReadVyrazeneSourceFile_(file) {
   const mimeType = file.getMimeType();
   if (mimeType === MimeType.GOOGLE_SHEETS) return rzReadSheetGrid_(SpreadsheetApp.openById(file.getId()).getSheets()[0]);
   if (mimeType === MimeType.CSV) return rzReadSourceFile_(file);
 
-  const settings = rzSettingsAll_();
-  const signature = file.getId() + ':' + file.getLastUpdated().getTime();
-  const cachedId = settings.vyrazeneSheetId || '';
-  if (cachedId && settings.vyrazeneSheetSignature === signature) {
-    try {
-      return rzReadSheetGrid_(SpreadsheetApp.openById(cachedId).getSheets()[0]);
-    } catch (e) { /* převedená kopie zmizela/je neplatná - vytvoří se nová níže */ }
-  }
-
-  // Zdroj se změnil (nebo kopie chybí) - starou zahodit a převést znovu.
-  // Kopie se zakládá přímo do složky zdrojového souboru (ne do složky
-  // skriptu) - ať leží spolu s originálem, kde ji uvidí i lidé, kteří mají
-  // přístup jen do téhle složky, ne do celého Disku appky.
-  trashTempFile_(cachedId);
   const parents = file.getParents();
   const destFolder = parents.hasNext() ? parents.next() : scriptFolder_();
-  const copyMeta = { name: '__rz_vyrazene_sheet__', mimeType: 'application/vnd.google-apps.spreadsheet' };
+  const copyMeta = { name: RZ_VYRAZENE_COPY_NAME, mimeType: 'application/vnd.google-apps.spreadsheet' };
   if (destFolder) copyMeta.parents = [destFolder.getId()];
-  const copy = Drive.Files.copy(copyMeta, file.getId(), { supportsAllDrives: true });
-  rzSettingsSet_('vyrazeneSheetId', copy.id);
-  rzSettingsSet_('vyrazeneSheetSignature', signature);
-  return rzReadSheetGrid_(SpreadsheetApp.openById(copy.id).getSheets()[0]);
+  let copyId = null;
+  try {
+    copyId = Drive.Files.copy(copyMeta, file.getId(), { supportsAllDrives: true }).id;
+    return rzReadSheetGrid_(SpreadsheetApp.openById(copyId).getSheets()[0]);
+  } finally {
+    trashTempFile_(copyId);
+  }
 }
 
 /* ── Import zdrojových souborů (dynamické schéma) ────────────────

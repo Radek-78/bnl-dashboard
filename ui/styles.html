@@ -2257,6 +2257,19 @@
 
   /* Filiálka k datu závozu neotevřená / dočasně uzavřená: vyloučená z přídělu (is-blocked),
      nebo přidělovaná díky přepínači v horní liště (is-flagged) - důvod je v tooltipu. */
+  /* Upozornění nad Rozdělením, když se Vyřazené artikly neuplatňují nebo je soubor starý. */
+  .rz-vyr-banner {
+    border-radius: 6px;
+    flex-shrink: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 7px 12px;
+  }
+
+  .rz-vyr-banner.is-error { background: #fde8e8; border: 1px solid #f5b5b5; color: #9b1c1c; }
+  .rz-vyr-banner.is-warn  { background: #fff3e0; border: 1px solid #fcd9a8; color: #92400e; }
+  .rz-vyr-banner .button { margin-left: 8px; }
+
   /* Křížek u čísla prodejny - vyloučí filiálku ze všech artiklů; číslo zůstává uprostřed, křížek u pravého okraje. */
   .rzr-store-cell { position: relative; }
 

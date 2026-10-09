@@ -21,6 +21,9 @@
     skupiny: [],
     stores: [],
     vyrazene: {},
+    // Stav načtení Vyřazených artiklů (viz apiRzGetVyrazeneStores): loading | ok | not_configured |
+    // not_found | bad_headers | error. Dokud je loading, Rozdělení nic nepočítá ani neukládá (RW).
+    vyrazeneInfo: { status: 'loading' },
     _vyrazeneSig: '',
     // Dočasný přepínač "rozdělit na všechny filiálky" (i vyřazené, i Metropol)
     // pro VŠECHNY artikly najednou (checkbox u Prodejna v Rozdělení) -
@@ -126,19 +129,64 @@
      * (signature), ne po každém uložení Artiklů (to by zbytečně volalo server
      * i při editaci polí, která čísla artiklů vůbec nemění).
      */
-    loadVyrazene() {
+    loadVyrazene(force) {
       const cisla = [...new Set(this.artikly.map((a) => a && a.cislo_artiklu).filter((c) => c))];
       const sig = cisla.slice().sort().join(',');
-      if (sig === this._vyrazeneSig) return;
+      if (!force && sig === this._vyrazeneSig) return;
       this._vyrazeneSig = sig;
+      clearTimeout(this._vyrazeneRetry);
+      const rerender = () => { if (this.activeTab === 'rozdeleni') this.renderTabContent(); };
       if (!cisla.length) {
         this.vyrazene = {};
-        if (this.activeTab === 'rozdeleni') this.renderTabContent();
+        this.vyrazeneInfo = { status: 'ok' };
+        rerender();
         return;
       }
+      // Do odpovědi se Rozdělení nepočítá - jinak by se RW spočítalo a uložilo i pro filiálky,
+      // na kterých je artikl vyřazený, a po načtení by se rozdělilo méně, než má.
+      this.vyrazeneInfo = { status: 'loading' };
+      rerender();
       Ui.call('apiRzGetVyrazeneStores', cisla, { silent: true })
-        .then((map) => { this.vyrazene = map || {}; if (this.activeTab === 'rozdeleni') this.renderTabContent(); })
-        .catch((e) => Ui.toast(e.message, 'error'));
+        .then((res) => {
+          if (sig !== this._vyrazeneSig) return; // mezitím se sada artiklů změnila - platí novější volání
+          res = res || {};
+          // Rejstřík právě staví jiný běh (nová verze souboru) - za chvíli znovu.
+          if (res.status === 'building') { this._vyrazeneRetry = setTimeout(() => this.loadVyrazene(true), 4000); return; }
+          this.vyrazene = res.stores || {};
+          this.vyrazeneInfo = res;
+          rerender();
+        })
+        .catch((e) => {
+          if (sig !== this._vyrazeneSig) return;
+          this.vyrazene = {};
+          this.vyrazeneInfo = { status: 'error', message: e.message };
+          rerender();
+        });
+    },
+
+    /** Upozornění nad Rozdělením, když vyřazení nejde uplatnit nebo je soubor starý (viz vyrazeneInfo). */
+    _vyrazeneBannerHtml() {
+      const v = this.vyrazeneInfo || {};
+      const esc = (t) => Ui.escape(String(t || ''));
+      const file = v.fileName ? ' (' + esc(v.fileName) + (v.updatedAt ? ', ' + esc(Ui.formatDateTime(v.updatedAt)) : '') + ')' : '';
+      const off = '<b>Vyřazené artikly se neuplatňují</b> — rozděluje se i na filiálky, kde artikl není zalistovaný. ';
+      let html = '';
+      let level = 'is-error';
+      if (v.status === 'not_configured') html = off + 'V Nastavení není vyplněná složka nebo výraz v názvu souboru ExcludedArticles.';
+      else if (v.status === 'not_found') html = off + 'Ve složce není soubor s výrazem „' + esc(v.pattern) + '“ v názvu.';
+      else if (v.status === 'bad_headers') html = off + 'Soubor' + file + ' nemá sloupce „Short Article“ a „Store“.';
+      else if (v.status === 'error') html = off + 'Soubor se nepodařilo přečíst: ' + esc(v.message);
+      else if (v.status === 'ok' && v.stale) {
+        level = 'is-warn';
+        html = '<b>Soubor Vyřazených artiklů je starší než týden</b>' + file + ' — zkontrolujte, zda nemá být nahraný novější.';
+      }
+      if (v.status === 'ok' && v.cleanupFailed > 0) {
+        level = level === 'is-error' && html ? level : 'is-warn';
+        html += (html ? '<br>' : '') + 'Ve složce zůstalo ' + v.cleanupFailed + ' převedených kopií __rz_vyrazene_sheet__, které aplikace nemohla smazat (chybí oprávnění k mazání ve složce) — smažte je prosím ručně.';
+      }
+      if (!html) return '';
+      return '<div class="rz-vyr-banner ' + level + '">' + html +
+        (level === 'is-error' ? ' <button type="button" class="button button-secondary button-small" id="rzVyrRetry">Zkusit znovu</button>' : '') + '</div>';
     },
 
     loadSkupiny() {
@@ -1001,6 +1049,7 @@
           Ui.toast('Nahráno souborů: ' + files.length + '.');
           this.loadVyrazeneSyncFiles();
           this.loadImportOverview();
+          this.loadVyrazene(true); // nová verze souboru - Rozdělení musí počítat s ní, ne se starou
           return;
         }
         const file = files[i];
@@ -1019,7 +1068,7 @@
       Ui.confirm({
         kicker: 'Import dat',
         title: 'Smazat soubor?',
-        message: 'Soubor „' + name + '" se přesune do koše na Disku. Naimportovaná data v appce zůstanou beze změny, dokud znovu nekliknete na Importovat.',
+        message: 'Soubor „' + name + '" se přesune do koše na Disku. Rozdělení pak hned použije nejnovější zbývající soubor Vyřazených artiklů (není-li žádný, vyřazení se přestane uplatňovat).',
         confirmLabel: 'Smazat',
       }).then((confirmed) => {
         if (!confirmed) return;
@@ -1028,6 +1077,7 @@
             Ui.toast('Soubor byl smazán.');
             this.loadVyrazeneSyncFiles();
             this.loadImportOverview();
+            this.loadVyrazene(true);
           })
           .catch((e) => Ui.toast(e.message, 'error'));
       });
@@ -1041,7 +1091,7 @@
       Ui.confirm({
         kicker: 'Import dat',
         title: 'Smazat vybrané soubory?',
-        message: 'Vybraných souborů (' + ids.length + ') se přesune do koše na Disku. Naimportovaná data v appce zůstanou beze změny, dokud znovu nekliknete na Importovat.',
+        message: 'Vybraných souborů (' + ids.length + ') se přesune do koše na Disku. Rozdělení pak hned použije nejnovější zbývající soubor Vyřazených artiklů (není-li žádný, vyřazení se přestane uplatňovat).',
         confirmLabel: 'Smazat',
       }).then((confirmed) => {
         if (!confirmed) return;
@@ -1052,6 +1102,7 @@
               errs.length ? 'error' : undefined);
             this.loadVyrazeneSyncFiles();
             this.loadImportOverview();
+            this.loadVyrazene(true);
           })
           .catch((e) => Ui.toast(e.message, 'error'));
       });
@@ -1307,9 +1358,10 @@
       const savedScrollTop = prevScrollEl ? prevScrollEl.scrollTop : 0;
 
       const artikly = this.artikly.filter((a) => a && a.cislo_artiklu);
-      if (!this.stores.length || this.rozdeleni === null || !artikly.length) {
+      if (!this.stores.length || this.rozdeleni === null || !artikly.length || (this.vyrazeneInfo || {}).status === 'loading') {
         el.innerHTML = '<section class="panel"><div class="panel-body"><p class="form-hint">' +
-          (!artikly.length ? 'Nejsou vyplněné žádné artikly — doplňte je v záložce Artikly.' : 'Načítám…') +
+          (!artikly.length ? 'Nejsou vyplněné žádné artikly — doplňte je v záložce Artikly.'
+            : (this.vyrazeneInfo || {}).status === 'loading' ? 'Načítám vyřazené artikly (ExcludedArticles)…' : 'Načítám…') +
           '</p></div></section>';
         return;
       }
@@ -1444,6 +1496,7 @@
       }).join('');
 
       el.innerHTML =
+        this._vyrazeneBannerHtml() +
         '<div class="rzr-scroll rz-compact">' +
         '  <div class="rzr-frozen">' +
         '    <div class="rzr-frozen-head">' +
@@ -1520,6 +1573,9 @@
           this._hoverStore = null;
         });
       }
+
+      const vyrRetry = el.querySelector('#rzVyrRetry');
+      if (vyrRetry) vyrRetry.addEventListener('click', () => this.loadVyrazene(true));
 
       // Globální přepínač nezávisí na canWrite - nic neukládá, jen mění
       // pohled na aktuálně dopočítané hodnoty (viz _ignoreVyrazeniGlobal).
