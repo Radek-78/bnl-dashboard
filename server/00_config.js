@@ -8,8 +8,8 @@
 const CONFIG = {
   defaultAppName: 'Výchozí aplikace',
   defaultAppSubtitle: '',
-  version: 'v3.1.165',
-  releaseDate: '8.10.2026',
+  version: 'v3.1.166',
+  releaseDate: '9.10.2026',
   logoUrl: 'https://drive.google.com/thumbnail?id=18mu_Lq1F_FqqSZcolMjLwG0aaQDPMdyD&sz=w320',
   defaultSyncFolderUrl: 'https://drive.google.com/drive/folders/1DX1VFWt5fAztALgMdVGJvLwQEjm-t83B?lfhs=2',
   // Stejný font jako ve stylesheetu appky (--font v ui/styles.html) - viz applySheetFont_ v 10_util.js.

@@ -424,10 +424,15 @@ function syncStores_(ss, settings) {
     }
   });
 
-  // Datum otevření jako prostý text - jinak by ho Sheets převedl na datum a při čtení posunul o časové pásmo.
+  // Datum otevření a textové údaje jako prostý text - jinak by Sheets text, který vypadá jako datum
+  // (název filiálky nebo ulice "28. října"), při zápisu převedl na datum.
   const storesSheet = dbSheet_(SHEETS.STORES);
-  const openingCol = DB_SCHEMA[SHEETS.STORES].indexOf('opening_date') + 1;
-  if (storesSheet.getMaxRows() > 1) storesSheet.getRange(2, openingCol, storesSheet.getMaxRows() - 1, 1).setNumberFormat('@');
+  if (storesSheet.getMaxRows() > 1) {
+    ['opening_date', 'name', 'street', 'city', 'area_manager', 'regional_manager', 'deputy_rm'].forEach((f) => {
+      const col = DB_SCHEMA[SHEETS.STORES].indexOf(f) + 1;
+      storesSheet.getRange(2, col, storesSheet.getMaxRows() - 1, 1).setNumberFormat('@');
+    });
+  }
 
   dbBatchReplace_(SHEETS.STORES, newRecords);
   return stats;
@@ -524,12 +529,17 @@ function parseSheetRows_(sheet, colMap) {
     if (idx !== -1) colIndices[colMap[xlsxHeader]] = idx;
   });
 
-  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  const range = sheet.getRange(2, 1, lastRow - 1, lastCol);
+  const data = range.getValues();
+  // Zobrazený text buněk - když Sheets text s datem (název/ulice "28. října") sám převede
+  // na datum, vezme se přesně to, co je ve zdroji vidět, ne prázdná hodnota.
+  const display = range.getDisplayValues();
   return data
-    .map((row) => {
+    .map((row, ri) => {
       const record = {};
       Object.keys(colIndices).forEach((dbField) => {
-        record[dbField] = formatCellValue_(row[colIndices[dbField]]);
+        const ci = colIndices[dbField];
+        record[dbField] = formatCellValue_(row[ci], display[ri][ci]);
       });
       return record;
     })
@@ -612,15 +622,17 @@ function normalizeIsoDate_(val) {
 /**
  * Převede hodnotu buňky na string.
  * Časové buňky (h:mm) GAS vrací jako Date s datem 30.12.1899 — formátujeme jako "H:mm".
+ * Jiné datum je text, který Sheets sám převedl na datum (např. název filiálky nebo ulice
+ * "28. října") - vrací se zobrazený text buňky (displayVal), nikdy prázdná hodnota.
  */
-function formatCellValue_(val) {
+function formatCellValue_(val, displayVal) {
   if (val instanceof Date) {
     if (val.getFullYear() === 1899 && val.getMonth() === 11 && val.getDate() === 30) {
       const h = val.getHours();
       const m = val.getMinutes();
       return h + ':' + (m < 10 ? '0' + m : m);
     }
-    return '';
+    return displayVal !== undefined && displayVal !== null ? String(displayVal).trim() : '';
   }
   const str = (val !== undefined && val !== null) ? String(val).trim() : '';
   // Normalizace časového formátu "07:00" → "7:00" (h:mm)

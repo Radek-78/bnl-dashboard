@@ -1314,10 +1314,12 @@ function apiRzSaveImportTable(payload) {
 
 /** Zapíše mřížku exportu (viz apiRzExportWb) do listu - hodnoty, zvýraznění vyplněných sloupců artiklů a font appky. Sdílené mezi listem WB v DB i samostatným souborem v Export složce, ať vypadají identicky. */
 function rzWriteExportGrid_(sheet, grid, filledCount) {
-  sheet.getRange(1, 1, grid.length, grid[0].length).setValues(grid);
-  applySheetFont_(sheet);
   const headerRows = 7;
   const storesCount = grid.length - headerRows;
+  // Názvy filiálek (sloupec C) jako prostý text - jinak by Sheets název s datem ("28. října") převedl na datum.
+  if (storesCount > 0) sheet.getRange(headerRows + 1, 3, storesCount, 1).setNumberFormat('@');
+  sheet.getRange(1, 1, grid.length, grid[0].length).setValues(grid);
+  applySheetFont_(sheet);
   if (filledCount > 0 && storesCount > 0) {
     sheet.getRange(headerRows + 1, 4, storesCount, filledCount).setBackground('#00e5e5');
   }
